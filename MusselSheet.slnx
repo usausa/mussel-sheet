@@ -1,9 +1,14 @@
 <Solution>
   <Folder Name="/Example/">
+    <Project Path="Example.Client/Example.Client.csproj" />
+    <Project Path="Example/Example.csproj" DefaultStartup="true" />
   </Folder>
   <Folder Name="/Library/">
+    <Project Path="MusselSheet/MusselSheet.csproj" />
   </Folder>
   <Folder Name="/Tests/">
+    <Project Path="MusselSheet.E2ETests/MusselSheet.E2ETests.csproj" />
+    <Project Path="MusselSheet.Tests/MusselSheet.Tests.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />

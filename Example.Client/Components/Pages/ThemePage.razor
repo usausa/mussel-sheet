@@ -1,0 +1,78 @@
+@page "/theme"
+
+<SampleFrame Title="Theme" Page="typeof(ThemePage)" Log="log">
+    <Description><code>--mussel-*</code> works on any container, <code>--mussel-sheet-*</code> on the sheet.</Description>
+    <Controls>
+        <MudRadioGroup T="SampleTheme" @bind-Value="current">
+            @foreach (var theme in Themes)
+            {
+                <MudRadio T="SampleTheme" Value="theme" Size="Size.Small" Color="Color.Primary" Dense="true">@theme.Name</MudRadio>
+            }
+        </MudRadioGroup>
+    </Controls>
+    <ChildContent>
+        <div class="@current.ContainerClass">
+            <MusselSheetView class="@current.SheetClass"
+                             Sheet="sheet"
+                             CellCommitted="log.OnCellCommitted"
+                             ActiveCellChanged="log.OnActiveCellChanged"
+                             SelectionChanged="log.OnSelectionChanged"
+                             MenuItemClicked="log.OnMenuItemClicked" />
+        </div>
+    </ChildContent>
+</SampleFrame>
+
+<style>
+    /* Shared with MusselChart: set on a container */
+    .theme-slate {
+        --mussel-primary-text: #1b3a57;
+        --mussel-secondary-text: #4a6a8a;
+        --mussel-muted-text: #7d93a8;
+        --mussel-grid-line: #b8cde0;
+        --mussel-tooltip-background: #f4f8fb;
+        --mussel-tooltip-border: #b8cde0;
+        --mussel-tooltip-text: #1b3a57;
+        --mussel-critical: #b3261e;
+    }
+
+    /* For the sheet only: set on the sheet */
+    .theme-green {
+        --mussel-sheet-header-bg: #e6f4ea;
+        --mussel-sheet-active-color: #188038;
+        --mussel-sheet-selection-bg: rgb(24 128 56 / 10%);
+        --mussel-sheet-focus-bg: #e6f4ea;
+        --mussel-sheet-readonly-bg: #f1f8f3;
+        --mussel-sheet-saturday-color: #188038;
+        --theme-label-bg: #cfe8d6;
+    }
+
+    /* A dark sheet: both groups, set on the sheet */
+    .theme-dark {
+        --mussel-primary-text: #f0efec;
+        --mussel-secondary-text: #c3c2b7;
+        --mussel-muted-text: #8e8c86;
+        --mussel-grid-line: #383835;
+        --mussel-tooltip-background: #1f1f1d;
+        --mussel-tooltip-border: #4a4a46;
+        --mussel-tooltip-text: #f0efec;
+        --mussel-critical: #ff6b7a;
+        --mussel-sheet-cell-bg: #181816;
+        --mussel-sheet-header-bg: #232321;
+        --mussel-sheet-border-color: #8e8c86;
+        --mussel-sheet-readonly-bg: #232321;
+        --mussel-sheet-active-color: #5b9dff;
+        --mussel-sheet-selection-bg: rgb(91 157 255 / 20%);
+        --mussel-sheet-focus-bg: #1e3a5f;
+        --mussel-sheet-saturday-color: #5b9dff;
+        --mussel-sheet-sunday-color: #ff6b7a;
+        --mussel-sheet-note-bg: #3b3820;
+        --mussel-sheet-note-color: #f0efec;
+        --mussel-sheet-note-border: #5c5833;
+        --theme-label-bg: #2c2c2a;
+    }
+
+    .theme-label {
+        background: var(--theme-label-bg, #eef2f7);
+        font-weight: 600;
+    }
+</style>

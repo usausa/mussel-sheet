@@ -1,0 +1,8 @@
+<MudExpansionPanels MultiExpansion="true" Class="sample-source mt-2" Outlined="true" Elevation="0" Dense="true">
+    @foreach (var file in files)
+    {
+        <MudExpansionPanel Text="@file.Name" Gutters="false">
+            <pre>@file.Text</pre>
+        </MudExpansionPanel>
+    }
+</MudExpansionPanels>

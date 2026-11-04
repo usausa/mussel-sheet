@@ -1,0 +1,18 @@
+@page "/japanese-form"
+
+<SampleFrame Title="Japanese Form(請求書)" Page="typeof(JapaneseFormPage)" Log="log" ExtraFiles="ReportFiles">
+    <Description>和暦・マスク・カタカナ変換・計算セルの請求書。PDF は <code>OysterReport</code> で作成。</Description>
+    <Controls>
+        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf" OnClick="CreatePdfAsync">PDF を作成</MudButton>
+        <LanguageSwitch />
+    </Controls>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         ShowRowHeaders="false"
+                         ShowColumnHeaders="false"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>

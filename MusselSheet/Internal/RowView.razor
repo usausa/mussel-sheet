@@ -1,0 +1,33 @@
+@* Cells are plain elements, not components, to keep rendering of a large sheet cheap *@
+@* Row header and frozen-column cells sit directly under the row; the rest go in .mussel-sheet-rest, so frozen columns can be layered above the active cell frame and similar elements. *@
+@{ Remember(); }
+<div class="mussel-sheet-row" style="@RowStyle" data-r="@Row.Index" role="row" aria-rowindex="@Owner.AriaRowIndex(Row.Index)">
+    @if (Owner.ShowRowHeaders)
+    {
+        <div class="mussel-sheet-rowhead" role="rowheader" aria-colindex="1">@Row.HeaderText</div>
+    }
+    @for (var c = 0; c < Frozen; c++)
+    {
+        @CellFragment(c)
+    }
+    <div class="@(Owner.HasTallMerge(Row.Index) ? "mussel-sheet-rest mussel-sheet-tall" : "mussel-sheet-rest")" role="none">
+        @for (var c = Math.Max(Owner.RestFirst, Frozen); c <= Owner.RestLast; c++)
+        {
+            @CellFragment(c)
+        }
+    </div>
+</div>
+
+@code {
+    private RenderFragment CellFragment(int c)
+    {
+        var cell = Owner.GetCellView(Row.Index, c);
+        if (cell.Covered)
+        {
+            // Covered by a merged range: the top-left cell is drawn over this one
+            return @<div class="@cell.Class" data-c="@c" aria-hidden="true"></div>;
+        }
+
+        return @<div class="@cell.Class" role="gridcell" aria-colindex="@Owner.AriaColumnIndex(c)" aria-rowspan="@cell.RowSpan" aria-colspan="@cell.ColumnSpan" aria-readonly="@(cell.ReadOnly is null ? null : "true")" aria-invalid="@(cell.Error is null ? null : "true")" data-c="@c" data-kind="@cell.Kind" data-ro="@cell.ReadOnly" data-ime="@cell.Ime" data-edit="@cell.Edit" title="@cell.Error" style="@cell.Style">@if (cell.Check is not null) {<span class="@cell.Check">@cell.Text</span>} else if (cell.Custom) {@Owner.RenderCustomDisplay(Row.Index, c)} else {@cell.Text}</div>;
+    }
+}

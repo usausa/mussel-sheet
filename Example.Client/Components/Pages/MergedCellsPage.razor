@@ -1,0 +1,12 @@
+@page "/merged-cells"
+
+<SampleFrame Title="Merged Cells" Page="typeof(MergedCellsPage)" Log="log">
+    <Description>Keys treat a merged range as one cell.</Description>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         CellCommitted="OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>

@@ -1,0 +1,20 @@
+@page "/input-assist"
+
+<SampleFrame Title="Input Assist" Page="typeof(InputAssistPage)" Log="log">
+    <Description><code>MoveGroup</code> cycles Enter and Tab inside B2:D3 and F2:F3. <code>ShowChanges</code> marks changed cells.</Description>
+    <Controls>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="AcceptChanges">Mark as saved</MudButton>
+    </Controls>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         ShowChanges="true"
+                         MoveAfterReturnDirection="SheetMoveDirection.Right"
+                         CellCommitted="OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+    <Output>
+        <p class="sample-note sample-changed">Changed cells: @ChangedCells()</p>
+    </Output>
+</SampleFrame>

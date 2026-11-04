@@ -1,0 +1,12 @@
+@page "/cell-kinds"
+
+<SampleFrame Title="Cell Kinds" Page="typeof(CellKindsPage)" Log="log">
+    <Description><code>Configure</code> sets the kind and the rules of a range.</Description>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>

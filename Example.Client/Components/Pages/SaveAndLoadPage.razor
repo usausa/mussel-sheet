@@ -1,0 +1,22 @@
+@page "/save-and-load"
+
+<SampleFrame Title="Save and Load" Page="typeof(SaveAndLoadPage)" Log="log">
+    <Description><code>ToDesign</code> and <code>SheetDesignJson</code> save the design as JSON.</Description>
+    <Controls>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => Save(false)">Save the design as JSON</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => Save(true)">Save with the values</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Disabled="@(json.Length == 0)" OnClick="Load">Load from the JSON</MudButton>
+    </Controls>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         AllowInsertRows="true"
+                         AllowDeleteRows="true"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+    <Output>
+        <pre class="sample-model">@(json.Length == 0 ? "(not saved yet)" : json)</pre>
+    </Output>
+</SampleFrame>

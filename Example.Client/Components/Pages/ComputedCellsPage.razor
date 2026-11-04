@@ -1,0 +1,17 @@
+@page "/computed-cells"
+
+<SampleFrame Title="Computed Cells" Page="typeof(ComputedCellsPage)" Log="log">
+    <Description><code>Compute</code> and <code>ComputeRows</code> recalculate when a watched cell changes.</Description>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         LastRowEnterMode="SheetLastRowEnterMode.AddRow"
+                         AllowInsertRows="true"
+                         AllowDeleteRows="true"
+                         RowsInserting="OnRowsInserting"
+                         RowsDeleting="OnRowsDeleting"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>

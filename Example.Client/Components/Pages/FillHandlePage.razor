@@ -1,0 +1,16 @@
+@page "/fill-handle"
+
+<SampleFrame Title="Fill Handle" Page="typeof(FillHandlePage)" Log="log">
+    <Description>Drag or double-click the corner of the selection. Ctrl swaps copy and series.</Description>
+    <Controls>
+        <MudCheckBox @bind-Value="fillHandleEnabled" Label="FillHandleEnabled" Size="Size.Small" Color="Color.Primary" Dense="true" />
+    </Controls>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         FillHandleEnabled="fillHandleEnabled"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>

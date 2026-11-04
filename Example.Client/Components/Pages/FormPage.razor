@@ -1,0 +1,17 @@
+@page "/form"
+
+<SampleFrame Title="Form" Page="typeof(FormPage)" Log="log">
+    <Description>Enter on the last detail row adds a row, up to 10.</Description>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         LastRowEnterMode="SheetLastRowEnterMode.AddRow"
+                         AllowInsertRows="true"
+                         AllowDeleteRows="true"
+                         RowsInserting="OnRowsInserting"
+                         RowsDeleting="OnRowsDeleting"
+                         CellCommitted="OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>

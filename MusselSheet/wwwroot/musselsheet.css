@@ -1,0 +1,773 @@
+/* ---- Variables ---- */
+
+/* :where keeps the specificity at zero, so an app can override these from any selector in any file order */
+:where(.mussel-sheet) {
+    /* Shared with MusselChart: set them on any container to theme both libraries */
+    --mussel-sheet-text-color: var(--mussel-primary-text, #1f2328);
+    --mussel-sheet-header-color: var(--mussel-secondary-text, #57606a);
+    --mussel-sheet-readonly-color: var(--mussel-secondary-text, #57606a);
+    --mussel-sheet-muted-color: var(--mussel-muted-text, #8c959f);
+    --mussel-sheet-grid-color: var(--mussel-grid-line, #d0d7de);
+    --mussel-sheet-error-color: var(--mussel-critical, #d93025);
+    --mussel-sheet-popup-bg: var(--mussel-tooltip-background, #fff);
+    --mussel-sheet-popup-border: var(--mussel-tooltip-border, #d0d7de);
+    --mussel-sheet-popup-color: var(--mussel-tooltip-text, #1f2328);
+    --mussel-sheet-font: 13px/1.2 var(--mussel-font-family, "Segoe UI", "Yu Gothic UI", Meiryo, system-ui, sans-serif);
+
+    /* Sheet only */
+    --mussel-sheet-cell-bg: #fff;
+    --mussel-sheet-header-bg: #f6f8fa;
+    --mussel-sheet-border-color: #1f2328;
+    --mussel-sheet-readonly-bg: #f3f4f6;
+    --mussel-sheet-active-color: #1a73e8;
+    --mussel-sheet-inactive-color: #8c959f;
+    --mussel-sheet-selection-bg: rgb(26 115 232 / 10%);
+    --mussel-sheet-selection-border: var(--mussel-sheet-active-color);
+    --mussel-sheet-fill-range-color: #5f6368;
+    --mussel-sheet-check-size: 18px;
+    --mussel-sheet-check-color: var(--mussel-sheet-active-color);
+    --mussel-sheet-check-border: #8c959f;
+    --mussel-sheet-popup-shadow: 0 4px 14px rgb(0 0 0 / 16%);
+    --mussel-sheet-focus-bg: #e8f0fe;
+    --mussel-sheet-sunday-color: #d93025;
+    --mussel-sheet-saturday-color: #1a73e8;
+    --mussel-sheet-outer-border: 1px solid var(--mussel-sheet-grid-color);
+    --mussel-sheet-grid-line: var(--mussel-sheet-grid-color);
+    --mussel-sheet-freeze-color: #8c959f;
+    --mussel-sheet-note-bg: #fffde7;
+    --mussel-sheet-note-color: #3d3a1f;
+    --mussel-sheet-note-border: #e3dca5;
+    --mussel-sheet-changed-color: #1a73e8;
+}
+
+/* No dark theme yet: inside .mussel-dark of MusselChart the sheet keeps its light colors, not light text on white cells */
+:where(.mussel-dark) :where(.mussel-sheet) {
+    --mussel-primary-text: initial;
+    --mussel-secondary-text: initial;
+    --mussel-muted-text: initial;
+    --mussel-grid-line: initial;
+    --mussel-tooltip-background: initial;
+    --mussel-tooltip-border: initial;
+    --mussel-tooltip-text: initial;
+    --mussel-critical: initial;
+}
+
+/* ---- Sheet and scroll area ---- */
+
+.mussel-sheet {
+    position: relative;
+    isolation: isolate;
+    box-sizing: border-box;
+    border: var(--mussel-sheet-outer-border);
+    background: var(--mussel-sheet-cell-bg);
+    color: var(--mussel-sheet-text-color);
+    font: var(--mussel-sheet-font);
+    letter-spacing: normal;
+}
+
+.mussel-sheet.mussel-sheet-nogrid {
+    --mussel-sheet-grid-line: transparent;
+}
+
+.mussel-sheet-viewport {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+}
+
+.mussel-sheet.mussel-sheet-autosize .mussel-sheet-viewport {
+    overflow: visible;
+}
+
+.mussel-sheet-content {
+    position: relative;
+}
+
+.mussel-sheet-row,
+.mussel-sheet-colhead,
+.mussel-sheet-rest {
+    display: grid;
+}
+
+/* Cell height follows the row, so tall content (thick borders, etc.) cannot spill out of the row or overlap the row below a frozen row. */
+.mussel-sheet-row,
+.mussel-sheet-rest {
+    grid-template-rows: 100%;
+}
+
+.mussel-sheet-top {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+}
+
+.mussel-sheet.mussel-sheet-frozen-rows .mussel-sheet-top {
+    box-shadow: 0 1px 0 var(--mussel-sheet-freeze-color);
+}
+
+/* Size comes from --mussel-sheet-merge-w and --mussel-sheet-merge-h, written in a per-instance <style> */
+.mussel-sheet-cell.mussel-sheet-merge {
+    position: relative;
+    z-index: 1;
+    width: var(--mussel-sheet-merge-w);
+    height: var(--mussel-sheet-merge-h);
+    line-height: calc(var(--mussel-sheet-merge-h) - 1px);
+    --mussel-sheet-row-h: var(--mussel-sheet-merge-h);
+}
+
+.mussel-sheet-cell.mussel-sheet-merge.mussel-sheet-va-t,
+.mussel-sheet-cell.mussel-sheet-merge.mussel-sheet-va-b,
+.mussel-sheet-cell.mussel-sheet-merge.mussel-sheet-ml {
+    line-height: 1.4;
+}
+
+.mussel-sheet-cell.mussel-sheet-covered {
+    border-color: transparent;
+    background: transparent;
+}
+
+/* A row holding a row-spanning merge keeps rendering so the merged cell can overflow the row */
+.mussel-sheet-rest.mussel-sheet-tall {
+    content-visibility: visible;
+}
+
+/* Off-screen rows skip rendering, but only for these non-frozen cells. Row headers and frozen-column cells stay outside so they can stack above the active frame; on the whole row, containment would close the stacking order inside the row. */
+.mussel-sheet-rest {
+    content-visibility: auto;
+}
+
+/* ---- Frozen panes ---- */
+
+/* Zero-size sticky containers for JS-owned elements over frozen panes; children use sheet coordinates. Stacking: frames (1) < row header, frozen columns (2) < frozen-column frames (3) < column header, frozen rows (4) < frozen-row sink (5, 6). */
+.mussel-sheet-pane {
+    position: sticky;
+    width: 0;
+    height: 0;
+}
+
+.mussel-sheet-pane-l {
+    left: 0;
+    z-index: 3;
+}
+
+.mussel-sheet-pane-ts {
+    top: 0;
+    z-index: 5;
+}
+
+.mussel-sheet-pane-tls {
+    top: 0;
+    left: 0;
+    z-index: 6;
+}
+
+/* The page scrolls a sheet without a height: the column headers can stop below a fixed page header */
+.mussel-sheet-autosize .mussel-sheet-top,
+.mussel-sheet-autosize .mussel-sheet-pane-ts,
+.mussel-sheet-autosize .mussel-sheet-pane-tls {
+    top: var(--mussel-sheet-sticky-top, 0);
+}
+
+.mussel-sheet-pane-t {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+.mussel-sheet-pane-tl {
+    left: 0;
+    z-index: 3;
+}
+
+/* ---- Cells and headers ---- */
+
+.mussel-sheet-cell,
+.mussel-sheet-rowhead,
+.mussel-sheet-colhead-cell,
+.mussel-sheet-corner {
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 0 4px;
+    overflow: hidden;
+    border-right: 1px solid var(--mussel-sheet-grid-line);
+    border-bottom: 1px solid var(--mussel-sheet-grid-line);
+    white-space: nowrap;
+}
+
+.mussel-sheet-rowhead,
+.mussel-sheet-colhead-cell,
+.mussel-sheet-corner {
+    border-color: var(--mussel-sheet-grid-color);
+    background: var(--mussel-sheet-header-bg);
+    color: var(--mussel-sheet-header-color);
+    font-size: 12px;
+    text-align: center;
+    user-select: none;
+}
+
+.mussel-sheet-rowhead,
+.mussel-sheet-corner {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+
+.mussel-sheet-corner {
+    z-index: 4;
+}
+
+.mussel-sheet-cell {
+    background: var(--mussel-sheet-cell-bg);
+    cursor: cell;
+    user-select: none;
+}
+
+/* ---- Alignment and decorations ---- */
+
+.mussel-sheet-ha-c {
+    text-align: center;
+}
+
+.mussel-sheet-ha-r {
+    text-align: right;
+}
+
+.mussel-sheet-va-t {
+    line-height: 1.4;
+}
+
+.mussel-sheet-va-b {
+    padding-top: max(0px, calc(var(--mussel-sheet-row-h) - 1px - 1.4em));
+    line-height: 1.4;
+}
+
+.mussel-sheet-b {
+    font-weight: 600;
+}
+
+.mussel-sheet-i {
+    font-style: italic;
+}
+
+.mussel-sheet-u {
+    text-decoration-line: underline;
+}
+
+.mussel-sheet-s {
+    text-decoration-line: line-through;
+}
+
+.mussel-sheet-u.mussel-sheet-s {
+    text-decoration-line: underline line-through;
+}
+
+.mussel-sheet-cell.mussel-sheet-ml {
+    padding-top: 2px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.mussel-sheet-ro {
+    background: var(--mussel-sheet-readonly-bg);
+    color: var(--mussel-sheet-readonly-color);
+}
+
+.mussel-sheet-error {
+    box-shadow: inset 0 0 0 2px var(--mussel-sheet-error-color);
+}
+
+.mussel-sheet-cell.mussel-sheet-changed {
+    background-image: linear-gradient(135deg, var(--mussel-sheet-changed-color) 0 5px, transparent 5px);
+}
+
+/* ---- Checkbox ---- */
+
+/* Only a click on this element toggles. Its vertical position comes from the row height, because vertical-align: middle follows the font baseline and drifts down with some fonts. */
+.mussel-sheet-cb,
+.mussel-sheet-ct {
+    display: inline-block;
+    box-sizing: border-box;
+    margin-top: calc((var(--mussel-sheet-row-h) - 1px - var(--mussel-sheet-check-size)) / 2);
+    vertical-align: top;
+    cursor: pointer;
+}
+
+.mussel-sheet-va-t > .mussel-sheet-cb,
+.mussel-sheet-va-t > .mussel-sheet-ct {
+    margin-top: 0;
+}
+
+.mussel-sheet-va-b > .mussel-sheet-cb,
+.mussel-sheet-va-b > .mussel-sheet-ct {
+    margin-top: calc(1.4em - var(--mussel-sheet-check-size));
+}
+
+.mussel-sheet-cb {
+    position: relative;
+    width: var(--mussel-sheet-check-size);
+    height: var(--mussel-sheet-check-size);
+    border: 2px solid var(--mussel-sheet-check-border);
+    border-radius: 3px;
+    background: var(--mussel-sheet-cell-bg);
+    font-size: 0;
+}
+
+.mussel-sheet-cb:hover {
+    border-color: var(--mussel-sheet-check-color);
+}
+
+.mussel-sheet-cb.mussel-sheet-on {
+    border-color: var(--mussel-sheet-check-color);
+    background: var(--mussel-sheet-check-color);
+}
+
+.mussel-sheet-cb.mussel-sheet-on::after {
+    position: absolute;
+    top: 42%;
+    left: 50%;
+    width: 30%;
+    height: 58%;
+    box-sizing: border-box;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    content: "";
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.mussel-sheet-ct {
+    min-width: var(--mussel-sheet-check-size);
+    min-height: var(--mussel-sheet-check-size);
+    line-height: var(--mussel-sheet-check-size);
+}
+
+.mussel-sheet-ro .mussel-sheet-cb,
+.mussel-sheet-ro .mussel-sheet-ct {
+    opacity: 0.55;
+    cursor: default;
+}
+
+/* ---- Borders ---- */
+
+/* Neighboring cells share one border line, so it is normally drawn by the right and bottom sides. Colors are set by generated CSS (e.g. brc0). */
+.mussel-sheet-br-thin { border-right: 1px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-br-medium { border-right: 2px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-br-thick { border-right: 3px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-br-dashed { border-right: 1px dashed var(--mussel-sheet-border-color); }
+.mussel-sheet-br-dotted { border-right: 1px dotted var(--mussel-sheet-border-color); }
+.mussel-sheet-br-double { border-right: 3px double var(--mussel-sheet-border-color); }
+.mussel-sheet-bb-thin { border-bottom: 1px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-bb-medium { border-bottom: 2px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-bb-thick { border-bottom: 3px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-bb-dashed { border-bottom: 1px dashed var(--mussel-sheet-border-color); }
+.mussel-sheet-bb-dotted { border-bottom: 1px dotted var(--mussel-sheet-border-color); }
+.mussel-sheet-bb-double { border-bottom: 3px double var(--mussel-sheet-border-color); }
+.mussel-sheet-bl-thin { border-left: 1px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-bl-medium { border-left: 2px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-bl-thick { border-left: 3px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-bl-dashed { border-left: 1px dashed var(--mussel-sheet-border-color); }
+.mussel-sheet-bl-dotted { border-left: 1px dotted var(--mussel-sheet-border-color); }
+.mussel-sheet-bl-double { border-left: 3px double var(--mussel-sheet-border-color); }
+.mussel-sheet-bt-thin { border-top: 1px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-bt-medium { border-top: 2px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-bt-thick { border-top: 3px solid var(--mussel-sheet-border-color); }
+.mussel-sheet-bt-dashed { border-top: 1px dashed var(--mussel-sheet-border-color); }
+.mussel-sheet-bt-dotted { border-top: 1px dotted var(--mussel-sheet-border-color); }
+.mussel-sheet-bt-double { border-top: 3px double var(--mussel-sheet-border-color); }
+
+/* ---- Active frame, selection and fill handle ---- */
+
+.mussel-sheet-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    width: 0;
+    height: 0;
+}
+
+.mussel-sheet-active {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid var(--mussel-sheet-inactive-color);
+    pointer-events: none;
+}
+
+.mussel-sheet:focus-within .mussel-sheet-active {
+    border-color: var(--mussel-sheet-active-color);
+}
+
+.mussel-sheet-cap {
+    position: absolute;
+    background: var(--mussel-sheet-inactive-color);
+    pointer-events: none;
+}
+
+.mussel-sheet:focus-within .mussel-sheet-cap {
+    background: var(--mussel-sheet-active-color);
+}
+
+.mussel-sheet .mussel-sheet-cap.mussel-sheet-invalid {
+    background: var(--mussel-sheet-error-color);
+}
+
+.mussel-sheet-selection {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px solid var(--mussel-sheet-inactive-color);
+    background: rgb(140 149 159 / 12%);
+    pointer-events: none;
+}
+
+.mussel-sheet:focus-within .mussel-sheet-selection {
+    border-color: var(--mussel-sheet-selection-border);
+    background: var(--mussel-sheet-selection-bg);
+}
+
+.mussel-sheet-fill {
+    position: absolute;
+    z-index: 2;
+    box-sizing: border-box;
+    width: 7px;
+    height: 7px;
+    border: 1px solid var(--mussel-sheet-cell-bg);
+    background: var(--mussel-sheet-inactive-color);
+    cursor: crosshair;
+}
+
+.mussel-sheet:focus-within .mussel-sheet-fill {
+    background: var(--mussel-sheet-active-color);
+}
+
+.mussel-sheet-fill-range {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px dashed var(--mussel-sheet-fill-range-color);
+    pointer-events: none;
+}
+
+.mussel-sheet-probe {
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* ---- Input sink ---- */
+
+/* Transparent while ready and becomes the editor in place; never display:none, which cannot hold focus */
+.mussel-sheet-sink {
+    position: absolute;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0 4px;
+    overflow: hidden;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: transparent;
+    caret-color: transparent;
+    font: inherit;
+    white-space: pre;
+    resize: none;
+    pointer-events: none;
+}
+
+.mussel-sheet-sink.mussel-sheet-editing {
+    --mussel-sheet-ring: var(--mussel-sheet-active-color);
+    z-index: 1;
+    background: var(--mussel-sheet-cell-bg);
+    color: var(--mussel-sheet-text-color);
+    caret-color: auto;
+    box-shadow: 0 0 0 1px var(--mussel-sheet-ring), inset 0 0 0 1px var(--mussel-sheet-ring);
+    pointer-events: auto;
+}
+
+.mussel-sheet-sink.mussel-sheet-invalid {
+    --mussel-sheet-ring: var(--mussel-sheet-error-color);
+}
+
+/* With no headers, the outer line at row 1 / column A would be cut off at the sheet edge, so draw 2px inside */
+.mussel-sheet-sink.mussel-sheet-editing.mussel-sheet-edge-t {
+    box-shadow: 0 0 0 1px var(--mussel-sheet-ring), inset 0 0 0 1px var(--mussel-sheet-ring), inset 0 2px 0 0 var(--mussel-sheet-ring);
+}
+
+.mussel-sheet-sink.mussel-sheet-editing.mussel-sheet-edge-l {
+    box-shadow: 0 0 0 1px var(--mussel-sheet-ring), inset 0 0 0 1px var(--mussel-sheet-ring), inset 2px 0 0 0 var(--mussel-sheet-ring);
+}
+
+.mussel-sheet-sink.mussel-sheet-editing.mussel-sheet-edge-t.mussel-sheet-edge-l {
+    box-shadow: 0 0 0 1px var(--mussel-sheet-ring), inset 0 0 0 1px var(--mussel-sheet-ring), inset 2px 2px 0 0 var(--mussel-sheet-ring);
+}
+
+.mussel-sheet-sink.mussel-sheet-ml {
+    padding-top: 2px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.mussel-sheet-sink::placeholder {
+    color: transparent;
+}
+
+.mussel-sheet-sink.mussel-sheet-editing::placeholder {
+    color: var(--mussel-sheet-muted-color);
+}
+
+/* ---- Drop arrow ---- */
+
+.mussel-sheet-drop {
+    position: absolute;
+    z-index: 1;
+    box-sizing: border-box;
+    width: 18px;
+    border: 1px solid var(--mussel-sheet-grid-color);
+    border-left: 0;
+    background: var(--mussel-sheet-header-bg);
+    color: var(--mussel-sheet-header-color);
+    font-size: 9px;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.mussel-sheet-drop::before {
+    content: "▼";
+}
+
+.mussel-sheet-drop:hover {
+    color: var(--mussel-sheet-active-color);
+}
+
+/* ---- Popups ---- */
+
+/* Placed by JS in viewport coordinates and shown in the top layer (popover) where supported, hence the inset, margin and overflow resets that cancel the popover defaults. */
+.mussel-sheet-popup,
+.mussel-sheet-menu,
+.mussel-sheet-custom {
+    position: fixed;
+    inset: auto;
+    z-index: 1000;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    border: 1px solid var(--mussel-sheet-popup-border);
+    border-radius: 4px;
+    background: var(--mussel-sheet-popup-bg);
+    color: var(--mussel-sheet-popup-color);
+    box-shadow: var(--mussel-sheet-popup-shadow);
+    font: var(--mussel-sheet-font);
+}
+
+.mussel-sheet-popup:not(.mussel-sheet-open),
+.mussel-sheet-menu:not(.mussel-sheet-open),
+.mussel-sheet-custom:not(.mussel-sheet-open) {
+    display: none;
+}
+
+/* ---- Context menu ---- */
+
+.mussel-sheet-menu {
+    min-width: 200px;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.mussel-sheet-menu-item {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    line-height: 26px;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.mussel-sheet-menu-item.mussel-sheet-focus {
+    background: var(--mussel-sheet-focus-bg);
+}
+
+.mussel-sheet-menu-item[aria-disabled="true"] {
+    color: var(--mussel-sheet-muted-color);
+}
+
+.mussel-sheet-menu-key {
+    color: var(--mussel-sheet-muted-color);
+    font-size: 12px;
+}
+
+.mussel-sheet-menu-sep {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--mussel-sheet-popup-border);
+}
+
+/* ---- Custom editor ---- */
+
+.mussel-sheet-custom {
+    padding: 4px;
+    outline: none;
+}
+
+.mussel-sheet-custom.mussel-sheet-invalid {
+    border-color: var(--mussel-sheet-error-color);
+    box-shadow: 0 0 0 1px var(--mussel-sheet-error-color), var(--mussel-sheet-popup-shadow);
+}
+
+/* ---- List ---- */
+
+.mussel-sheet-list {
+    max-height: 218px;
+    padding: 2px 0;
+    overflow-y: auto;
+}
+
+.mussel-sheet-item {
+    padding: 0 10px;
+    line-height: 24px;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.mussel-sheet-item.mussel-sheet-focus {
+    background: var(--mussel-sheet-focus-bg);
+}
+
+/* ---- Calendar ---- */
+
+.mussel-sheet-cal {
+    padding: 6px 8px 4px;
+    user-select: none;
+}
+
+.mussel-sheet-cal-head,
+.mussel-sheet-cal-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.mussel-sheet-cal-foot {
+    justify-content: center;
+    margin-top: 2px;
+}
+
+.mussel-sheet-cal-title {
+    font-weight: 600;
+}
+
+.mussel-sheet-cal-head button,
+.mussel-sheet-cal-foot button {
+    padding: 0 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 24px;
+    cursor: pointer;
+}
+
+.mussel-sheet-cal-head button {
+    font-size: 16px;
+}
+
+.mussel-sheet-cal-head button:hover,
+.mussel-sheet-cal-foot button:hover {
+    background: var(--mussel-sheet-header-bg);
+}
+
+.mussel-sheet-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 30px);
+    text-align: center;
+}
+
+.mussel-sheet-cal-wd {
+    color: var(--mussel-sheet-header-color);
+    font-size: 11px;
+    line-height: 22px;
+}
+
+.mussel-sheet-cal-day {
+    border-radius: 4px;
+    line-height: 26px;
+    cursor: pointer;
+}
+
+.mussel-sheet-cal-day:hover {
+    background: var(--mussel-sheet-header-bg);
+}
+
+.mussel-sheet-cal-wd.mussel-sheet-sun,
+.mussel-sheet-cal-day.mussel-sheet-sun {
+    color: var(--mussel-sheet-sunday-color);
+}
+
+.mussel-sheet-cal-wd.mussel-sheet-sat,
+.mussel-sheet-cal-day.mussel-sheet-sat {
+    color: var(--mussel-sheet-saturday-color);
+}
+
+.mussel-sheet-cal-day.mussel-sheet-other {
+    opacity: 0.45;
+}
+
+.mussel-sheet-cal-day.mussel-sheet-today {
+    box-shadow: inset 0 0 0 1px var(--mussel-sheet-active-color);
+}
+
+.mussel-sheet-cal-day.mussel-sheet-selected {
+    background: var(--mussel-sheet-active-color);
+    color: #fff;
+}
+
+.mussel-sheet-cal-day.mussel-sheet-focus {
+    outline: 2px solid var(--mussel-sheet-active-color);
+    outline-offset: -2px;
+}
+
+.mussel-sheet-cal-day.mussel-sheet-disabled {
+    background: none;
+    color: var(--mussel-sheet-muted-color);
+    text-decoration: line-through;
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* ---- Input message and error tip ---- */
+
+.mussel-sheet-note {
+    position: absolute;
+    z-index: 0;
+    width: max-content;
+    max-width: 280px;
+    padding: 4px 8px;
+    border: 1px solid var(--mussel-sheet-note-border);
+    border-radius: 2px;
+    background: var(--mussel-sheet-note-bg);
+    color: var(--mussel-sheet-note-color);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+}
+
+.mussel-sheet-tip {
+    position: absolute;
+    z-index: 2;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: var(--mussel-sheet-error-color);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: nowrap;
+    pointer-events: none;
+}

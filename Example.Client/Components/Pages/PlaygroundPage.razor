@@ -1,0 +1,120 @@
+@page "/playground"
+
+<SampleFrame Title="Playground" Page="typeof(PlaygroundPage)" Log="log">
+    <Controls>
+        <MudCheckBox @bind-Value="showRowHeaders" Label="ShowRowHeaders" Size="Size.Small" Color="Color.Primary" Dense="true" />
+        <MudCheckBox @bind-Value="showColumnHeaders" Label="ShowColumnHeaders" Size="Size.Small" Color="Color.Primary" Dense="true" />
+        <MudCheckBox @bind-Value="showGridLines" Label="ShowGridLines" Size="Size.Small" Color="Color.Primary" Dense="true" />
+        <MudCheckBox @bind-Value="showChanges" Label="ShowChanges" Size="Size.Small" Color="Color.Primary" Dense="true" />
+        <MudCheckBox @bind-Value="fillHandleEnabled" Label="FillHandleEnabled" Size="Size.Small" Color="Color.Primary" Dense="true" />
+        <MudCheckBox @bind-Value="tabReturnEnabled" Label="TabReturnEnabled" Size="Size.Small" Color="Color.Primary" Dense="true" />
+        <MudCheckBox @bind-Value="allowRows" Label="AllowInsertRows, AllowDeleteRows" Size="Size.Small" Color="Color.Primary" Dense="true" />
+        <MudCheckBox @bind-Value="allowColumns" Label="AllowInsertColumns, AllowDeleteColumns" Size="Size.Small" Color="Color.Primary" Dense="true" />
+    </Controls>
+    <ChildContent>
+        <div class="sample-grid mb-2">
+            <MudSelect T="int" @bind-Value="FrozenRows" Label="FrozenRows" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @for (var i = 0; i <= 3; i++)
+                {
+                    var value = i;
+                    <MudSelectItem T="int" Value="value" />
+                }
+            </MudSelect>
+            <MudSelect T="int" @bind-Value="FrozenColumns" Label="FrozenColumns" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @for (var i = 0; i <= 3; i++)
+                {
+                    var value = i;
+                    <MudSelectItem T="int" Value="value" />
+                }
+            </MudSelect>
+            <MudSelect T="string" @bind-Value="height" Label="Height" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                <MudSelectItem T="string" Value="@("auto")" />
+                <MudSelectItem T="string" Value="@("240px")" />
+            </MudSelect>
+            <MudSelect T="SheetMoveDirection" @bind-Value="moveAfterReturnDirection" Label="MoveAfterReturnDirection" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @foreach (var value in Enum.GetValues<SheetMoveDirection>())
+                {
+                    <MudSelectItem T="SheetMoveDirection" Value="value" />
+                }
+            </MudSelect>
+            <MudSelect T="SheetReadyEnterMode" @bind-Value="readyEnterMode" Label="ReadyEnterMode" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @foreach (var value in Enum.GetValues<SheetReadyEnterMode>())
+                {
+                    <MudSelectItem T="SheetReadyEnterMode" Value="value" />
+                }
+            </MudSelect>
+            <MudSelect T="SheetRowEndMode" @bind-Value="rowEndMode" Label="RowEndMode" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @foreach (var value in Enum.GetValues<SheetRowEndMode>())
+                {
+                    <MudSelectItem T="SheetRowEndMode" Value="value" />
+                }
+            </MudSelect>
+            <MudSelect T="SheetSkipReadOnlyMode" @bind-Value="skipReadOnlyMode" Label="SkipReadOnlyMode" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @foreach (var value in Enum.GetValues<SheetSkipReadOnlyMode>())
+                {
+                    <MudSelectItem T="SheetSkipReadOnlyMode" Value="value" />
+                }
+            </MudSelect>
+            <MudSelect T="SheetLastRowEnterMode" @bind-Value="lastRowEnterMode" Label="LastRowEnterMode" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @foreach (var value in Enum.GetValues<SheetLastRowEnterMode>())
+                {
+                    <MudSelectItem T="SheetLastRowEnterMode" Value="value" />
+                }
+            </MudSelect>
+            <MudSelect T="SheetCommitMode" @bind-Value="commitMode" Label="CommitMode" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @foreach (var value in Enum.GetValues<SheetCommitMode>())
+                {
+                    <MudSelectItem T="SheetCommitMode" Value="value" />
+                }
+            </MudSelect>
+            <MudSelect T="SheetValidationMode" @bind-Value="validationMode" Label="ValidationMode" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @foreach (var value in Enum.GetValues<SheetValidationMode>())
+                {
+                    <MudSelectItem T="SheetValidationMode" Value="value" />
+                }
+            </MudSelect>
+        </div>
+        <div class="sample-row mb-1">
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Disabled="@(!(view?.CanUndo ?? false))" OnClick="UndoAsync">Undo</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Disabled="@(!(view?.CanRedo ?? false))" OnClick="RedoAsync">Redo</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddRow">Add a row</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="InsertRow">Insert at row 2</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="DeleteFirstRow">Delete the first row</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="ToggleError">Toggle the error of B1</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="ChangeValue">Change B1 from C#</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="AcceptChanges">AcceptChanges</MudButton>
+        </div>
+        @* These keep the focus in the sheet: focus moving to a button would commit the edit first *@
+        <div class="sample-row mb-2" @onmousedown:preventDefault="true">
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="FocusAsync">FocusAsync</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="MoveAsync">SetActiveCellAsync(1, 2)</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="BeginEditAsync">BeginEditAsync</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="CommitEditAsync">CommitEditAsync</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="CancelEditAsync">CancelEditAsync</MudButton>
+        </div>
+        <MusselSheetView @ref="view"
+                         Sheet="sheet"
+                         Height="@height"
+                         ShowRowHeaders="showRowHeaders"
+                         ShowColumnHeaders="showColumnHeaders"
+                         ShowGridLines="showGridLines"
+                         ShowChanges="showChanges"
+                         FillHandleEnabled="fillHandleEnabled"
+                         TabReturnEnabled="tabReturnEnabled"
+                         AllowInsertRows="allowRows"
+                         AllowDeleteRows="allowRows"
+                         AllowInsertColumns="allowColumns"
+                         AllowDeleteColumns="allowColumns"
+                         MoveAfterReturnDirection="moveAfterReturnDirection"
+                         ReadyEnterMode="readyEnterMode"
+                         RowEndMode="rowEndMode"
+                         SkipReadOnlyMode="skipReadOnlyMode"
+                         LastRowEnterMode="lastRowEnterMode"
+                         CommitMode="commitMode"
+                         ValidationMode="validationMode"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>

@@ -1,0 +1,60 @@
+@* The grid role goes on .mussel-sheet-content. Elements owned by JS stay outside the grid, except decorative panes that are aria-hidden. *@
+<div @attributes="AdditionalAttributes" class="@RootClass" style="@RootStyle" @ref="root">
+    <style>@styles.Css</style>
+    <div class="mussel-sheet-viewport">
+        @* Panes for elements owned by JS (active cell frame, input element); Blazor renders them empty *@
+        <div class="mussel-sheet-pane mussel-sheet-pane-l"></div>
+        <div class="mussel-sheet-pane mussel-sheet-pane-ts"></div>
+        <div class="mussel-sheet-pane mussel-sheet-pane-tls"></div>
+        <div class="mussel-sheet-content" style="@ContentStyle" role="grid" aria-rowcount="@AriaRowCount" aria-colcount="@AriaColumnCount">
+            <div class="mussel-sheet-top">
+                <div class="mussel-sheet-pane mussel-sheet-pane-tl" aria-hidden="true"></div>
+                @if (ShowColumnHeaders)
+                {
+                    <div class="mussel-sheet-colhead" style="@ColumnHeaderStyle" role="row" aria-rowindex="1">
+                        @if (ShowRowHeaders)
+                        {
+                            <div class="mussel-sheet-corner" aria-hidden="true"></div>
+                        }
+                        @for (var c = 0; c < FrozenColumnCount; c++)
+                        {
+                            <div class="mussel-sheet-colhead-cell" role="columnheader" aria-colindex="@AriaColumnIndex(c)" data-c="@c">@Sheet.Columns[c].HeaderText</div>
+                        }
+                        <div class="mussel-sheet-rest" role="none">
+                            @for (var c = RestFirst; c <= RestLast; c++)
+                            {
+                                <div class="mussel-sheet-colhead-cell" role="columnheader" aria-colindex="@AriaColumnIndex(c)" data-c="@c">@Sheet.Columns[c].HeaderText</div>
+                            }
+                        </div>
+                    </div>
+                }
+                @for (var r = 0; r < FrozenRowCount; r++)
+                {
+                    var row = Sheet.Rows[r];
+                    <RowView @key="row" Owner="this" Row="row" />
+                }
+                @* Overlay for the frozen rows, placed after the rows so it paints above merged cells *@
+                <div class="mussel-sheet-pane mussel-sheet-pane-t" aria-hidden="true"></div>
+            </div>
+            @if (TopSpace > 0)
+            {
+                <div class="mussel-sheet-spacer" style="@SpacerStyle(TopSpace)" aria-hidden="true"></div>
+            }
+            @for (var r = BodyFirst; r <= lastRow; r++)
+            {
+                var row = Sheet.Rows[r];
+                <RowView @key="row" Owner="this" Row="row" />
+            }
+            @if (BottomSpace > 0)
+            {
+                <div class="mussel-sheet-spacer" style="@SpacerStyle(BottomSpace)" aria-hidden="true"></div>
+            }
+        </div>
+        @* Layer for elements owned by JS (input element, active cell frame, popups); Blazor renders it empty *@
+        <div class="mussel-sheet-layer"></div>
+        @if ((customEdit is not null) && (CustomEditor is not null))
+        {
+            <div class="mussel-sheet-custom" popover="manual" tabindex="-1" @ref="customElement">@CustomEditor(customEdit)</div>
+        }
+    </div>
+</div>

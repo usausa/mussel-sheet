@@ -1,0 +1,74 @@
+@page "/customization"
+
+<SampleFrame Title="Customization" Page="typeof(CustomizationPage)" Log="log" ExtraFiles="OptionFiles">
+    <Description><code>CustomEditor</code> and <code>CustomDisplay</code> draw <code>CellKind.Custom</code> cells.</Description>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked">
+            <CustomEditor Context="edit">
+                <div class="custom-choices">
+                    @if (edit.Name == ColorEditor)
+                    {
+                        @foreach (var color in Colors)
+                        {
+                            <button type="button" class="custom-color" style="background:@color" title="@color" @onclick="() => edit.CommitAsync(color)"></button>
+                        }
+                    }
+                    else
+                    {
+                        @for (var i = 1m; i <= MaxRating; i++)
+                        {
+                            var rating = i;
+                            <MudButton Class="custom-rating" Variant="Variant.Outlined" Size="Size.Small" OnClick="() => edit.CommitAsync(rating)">@rating</MudButton>
+                        }
+                    }
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="() => edit.CommitAsync(null)">Clear</MudButton>
+                </div>
+            </CustomEditor>
+            <CustomDisplay Context="cell">
+                @if (cell.Value is string color)
+                {
+                    <span class="custom-swatch" style="background:@color"></span>@color
+                }
+                else if (cell.Value is decimal rating)
+                {
+                    @(new string('★', (int)rating))
+                }
+            </CustomDisplay>
+        </MusselSheetView>
+    </ChildContent>
+</SampleFrame>
+
+<style>
+    .custom-choices {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .custom-color {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: 1px solid rgb(0 0 0 / 20%);
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .custom-rating {
+        min-width: 32px;
+    }
+
+    .custom-swatch {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-right: 6px;
+        border: 1px solid rgb(0 0 0 / 20%);
+        border-radius: 2px;
+        vertical-align: -1px;
+    }
+</style>

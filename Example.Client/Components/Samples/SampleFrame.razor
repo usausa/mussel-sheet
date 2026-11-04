@@ -1,0 +1,34 @@
+<PageTitle>@Title - MusselSheet</PageTitle>
+
+<MudText Typo="Typo.h6" HtmlTag="h1" Class="mt-2">@Title</MudText>
+@if (Description is not null)
+{
+    <div>@Description</div>
+}
+@if (Controls is not null)
+{
+    <div class="sample-row mt-2">@Controls</div>
+}
+<div class="mt-2 mb-1">@ChildContent</div>
+@if (Log is not null)
+{
+    <div class="sample-row sample-status">
+        <span class="sample-active">Active cell: @Log.ActiveCell</span>
+        <span class="sample-selection">Selection: @Log.Selection</span>
+    </div>
+    @Output
+    @if (Log.Lines.Count > 0)
+    {
+        <ol class="sample-log">
+            @foreach (var line in Log.Lines)
+            {
+                <li>@line</li>
+            }
+        </ol>
+    }
+}
+else
+{
+    @Output
+}
+<SourceView Page="Page" ExtraFiles="ExtraFiles" />

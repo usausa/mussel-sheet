@@ -1,0 +1,12 @@
+@page "/callbacks"
+
+<SampleFrame Title="Callbacks" Page="typeof(CallbacksPage)" Log="log">
+    <Description><code>Formatter</code> changes only the display: F2 and copy use the value.</Description>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>

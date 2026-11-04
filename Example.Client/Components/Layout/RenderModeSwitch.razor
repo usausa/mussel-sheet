@@ -1,0 +1,26 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+
+<div class="mode">
+    <div class="mode-switch" role="group" aria-label="Render mode">
+        <MudButton Href="@Link("server")" Size="Size.Small" Color="Color.Inherit" Variant="@VariantOf(!IsWebAssembly)" Class="@ClassOf(!IsWebAssembly)" data-enhance-nav="false">Server</MudButton>
+        <MudButton Href="@Link("wasm")" Size="Size.Small" Color="Color.Inherit" Variant="@VariantOf(IsWebAssembly)" Class="@ClassOf(IsWebAssembly)" data-enhance-nav="false">WebAssembly</MudButton>
+    </div>
+    <MudText Typo="Typo.caption" Class="mode-state">@(RendererInfo.IsInteractive ? "Interactive" : "Prerendered")</MudText>
+</div>
+
+@code {
+    private bool IsWebAssembly => AssignedRenderMode is InteractiveWebAssemblyRenderMode;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    private static Variant VariantOf(bool active) => active ? Variant.Filled : Variant.Outlined;
+
+    private static string? ClassOf(bool active) => active ? "active" : null;
+
+    private string Link(string mode) => $"render-mode/{mode}?redirect={Uri.EscapeDataString($"/{Navigation.ToBaseRelativePath(Navigation.Uri)}")}";
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => _ = InvokeAsync(StateHasChanged);
+}

@@ -1,0 +1,25 @@
+@page "/object-binding"
+
+<SampleFrame Title="Object Binding" Page="typeof(ObjectBindingPage)" Log="log" ExtraFiles="ModelFiles">
+    <Description><code>Bind</code> ties cells to properties and rows to list items.</Description>
+    <Controls>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddLine">Add a line</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="RemoveFirstLine">Remove the first line</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="ChangeCustomer">Change the customer</MudButton>
+    </Controls>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         LastRowEnterMode="SheetLastRowEnterMode.AddRow"
+                         AllowInsertRows="true"
+                         AllowDeleteRows="true"
+                         RowsInserting="OnRowsInserting"
+                         RowsDeleting="OnRowsDeleting"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+    <Output>
+        <pre class="sample-model">@Describe()</pre>
+    </Output>
+</SampleFrame>

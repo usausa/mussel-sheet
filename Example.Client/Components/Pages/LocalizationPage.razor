@@ -1,0 +1,18 @@
+@page "/localization"
+
+<SampleFrame Title="Localization" Page="typeof(LocalizationPage)" Log="log">
+    <Description>UI culture: messages, menu and calendar. <code>Sheet.Culture</code>: dates and numbers.</Description>
+    <Controls>
+        <LanguageSwitch />
+    </Controls>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+    <Output>
+        <p class="sample-note sample-culture">Culture: @CultureInfo.CurrentCulture.Name / UI culture: @CultureInfo.CurrentUICulture.Name / Sheet.Culture: @sheet.Culture.Name</p>
+    </Output>
+</SampleFrame>

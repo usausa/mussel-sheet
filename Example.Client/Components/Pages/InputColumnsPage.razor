@@ -1,0 +1,17 @@
+@page "/input-columns"
+
+<SampleFrame Title="Input Columns" Page="typeof(InputColumnsPage)" Log="log">
+    <Description>Enter moves through the input columns, then to the next row.</Description>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         Height="400px"
+                         MoveAfterReturnDirection="SheetMoveDirection.Right"
+                         LastRowEnterMode="SheetLastRowEnterMode.AddRow"
+                         AllowInsertRows="true"
+                         AllowDeleteRows="true"
+                         CellCommitted="OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>

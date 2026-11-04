@@ -1,0 +1,12 @@
+@inject NavigationManager Navigation
+
+<MudButtonGroup OverrideStyles="false">
+    <MudButton Href="@Link("en-US")" Size="Size.Small" Variant="@(IsJapanese ? Variant.Outlined : Variant.Filled)" Color="Color.Primary" data-enhance-nav="false">English</MudButton>
+    <MudButton Href="@Link("ja-JP")" Size="Size.Small" Variant="@(IsJapanese ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" data-enhance-nav="false">日本語</MudButton>
+</MudButtonGroup>
+
+@code {
+    private static bool IsJapanese => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ja";
+
+    private string Link(string culture) => $"culture/{culture}?redirect={Uri.EscapeDataString($"/{Navigation.ToBaseRelativePath(Navigation.Uri)}")}";
+}

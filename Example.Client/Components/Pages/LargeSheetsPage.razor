@@ -1,0 +1,24 @@
+@page "/large-sheets"
+
+<SampleFrame Title="Large Sheets" Page="typeof(LargeSheetsPage)" Log="log">
+    <Description>With a fixed <code>Width</code> and <code>Height</code>, only the visible cells are drawn.</Description>
+    <Controls>
+        <MudButtonGroup OverrideStyles="false">
+            <MudButton Href="large-sheets" Size="Size.Small" Variant="@(Rows is 10000 ? Variant.Outlined : Variant.Filled)" Color="Color.Primary">1,000 rows x 50 columns</MudButton>
+            <MudButton Href="large-sheets?rows=10000" Size="Size.Small" Variant="@(Rows is 10000 ? Variant.Filled : Variant.Outlined)" Color="Color.Primary">10,000 rows x 50 columns</MudButton>
+        </MudButtonGroup>
+    </Controls>
+    <ChildContent>
+        <MusselSheetView Sheet="sheet"
+                         Width="100%"
+                         Height="500px"
+                         AllowInsertRows="true"
+                         AllowDeleteRows="true"
+                         AllowInsertColumns="true"
+                         AllowDeleteColumns="true"
+                         CellCommitted="log.OnCellCommitted"
+                         ActiveCellChanged="log.OnActiveCellChanged"
+                         SelectionChanged="log.OnSelectionChanged"
+                         MenuItemClicked="log.OnMenuItemClicked" />
+    </ChildContent>
+</SampleFrame>
