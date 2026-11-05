@@ -238,7 +238,7 @@ public sealed class CellInputTests
         var kana = Settings(CellKind.Text) with
         {
             CharacterRestriction = CellCharacterRestriction.Katakana,
-            CharacterConversions = CellCharacterConversions.HalfwidthKatakanaToFullwidth | CellCharacterConversions.HiraganaToKatakana,
+            CharacterConversions = CellCharacterConversions.HalfwidthKatakanaToFullwidth | CellCharacterConversions.HiraganaToKatakana
         };
 
         var normalized = CellInput.Normalize("やまだ ﾀﾛｳ", kana, Context.Reading);

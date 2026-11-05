@@ -94,7 +94,7 @@ public sealed partial class ObjectBindingPage
             [
                 ["Order date", null, "Customer"],
                 ["Department", null, "Lines"],
-                ["Item", "Quantity", "Unit price", "Amount"],
+                ["Item", "Quantity", "Unit price", "Amount"]
             ]);
             sheet["C7"].Value = "Total";
         }

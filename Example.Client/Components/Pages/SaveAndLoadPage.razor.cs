@@ -91,7 +91,7 @@ public sealed partial class SaveAndLoadPage
                 ["Date", DateOnly.FromDateTime(DateTime.Today), "Customer", "Aster Trading"],
                 ["Item", "Quantity", "Unit price", "Amount"],
                 ["Notebook", 10m, 120m],
-                ["Ballpoint pen", 20m, 80m],
+                ["Ballpoint pen", 20m, 80m]
             ]);
             sheet["C7"].Value = "Total";
             sheet["A8"].Value = "Notes";

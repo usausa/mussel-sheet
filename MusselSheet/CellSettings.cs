@@ -91,6 +91,6 @@ public sealed class CellSettings
         Editor = Editor,
         Formatter = Formatter,
         StyleProvider = StyleProvider,
-        Style = Style.Clone(),
+        Style = Style.Clone()
     };
 }

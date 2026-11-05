@@ -16,7 +16,7 @@ public sealed class CommitPipelineTests : BunitContext
     {
         var sheet = NumberSheet();
         var committed = new List<CellCommittedEventArgs>();
-        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, x => committed.Add(x)));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, committed.Add));
 
         var result = await Commit(cut, 0, 0, "１，２３４", true);
 
@@ -152,7 +152,7 @@ public sealed class CommitPipelineTests : BunitContext
         sheet["A1"].Configure(c => c.Required = true);
         sheet.SetValue(0, 0, 5m);
         var committed = new List<CellCommittedEventArgs>();
-        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, x => committed.Add(x)));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, committed.Add));
 
         var result = await cut.InvokeAsync(() => cut.Instance.ClearAsync(0, 0)).ConfigureAwait(true);
 
@@ -238,7 +238,7 @@ public sealed class CommitPipelineTests : BunitContext
     {
         var sheet = NumberSheet();
         var committed = new List<CellCommittedEventArgs>();
-        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, x => committed.Add(x)));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, committed.Add));
 
         await Commit(cut, 0, 0, "1", true);
         await Commit(cut, 0, 0, "1", true);
@@ -255,7 +255,7 @@ public sealed class CommitPipelineTests : BunitContext
         sheet["A1"].Configure(c => c.Kind = CellKind.Date);
         sheet.SetValue(0, 0, new DateOnly(2026, 11, 2));
         var committed = new List<CellCommittedEventArgs>();
-        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, x => committed.Add(x)));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, committed.Add));
 
         var result = await Commit(cut, 0, 0, "2026/11/02", true);
 
@@ -270,7 +270,7 @@ public sealed class CommitPipelineTests : BunitContext
     {
         var sheet = NumberSheet();
         var reported = new List<CellAddress>();
-        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.ActiveCellChanged, x => reported.Add(x)));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.ActiveCellChanged, reported.Add));
 
         await cut.InvokeAsync(() => cut.Instance.OnActiveCellChangedAsync(2, 0, 2, 0, 2, 0)).ConfigureAwait(true);
 

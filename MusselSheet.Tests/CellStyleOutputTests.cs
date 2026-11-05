@@ -27,7 +27,7 @@ public sealed class CellStyleOutputTests : BunitContext
         { "size", new CellStyle { FontSize = 16 }, "font-size:16px;" },
         { "indent", new CellStyle { IndentLevel = 2 }, "padding-left:calc(4px + 2em);" },
         { "indent from the right", new CellStyle { HorizontalAlignment = HorizontalAlignment.Right, IndentLevel = 1 }, "text-align:right;padding-right:calc(4px + 1em);" },
-        { "no indent when centered", new CellStyle { HorizontalAlignment = HorizontalAlignment.Center, IndentLevel = 1 }, "text-align:center;" },
+        { "no indent when centered", new CellStyle { HorizontalAlignment = HorizontalAlignment.Center, IndentLevel = 1 }, "text-align:center;" }
     };
 
     [Theory]
@@ -45,7 +45,7 @@ public sealed class CellStyleOutputTests : BunitContext
         { CellBorder.Thick, "thick" },
         { CellBorder.Dashed, "dashed" },
         { CellBorder.Dotted, "dotted" },
-        { CellBorder.DoubleLine, "double" },
+        { CellBorder.DoubleLine, "double" }
     };
 
     [Theory]

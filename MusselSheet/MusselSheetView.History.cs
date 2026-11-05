@@ -17,7 +17,7 @@ public sealed partial class MusselSheetView
         {
             CellsEdited edited => await ApplyEditAsync(edited, redo).ConfigureAwait(true),
             StructureEdited structure => ApplyStructure(structure, redo),
-            _ => null,
+            _ => null
         };
 
         // Undo or redo may have added or removed rows, so send the new sheet map before JS moves

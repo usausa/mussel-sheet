@@ -20,5 +20,5 @@ public enum CellKind
 
     AutoComplete,
 
-    Custom,
+    Custom
 }

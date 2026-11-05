@@ -13,7 +13,7 @@ public sealed class JavaScriptTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            WorkingDirectory = FindSolutionDirectory(),
+            WorkingDirectory = FindSolutionDirectory()
         };
         startInfo.ArgumentList.Add("--test");
         startInfo.ArgumentList.Add(Path.Combine("MusselSheet.Tests", "js", "musselsheet.test.mjs"));

@@ -185,20 +185,13 @@ public sealed class StructureMenuTests : BunitContext
 
         Assert.Null(await Change(cut, "insertColumnsLeft", new CellRange(1, 0, 1, 0), 1, 0));
 
-        Assert.Collection(
-            seen,
-            x =>
-            {
-                Assert.IsType<SheetRowsInsertingEventArgs>(x);
-                Assert.Equal(1, x.Index);
-                Assert.Equal(2, x.Count);
-            },
-            x =>
-            {
-                Assert.IsType<SheetRowsDeletingEventArgs>(x);
-                Assert.Equal(2, x.Index);
-                Assert.Equal(1, x.Count);
-            });
+        Assert.Equal(2, seen.Count);
+        Assert.IsType<SheetRowsInsertingEventArgs>(seen[0]);
+        Assert.Equal(1, seen[0].Index);
+        Assert.Equal(2, seen[0].Count);
+        Assert.IsType<SheetRowsDeletingEventArgs>(seen[1]);
+        Assert.Equal(2, seen[1].Index);
+        Assert.Equal(1, seen[1].Count);
         Assert.Equal(4, sheet.RowCount);
         Assert.Equal(2, sheet.ColumnCount);
         Assert.False(cut.Instance.CanUndo);

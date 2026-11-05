@@ -25,7 +25,7 @@ public sealed partial class GettingStartedPage
         sheet.SetValues(0, 0,
         [
             ["Notebook", 10m, 120m, 1200m],
-            ["Ballpoint pen", 20m, 80m, 1600m],
+            ["Ballpoint pen", 20m, 80m, 1600m]
         ]);
         return sheet;
     }

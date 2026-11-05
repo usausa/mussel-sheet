@@ -88,10 +88,10 @@ internal sealed class BoundProperty
 
     private static bool HasFraction(object value) => value switch
     {
-        decimal number => number != decimal.Truncate(number),
-        double number => number != Math.Truncate(number),
-        float number => number != MathF.Truncate(number),
-        _ => false,
+        decimal number => !decimal.IsInteger(number),
+        double number => !double.IsInteger(number),
+        float number => !float.IsInteger(number),
+        _ => false
     };
 
     private object? ToEnum(object value) =>

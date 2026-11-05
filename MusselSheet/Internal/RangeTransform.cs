@@ -4,7 +4,7 @@ internal enum Axis
 {
     Row,
 
-    Column,
+    Column
 }
 
 internal static class RangeTransform

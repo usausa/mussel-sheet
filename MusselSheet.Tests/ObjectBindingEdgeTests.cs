@@ -10,7 +10,7 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     {
         Open,
 
-        Closed,
+        Closed
     }
 
     public ObjectBindingEdgeTests()

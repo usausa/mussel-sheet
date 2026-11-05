@@ -121,7 +121,7 @@ public sealed class RowAndClipboardTests : BunitContext
     {
         var sheet = DetailSheet();
         var committed = new List<CellCommittedEventArgs>();
-        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, x => committed.Add(x)));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, committed.Add));
 
         var result = await Paste(cut, 0, 1, "１，２００", true);
 
@@ -180,7 +180,7 @@ public sealed class RowAndClipboardTests : BunitContext
         sheet["B1"].Configure(c => c.Required = true);
         sheet.SetValue(0, 1, 3m);
         var committed = new List<CellCommittedEventArgs>();
-        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, x => committed.Add(x)));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, committed.Add));
 
         var result = await cut.InvokeAsync(() => cut.Instance.CutAsync(0, 1)).ConfigureAwait(true);
 

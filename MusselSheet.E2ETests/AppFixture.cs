@@ -21,6 +21,8 @@ public sealed class AppFixture : IAsyncLifetime
 
     private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(60);
 
+    private static readonly HttpClient Client = new();
+
     private readonly List<string> output = [];
 
     private Process? app;
@@ -126,7 +128,7 @@ public sealed class AppFixture : IAsyncLifetime
             WorkingDirectory = published ?? project,
             UseShellExecute = false,
             RedirectStandardOutput = true,
-            RedirectStandardError = true,
+            RedirectStandardError = true
         };
         startInfo.ArgumentList.Add(published is null ? Path.Combine(project, "bin", Configuration, "net10.0", "Example.dll") : Path.Combine(published, "Example.dll"));
         startInfo.ArgumentList.Add("--urls");
@@ -143,7 +145,6 @@ public sealed class AppFixture : IAsyncLifetime
 
     private async Task WaitForAppAsync(Process process)
     {
-        using var client = new HttpClient();
         var watch = Stopwatch.StartNew();
         while (true)
         {
@@ -154,7 +155,7 @@ public sealed class AppFixture : IAsyncLifetime
 
             try
             {
-                using var response = await client.GetAsync(new Uri(BaseAddress)).ConfigureAwait(false);
+                using var response = await Client.GetAsync(new Uri(BaseAddress)).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
                     return;

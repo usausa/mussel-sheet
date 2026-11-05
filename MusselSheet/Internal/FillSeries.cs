@@ -49,7 +49,7 @@ internal static class FillSeries
         }
 
         var (start, step) = Fit(numbers);
-        return position => Line(start, step, position) is decimal value ? Normalize(value) : null;
+        return position => Line(start, step, position) is { } value ? Normalize(value) : null;
     }
 
     private static Func<int, object?> DateSeries(DateOnly[] dates)
@@ -78,7 +78,7 @@ internal static class FillSeries
         }
 
         var (start, slope) = Fit(days);
-        return position => Line(start, slope, position) is decimal day ? FromDayNumber(Math.Round(day, MidpointRounding.AwayFromZero)) : null;
+        return position => Line(start, slope, position) is { } day ? FromDayNumber(Math.Round(day, MidpointRounding.AwayFromZero)) : null;
     }
 
     private static Func<int, object?> TextSeries(Numbered[] parts)
@@ -88,7 +88,7 @@ internal static class FillSeries
         {
             var numbers = Array.ConvertAll(parts, x => (decimal)x.Number);
             var (start, step) = Step(numbers) is { } even ? (numbers[0], even) : Fit(numbers);
-            return position => Line(start, step, position) is decimal number ? Format(parts[0], Math.Round(number, MidpointRounding.AwayFromZero)) : null;
+            return position => Line(start, step, position) is { } number ? Format(parts[0], Math.Round(number, MidpointRounding.AwayFromZero)) : null;
         }
 
         return position =>

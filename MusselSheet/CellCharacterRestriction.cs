@@ -16,5 +16,5 @@ public enum CellCharacterRestriction
 
     Alphanumeric,
 
-    Digits,
+    Digits
 }

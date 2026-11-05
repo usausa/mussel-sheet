@@ -90,7 +90,7 @@ public sealed partial class InputAssistPage
                 ["Expense report", null, null, null, null, "Approval"],
                 ["Date", null, "Department"],
                 ["Name", null, "Employee No."],
-                ["Date", "Description", "Amount", "Notes"],
+                ["Date", "Description", "Amount", "Notes"]
             ]);
             sheet["A8"].Value = "Total";
             sheet.Range("A1:D1").Merge();

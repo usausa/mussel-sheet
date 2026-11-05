@@ -4,5 +4,5 @@ public enum SheetLastRowEnterMode
 {
     Stop,
 
-    AddRow,
+    AddRow
 }

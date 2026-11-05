@@ -46,7 +46,7 @@ internal static class ClipboardFormat
         }
     }
 
-    public static string ToTsv(IReadOnlyList<IReadOnlyList<string>> rows)
+    public static string ToTsv(IEnumerable<IReadOnlyList<string>> rows)
     {
         var builder = new StringBuilder();
         foreach (var row in rows)

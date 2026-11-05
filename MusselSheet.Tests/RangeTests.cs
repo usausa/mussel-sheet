@@ -72,14 +72,14 @@ public sealed class RangeTests : BunitContext
         var sheet = NumberSheet(2, 2);
         var pasting = new List<SheetPastingEventArgs>();
         var committed = new List<CellCommittedEventArgs>();
-        var cancel = false;
+        bool[] cancel = [false];
         var cut = Render<MusselSheetView>(p => p
             .Add(x => x.Sheet, sheet)
-            .Add(x => x.CellCommitted, x => committed.Add(x))
+            .Add(x => x.CellCommitted, committed.Add)
             .Add(x => x.Pasting, x =>
             {
                 pasting.Add(x);
-                x.Cancel = cancel;
+                x.Cancel = cancel[0];
             }));
 
         await Paste(cut, CellRange.Cell(0, 0), "1\t2\r\n3\t4");
@@ -91,7 +91,7 @@ public sealed class RangeTests : BunitContext
         Assert.Equal(4, committed.Count);
         Assert.All(committed, x => Assert.Equal(CellChangeReason.Paste, x.Reason));
 
-        cancel = true;
+        cancel[0] = true;
         var result = await Paste(cut, new CellRange(0, 0, 1, 1), "9");
 
         Assert.Equal(new PasteResult(0, 0, 1, 1, null), result);
@@ -203,8 +203,8 @@ public sealed class RangeTests : BunitContext
         var selected = new List<CellRange>();
         var cut = Render<MusselSheetView>(p => p
             .Add(x => x.Sheet, sheet)
-            .Add(x => x.ActiveCellChanged, x => moved.Add(x))
-            .Add(x => x.SelectionChanged, x => selected.Add(x)));
+            .Add(x => x.ActiveCellChanged, moved.Add)
+            .Add(x => x.SelectionChanged, selected.Add));
 
         await cut.InvokeAsync(() => cut.Instance.OnActiveCellChangedAsync(0, 0, 0, 0, 2, 1)).ConfigureAwait(true);
         await cut.InvokeAsync(() => cut.Instance.OnActiveCellChangedAsync(0, 0, 0, 0, 2, 1)).ConfigureAwait(true);

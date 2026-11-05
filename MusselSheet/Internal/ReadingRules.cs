@@ -7,7 +7,7 @@ internal enum DateOrder
 {
     YearMonthDay,
     MonthDayYear,
-    DayMonthYear,
+    DayMonthYear
 }
 
 // Separators and date order come from the sheet's CultureInfo (pass a custom one to Sheet.Culture to
@@ -46,7 +46,7 @@ internal sealed partial record ReadingRules(string DecimalSeparator, string Grou
         {
             DateOrder.DayMonthYear => "dd/MM/yyyy",
             DateOrder.MonthDayYear => "MM/dd/yyyy",
-            _ => "yyyy/MM/dd",
+            _ => "yyyy/MM/dd"
         };
     }
 
@@ -57,7 +57,7 @@ internal sealed partial record ReadingRules(string DecimalSeparator, string Grou
         {
             DateOrder.DayMonthYear => "dmy",
             DateOrder.MonthDayYear => "mdy",
-            _ => "ymd",
+            _ => "ymd"
         },
         EditDateFormat,
         Japanese);

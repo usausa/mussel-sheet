@@ -12,7 +12,7 @@ public sealed partial class MusselSheetView
         }
 
         var range = ClipToSheet(new CellRange(top, left, bottom, right));
-        var (marked, rejected) = await InputCellsAsync(range, (_, _) => text ?? string.Empty, CellChangeReason.Input).ConfigureAwait(true);
+        var (marked, rejected) = await InputCellsAsync(range, (_, _) => text, CellChangeReason.Input).ConfigureAwait(true);
         return new PasteResult(range.Top, range.Left, range.Bottom, range.Right, PasteMessage(marked, rejected, 0, 0));
     }
 
@@ -53,7 +53,7 @@ public sealed partial class MusselSheetView
             "up" => (-1, 0),
             "down" => (1, 0),
             "left" => (0, -1),
-            _ => (0, 1),
+            _ => (0, 1)
         };
         var (r, c) = (row + dr, column + dc);
         if (!IsInSheet(r, c))
@@ -95,7 +95,7 @@ public sealed partial class MusselSheetView
         {
             (true, _) => selection,
             (false, true) => new CellRange(selection.Top + 1, selection.Left, selection.Bottom, selection.Right),
-            _ => new CellRange(selection.Top, selection.Left + 1, selection.Bottom, selection.Right),
+            _ => new CellRange(selection.Top, selection.Left + 1, selection.Bottom, selection.Right)
         };
         if (source < 0)
         {
@@ -223,19 +223,19 @@ public sealed partial class MusselSheetView
 
     private int[] LastUsedCell()
     {
-        var (lastRow, lastColumn) = (0, 0);
+        var (bottom, right) = (0, 0);
         for (var r = 0; r < Sheet.RowCount; r++)
         {
             for (var c = 0; c < Sheet.ColumnCount; c++)
             {
                 if (!IsEmpty(r, c))
                 {
-                    lastRow = Math.Max(lastRow, r);
-                    lastColumn = Math.Max(lastColumn, c);
+                    bottom = Math.Max(bottom, r);
+                    right = Math.Max(right, c);
                 }
             }
         }
 
-        return [lastRow, lastColumn];
+        return [bottom, right];
     }
 }

@@ -67,6 +67,6 @@ public sealed class CellStyle
         FontColor = FontColor,
         FillColor = FillColor,
         CssClass = CssClass,
-        Borders = Borders.Clone(),
+        Borders = Borders.Clone()
     };
 }

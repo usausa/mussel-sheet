@@ -47,7 +47,7 @@ public sealed partial class MusselSheetView
             "insertColumnsLeft" when AllowInsertColumns => await InsertColumnsAsync(selection, active, false).ConfigureAwait(true),
             "insertColumnsRight" when AllowInsertColumns => await InsertColumnsAsync(selection, active, true).ConfigureAwait(true),
             "deleteColumns" when AllowDeleteColumns => await DeleteColumnsAsync(selection, active).ConfigureAwait(true),
-            _ => null,
+            _ => null
         };
         if (result is not { } after)
         {
@@ -75,7 +75,7 @@ public sealed partial class MusselSheetView
         var entry = new RowsEdited(true, index > 0 ? Sheet.Rows[index - 1] : null, Sheet.CreateRows(count, Sheet.Rows[template].Height), index, !below, selection, after);
         PutBack(entry, after);
         history.Record(entry);
-        return (after, new CellAddress(index, active.Column));
+        return (after, active with { Row = index });
     }
 
     private async Task<(CellRange Range, CellAddress Active)?> DeleteRowsAsync(CellRange selection, CellAddress active)
@@ -116,7 +116,7 @@ public sealed partial class MusselSheetView
         var entry = new ColumnsEdited(true, index > 0 ? Sheet.Columns[index - 1] : null, Sheet.CreateColumns(count, Sheet.Columns[template].Width), index, !right, selection, after);
         PutBack(entry, after);
         history.Record(entry);
-        return (after, new CellAddress(active.Row, index));
+        return (after, active with { Column = index });
     }
 
     private async Task<(CellRange Range, CellAddress Active)?> DeleteColumnsAsync(CellRange selection, CellAddress active)
@@ -149,7 +149,7 @@ public sealed partial class MusselSheetView
         {
             RowsEdited rows => put ? PutBack(rows, target) : TakeAway(rows, target),
             ColumnsEdited columns => put ? PutBack(columns, target) : TakeAway(columns, target),
-            _ => null,
+            _ => null
         };
     }
 

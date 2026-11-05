@@ -2,8 +2,6 @@ namespace MusselSheet;
 
 using Bunit;
 
-using MusselSheet.Internal;
-
 public sealed class MergeTests : BunitContext
 {
     public MergeTests()

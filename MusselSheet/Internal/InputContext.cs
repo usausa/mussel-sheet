@@ -53,6 +53,6 @@ internal sealed record InputContext(CultureInfo Culture, DateOnly Today, SheetTe
         ["calendarToday"] = Texts.CalendarToday,
         ["calendarPrevious"] = Texts.CalendarPrevious,
         ["calendarNext"] = Texts.CalendarNext,
-        ["cellInput"] = Texts.CellInput,
+        ["cellInput"] = Texts.CellInput
     };
 }

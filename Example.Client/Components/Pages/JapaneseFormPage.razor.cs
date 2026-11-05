@@ -22,7 +22,7 @@ public sealed partial class JapaneseFormPage
     private readonly Sheet sheet = CreateSheet();
 
     [Inject]
-    private IJSRuntime JS { get; set; } = default!;
+    private IJSRuntime Runtime { get; set; } = default!;
 
     private static Sheet CreateSheet()
     {
@@ -208,12 +208,12 @@ public sealed partial class JapaneseFormPage
                 ["Subtotal"] = sheet["F14"].Text,
                 ["Tax"] = sheet["F15"].Text,
                 ["Total"] = sheet["F16"].Text,
-                ["Notes"] = sheet["B17"].Text,
+                ["Notes"] = sheet["B17"].Text
             },
             [.. Enumerable.Range(FirstDetailRow, LastDetailRow - FirstDetailRow + 1).Select(DetailLine)]);
 
         var json = JsonSerializer.Serialize(invoice, InvoiceJsonContext.Default.InvoiceData);
-        var error = await JS.InvokeAsync<string?>("exampleDownload", "api/reports/invoice", json, "請求書.pdf");
+        var error = await Runtime.InvokeAsync<string?>("exampleDownload", "api/reports/invoice", json, "請求書.pdf");
         log.Add(error is null ? "PDF を作成しました" : $"PDF を作成できませんでした: {error}");
     }
 
@@ -222,7 +222,7 @@ public sealed partial class JapaneseFormPage
         ["Item"] = sheet.GetText(row, 0),
         ["Quantity"] = sheet.GetText(row, 3),
         ["Price"] = sheet.GetText(row, 4),
-        ["Amount"] = sheet.GetText(row, 5),
+        ["Amount"] = sheet.GetText(row, 5)
     };
 
     private static void Label(CellSettings c)

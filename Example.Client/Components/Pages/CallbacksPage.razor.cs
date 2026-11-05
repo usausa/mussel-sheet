@@ -48,7 +48,7 @@ public sealed partial class CallbacksPage
                 "0" => "Pending",
                 "1" => "Approved",
                 "2" => "Returned",
-                _ => null,
+                _ => null
             });
             sheet.Range("B5").Configure(static c =>
             {
@@ -58,7 +58,7 @@ public sealed partial class CallbacksPage
                 {
                     < 0m => new CellStyle { FontColor = "#c62828" },
                     > 100000m => new CellStyle { Bold = true },
-                    _ => null,
+                    _ => null
                 };
             });
             sheet.Range("B6").Configure(c =>
@@ -87,7 +87,7 @@ public sealed partial class CallbacksPage
                 ["Profit", -3500m, "StyleProvider: red below 0, bold above 100,000"],
                 ["Due date", today.AddDays(-3), "StyleProvider: yellow before today"],
                 ["Progress", 0.85m, "Formatter: percent. StyleProvider: green from 80%"],
-                ["Even number", 4m, "Validator: rejects odd numbers"],
+                ["Even number", 4m, "Validator: rejects odd numbers"]
             ]);
         }
 

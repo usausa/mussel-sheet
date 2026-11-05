@@ -50,7 +50,7 @@ public sealed partial class LocalizationPage
             ["Time", new TimeOnly(9, 30)],
             ["List", "Green"],
             ["Mask", null],
-            ["Read-only", "Read-only"],
+            ["Read-only", "Read-only"]
         ]);
         return sheet;
     }

@@ -45,6 +45,6 @@ public sealed class SheetEventLog
         DateOnly date => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         TimeOnly time => time.ToString("HH:mm", CultureInfo.InvariantCulture),
         IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
-        _ => value.ToString() ?? string.Empty,
+        _ => value.ToString() ?? string.Empty
     };
 }

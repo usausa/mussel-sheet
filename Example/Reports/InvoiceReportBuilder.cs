@@ -14,8 +14,8 @@ public static class InvoiceReportBuilder
     {
         FontAliases = new Dictionary<string, IReadOnlyList<string>>
         {
-            ["Meiryo"] = ["Noto Sans CJK JP", "Hiragino Sans", "IPAexGothic"],
-        },
+            ["Meiryo"] = ["Noto Sans CJK JP", "Hiragino Sans", "IPAexGothic"]
+        }
     };
 
     public static byte[] Build(InvoiceData invoice)

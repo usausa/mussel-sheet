@@ -6,5 +6,5 @@ public enum SheetSkipReadOnlyMode
 
     EnterAndTab,
 
-    All,
+    All
 }

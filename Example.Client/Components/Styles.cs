@@ -9,7 +9,7 @@ public static class Styles
         PaletteLight = new PaletteLight
         {
             Primary = Colors.Blue.Darken2,
-            AppbarBackground = Colors.Blue.Darken2,
+            AppbarBackground = Colors.Blue.Darken2
         },
         PaletteDark = new PaletteDark(),
         LayoutProperties = new LayoutProperties { DrawerWidthLeft = "200px" },
@@ -21,7 +21,7 @@ public static class Styles
             Subtitle1 = new Subtitle1Typography { FontSize = ".875rem" },
 
             // API names on the buttons keep their case
-            Button = new ButtonTypography { TextTransform = "none" },
-        },
+            Button = new ButtonTypography { TextTransform = "none" }
+        }
     };
 }

@@ -4,8 +4,6 @@ using Bunit;
 
 using Microsoft.AspNetCore.Components;
 
-using MusselSheet.Internal;
-
 public sealed class EditorTests : BunitContext
 {
     public EditorTests()
@@ -78,7 +76,7 @@ public sealed class EditorTests : BunitContext
         var sheet = CustomSheet();
         CellEditContext? opened = null;
         var committed = new List<CellCommittedEventArgs>();
-        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CustomEditor, Editor).Add(x => x.CellCommitted, x => committed.Add(x)));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CustomEditor, Editor).Add(x => x.CellCommitted, committed.Add));
 
         var ok = await cut.InvokeAsync(() => cut.Instance.OpenCustomEditor(0, 0)).ConfigureAwait(true);
 

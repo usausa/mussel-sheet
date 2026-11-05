@@ -52,7 +52,7 @@ public sealed class OptionsCustomizationTests : BunitContext
         var sheet = new Sheet(3, 3);
         var cut = Render<MusselSheetView>(p => p
             .Add(x => x.Sheet, sheet)
-            .Add(x => x.MenuItemClicked, (SheetMenuItemClickedEventArgs e) => clicked = e));
+            .Add(x => x.MenuItemClicked, e => clicked = e));
 
         await cut.InvokeAsync(() => cut.Instance.OnMenuItemAsync("note", 0, 0, 1, 2, 1, 1));
 

@@ -8,5 +8,5 @@ public enum HorizontalAlignment
 
     Center,
 
-    Right,
+    Right
 }

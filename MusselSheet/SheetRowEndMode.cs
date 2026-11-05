@@ -6,5 +6,5 @@ public enum SheetRowEndMode
 
     Stop,
 
-    LeaveSheet,
+    LeaveSheet
 }

@@ -8,10 +8,10 @@ public sealed partial class InputColumnsPage
 
     private static Sheet CreateSheet()
     {
-        const int Rows = 200;
+        const int rows = 200;
         string[] headers = ["Product code", "Quantity", "Unit price", "Amount"];
 
-        var sheet = new Sheet(Rows, headers.Length);
+        var sheet = new Sheet(rows, headers.Length);
         using (sheet.BeginUpdate())
         {
             for (var c = 0; c < headers.Length; c++)
@@ -39,7 +39,7 @@ public sealed partial class InputColumnsPage
             });
             sheet.Range("C:C").Configure(static c => c.InputMessage = "Excluding tax");
 
-            for (var r = 0; r < Rows; r++)
+            for (var r = 0; r < rows; r++)
             {
                 var quantity = (decimal)((r % 7) + 1);
                 var price = 100m * ((r % 13) + 1);

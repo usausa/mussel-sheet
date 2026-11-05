@@ -23,7 +23,7 @@ internal static class SheetDesigner
         Rules = NullIfEmpty(sheet.Rules.Select(x => ToRule(x, functions))),
         Merges = NullIfEmpty(sheet.MergeAreas.Select(x => x.ToString())),
         Values = NullIfEmpty(ValuesOf(sheet, includeValues)),
-        Computations = NullIfEmpty(sheet.Computations.Select(x => ToComputation(sheet, x, functions)).OfType<SheetComputationDesign>()),
+        Computations = NullIfEmpty(sheet.Computations.Select(x => ToComputation(sheet, x, functions)).OfType<SheetComputationDesign>())
     };
 
     public static Sheet FromDesign(SheetDesign design, SheetFunctions? functions)
@@ -125,7 +125,7 @@ internal static class SheetDesigner
             Formatter = functions?.NameOf(settings.Formatter),
             StyleProvider = functions?.NameOf(settings.StyleProvider),
             SuggestionProvider = functions?.NameOf(settings.SuggestionProvider),
-            Style = ToStyle(settings.Style),
+            Style = ToStyle(settings.Style)
         };
     }
 
@@ -148,12 +148,12 @@ internal static class SheetDesigner
             Top = ToBorder(borders.Top),
             Right = ToBorder(borders.Right),
             Bottom = ToBorder(borders.Bottom),
-            Left = ToBorder(borders.Left),
+            Left = ToBorder(borders.Left)
         };
         return design is
         {
             HorizontalAlignment: null, VerticalAlignment: null, Bold: null, Italic: null, Underline: null, Strikethrough: null, FontSize: null, IndentLevel: null,
-            FontColor: null, FillColor: null, CssClass: null, Top: null, Right: null, Bottom: null, Left: null,
+            FontColor: null, FillColor: null, CssClass: null, Top: null, Right: null, Bottom: null, Left: null
         } ? null : design;
     }
 
@@ -186,7 +186,7 @@ internal static class SheetDesigner
             TimeSpan span => ("time", TimeOnly.FromTimeSpan(span).ToString("HH:mm:ss", CultureInfo.InvariantCulture)),
             decimal or int or long or short or byte or sbyte or uint or ulong or ushort => ("number", Convert.ToDecimal(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture)),
             double or float => ("number", Convert.ToDouble(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture)),
-            _ => ("text", Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty),
+            _ => ("text", Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty)
         };
         return new CellValueDesign { Cell = cell.ToString(), Type = type, Value = text };
     }
@@ -203,7 +203,7 @@ internal static class SheetDesigner
             Target = computation.CurrentTarget(),
             PerRow = computation.PerRow,
             Observed = [.. computation.Observations.Select(x => ToObserved(sheet, x))],
-            Function = name,
+            Function = name
         };
     }
 
@@ -243,7 +243,7 @@ internal static class SheetDesigner
             Corrector = rule.Corrector is { } corrector ? Table(functions, corrector).Corrector(corrector) : null,
             Formatter = rule.Formatter is { } formatter ? Table(functions, formatter).Formatter(formatter) : null,
             StyleProvider = rule.StyleProvider is { } provider ? Table(functions, provider).StyleProvider(provider) : null,
-            SuggestionProvider = rule.SuggestionProvider is { } suggestions ? Table(functions, suggestions).SuggestionProvider(suggestions) : null,
+            SuggestionProvider = rule.SuggestionProvider is { } suggestions ? Table(functions, suggestions).SuggestionProvider(suggestions) : null
         };
         ApplyStyle(settings.Style, rule.Style);
         return settings;
@@ -276,13 +276,13 @@ internal static class SheetDesigner
     private static CellBorder? ToLine(CellBorderDesign? design) =>
         design is null ? null : new CellBorder(Enum.Parse<BorderLineStyle>(design.Style, true), design.Color);
 
-    private static object? ToValue(CellValueDesign value) => value.Type.ToUpperInvariant() switch
+    private static object ToValue(CellValueDesign value) => value.Type.ToUpperInvariant() switch
     {
         "NUMBER" => decimal.Parse(value.Value, NumberStyles.Number | NumberStyles.AllowExponent, CultureInfo.InvariantCulture),
         "DATE" => DateOnly.ParseExact(value.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture),
         "TIME" => TimeOnly.ParseExact(value.Value, "HH:mm:ss", CultureInfo.InvariantCulture),
         "CHECK" => bool.Parse(value.Value),
-        _ => value.Value,
+        _ => value.Value
     };
 
     private static CellBound? ToBound(string? text)

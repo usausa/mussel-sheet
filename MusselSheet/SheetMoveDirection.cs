@@ -6,5 +6,5 @@ public enum SheetMoveDirection
 
     Right,
 
-    None,
+    None
 }

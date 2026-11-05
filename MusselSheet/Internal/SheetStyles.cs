@@ -9,7 +9,7 @@ internal sealed class SheetStyles
 {
     private readonly Dictionary<string, int> colors = new(StringComparer.Ordinal);
 
-    private readonly Dictionary<CellClassKey, string> cellClasses = [];
+    private readonly Dictionary<(ResolvedCellSettings Settings, CellEdges Edges, CellBorder? Left, CellBorder? Top), string> cellClasses = [];
 
     private readonly Dictionary<CellRange, string> mergeClasses = [];
 
@@ -126,7 +126,7 @@ internal sealed class SheetStyles
     // cells in the first column and the first row.
     public string GetCellClass(ResolvedCellSettings settings, CellEdges edges, CellBorder? left, CellBorder? top)
     {
-        var key = new CellClassKey(settings, edges, left, top);
+        var key = (settings, edges, left, top);
         if (cellClasses.TryGetValue(key, out var cached))
         {
             return cached;
@@ -139,13 +139,13 @@ internal sealed class SheetStyles
         {
             HorizontalAlignment.Center => " mussel-sheet-ha-c",
             HorizontalAlignment.Right => " mussel-sheet-ha-r",
-            _ => string.Empty,
+            _ => string.Empty
         });
         builder.Append(style.VerticalAlignment switch
         {
             VerticalAlignment.Top => " mussel-sheet-va-t",
             VerticalAlignment.Bottom => " mussel-sheet-va-b",
-            _ => string.Empty,
+            _ => string.Empty
         });
         if (style.Bold)
         {
@@ -222,7 +222,7 @@ internal sealed class SheetStyles
             {
                 HorizontalAlignment.Center => "text-align:center;",
                 HorizontalAlignment.Right => "text-align:right;",
-                _ => "text-align:left;",
+                _ => "text-align:left;"
             });
         }
 
@@ -243,7 +243,7 @@ internal sealed class SheetStyles
                 (true, true) => "underline line-through",
                 (true, false) => "underline",
                 (false, true) => "line-through",
-                _ => "none",
+                _ => "none"
             };
             css.Append(CultureInfo.InvariantCulture, $"text-decoration-line:{line};");
         }
@@ -299,7 +299,7 @@ internal sealed class SheetStyles
         {
             CellKind.Number or CellKind.Date or CellKind.Time => HorizontalAlignment.Right,
             CellKind.Checkbox => HorizontalAlignment.Center,
-            _ => HorizontalAlignment.Left,
+            _ => HorizontalAlignment.Left
         };
     }
 
@@ -353,7 +353,7 @@ internal sealed class SheetStyles
             BorderLineStyle.Dashed => "dashed",
             BorderLineStyle.Dotted => "dotted",
             BorderLineStyle.DoubleLine => "double",
-            _ => null,
+            _ => null
         };
         if (name is null)
         {
@@ -363,6 +363,4 @@ internal sealed class SheetStyles
         builder.Append(CultureInfo.InvariantCulture, $" mussel-sheet-b{side}-{name}");
         AppendColor(builder, $"b{side}c", value.Color);
     }
-
-    private readonly record struct CellClassKey(ResolvedCellSettings Settings, CellEdges Edges, CellBorder? Left, CellBorder? Top);
 }

@@ -37,7 +37,7 @@ internal static partial class JapaneseEraText
     // Era tokens follow Excel: ggg is the full name, gg the short name, g the initial, ee and e the era year with
     // and without padding; a single e prints 元 for era year 1 when followed by 年. Dates before the first era
     // use the culture's short date pattern.
-    public static string Format(DateOnly date, string format, CultureInfo culture, IReadOnlyList<SheetJapaneseEra> eras)
+    public static string Format(DateOnly date, string format, CultureInfo culture, IEnumerable<SheetJapaneseEra> eras)
     {
         var era = EraOf(date, eras);
         if (era is null)
@@ -87,7 +87,7 @@ internal static partial class JapaneseEraText
                 'y' => count >= 3 ? date.Year.ToString("0000", CultureInfo.InvariantCulture) : (date.Year % 100).ToString("00", CultureInfo.InvariantCulture),
                 'M' => count >= 4 ? names.GetMonthName(date.Month) : count == 3 ? names.GetAbbreviatedMonthName(date.Month) : date.Month.ToString(count == 2 ? "00" : "0", CultureInfo.InvariantCulture),
                 'd' => count >= 4 ? names.GetDayName(date.DayOfWeek) : count == 3 ? names.GetAbbreviatedDayName(date.DayOfWeek) : date.Day.ToString(count == 2 ? "00" : "0", CultureInfo.InvariantCulture),
-                _ => new string(c, count),
+                _ => new string(c, count)
             });
             i += count;
         }
@@ -151,7 +151,7 @@ internal static partial class JapaneseEraText
         return date >= era.Start;
     }
 
-    private static SheetJapaneseEra? EraOf(DateOnly date, IReadOnlyList<SheetJapaneseEra> eras) =>
+    private static SheetJapaneseEra? EraOf(DateOnly date, IEnumerable<SheetJapaneseEra> eras) =>
         eras.Where(x => x.Start <= date).MaxBy(x => x.Start);
 
     private static int Number(string text) => int.Parse(text, CultureInfo.InvariantCulture);

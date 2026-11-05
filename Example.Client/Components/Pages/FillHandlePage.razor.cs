@@ -10,11 +10,11 @@ public sealed partial class FillHandlePage
 
     private static Sheet CreateSheet()
     {
-        const int Rows = 12;
+        const int rows = 12;
         string[] headers = ["No", "Date", "Round", "Part No.", "Quantity", "Owner"];
         int[] widths = [60, 120, 90, 100, 90, 100];
 
-        var sheet = new Sheet(Rows, headers.Length);
+        var sheet = new Sheet(rows, headers.Length);
         using (sheet.BeginUpdate())
         {
             for (var c = 0; c < widths.Length; c++)
@@ -40,11 +40,11 @@ public sealed partial class FillHandlePage
             sheet.SetValues(1, 0,
             [
                 [1m, new DateOnly(2026, 11, 3), "Round 1", "A-001", 10m, "Smith"],
-                [2m, null, null, null, 20m],
+                [2m, null, null, null, 20m]
             ]);
 
             // Column A has data down to row 12, so a double click on the handle of column B fills that far
-            for (var r = 3; r < Rows; r++)
+            for (var r = 3; r < rows; r++)
             {
                 sheet.SetValue(r, 0, (decimal)r);
             }

@@ -165,7 +165,7 @@ internal static class SheetMapBuilder
         CellKind.Mask => "mask",
         CellKind.AutoComplete => "autocomplete",
         CellKind.Custom => "custom",
-        _ => "text",
+        _ => "text"
     };
 
     public static string? RestrictionName(CellCharacterRestriction restriction) => restriction switch
@@ -177,7 +177,7 @@ internal static class SheetMapBuilder
         CellCharacterRestriction.HalfwidthKatakana => "halfwidthKatakana",
         CellCharacterRestriction.Alphanumeric => "alphanumeric",
         CellCharacterRestriction.Digits => "digits",
-        _ => null,
+        _ => null
     };
 
     private static InputRule CreateRule(ResolvedCellSettings settings, SheetValidationMode defaultPolicy, InputContext context) => new(
@@ -214,7 +214,7 @@ internal static class SheetMapBuilder
     {
         SheetValidationMode.Revert => "revert",
         SheetValidationMode.AcceptAndMark => "accept",
-        _ => "stay",
+        _ => "stay"
     };
 
     private sealed class PatternComparer : IEqualityComparer<int[]>

@@ -5,7 +5,7 @@ using MusselSheet.Internal;
 public sealed partial class MusselSheetView
 {
     internal Task<CommitResult> CommitAsync(int row, int column, string text, bool optimistic) =>
-        CommitCoreAsync(row, column, text ?? string.Empty, optimistic, CellChangeReason.Input);
+        CommitCoreAsync(row, column, text, optimistic, CellChangeReason.Input);
 
     // Delete clears without validation, same as Excel
     internal Task<CommitResult> ClearAsync(int row, int column) =>
@@ -41,7 +41,7 @@ public sealed partial class MusselSheetView
                 return null;
             }
 
-            var items = await provider(new CellSuggestionContext(Sheet, new CellAddress(row, column), text ?? string.Empty, cancel.Token)).ConfigureAwait(true);
+            var items = await provider(new CellSuggestionContext(Sheet, new CellAddress(row, column), text, cancel.Token)).ConfigureAwait(true);
             return cancel.IsCancellationRequested ? null : [.. items.Take(MaxSuggestions)];
         }
         catch (OperationCanceledException)
@@ -142,7 +142,7 @@ public sealed partial class MusselSheetView
             _ when (type == typeof(DateOnly)) || (type == typeof(DateTime)) || (type == typeof(DateTimeOffset)) => InputContext.DateMessage,
             _ when (type == typeof(TimeOnly)) || (type == typeof(TimeSpan)) => Texts.Time,
             _ when type == typeof(bool) => Texts.Check,
-            _ => Texts.Pattern,
+            _ => Texts.Pattern
         };
     }
 

@@ -11,5 +11,5 @@ public enum CellCharacterConversions
 
     HiraganaToKatakana = 4,
 
-    KatakanaToHiragana = 8,
+    KatakanaToHiragana = 8
 }

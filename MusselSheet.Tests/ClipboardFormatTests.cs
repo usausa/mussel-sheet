@@ -15,7 +15,7 @@ public sealed class ClipboardFormatTests
         { "\r\n", [[string.Empty]] },
         { "a\t\tc", [["a", string.Empty, "c"]] },
         { "a\n\nb", [["a"], [string.Empty], ["b"]] },
-        { "a\rb", [["a"], ["b"]] },
+        { "a\rb", [["a"], ["b"]] }
     };
 
     [Theory]

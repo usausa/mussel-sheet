@@ -1,7 +1,6 @@
 using Example.Client;
 
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
 using MudBlazor.Services;

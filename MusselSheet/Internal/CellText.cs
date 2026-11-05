@@ -29,7 +29,7 @@ internal static class CellText
             CellKind.Time => FormatTime(value, settings.Format ?? DefaultTimeFormat, culture),
             CellKind.List or CellKind.AutoComplete => ListText(value, settings.Items, culture),
             CellKind.Custom when (settings.Format is { } format) && (value is IFormattable formattable) => formattable.ToString(format, culture),
-            _ => Convert.ToString(value, culture) ?? string.Empty,
+            _ => Convert.ToString(value, culture) ?? string.Empty
         };
     }
 
@@ -47,7 +47,7 @@ internal static class CellText
             CellKind.Time => FormatTime(value, HasSeconds(value) ? "HH:mm:ss" : DefaultTimeFormat, culture),
             CellKind.Checkbox => IsTrue(value) ? "true" : "false",
             CellKind.List or CellKind.AutoComplete => ListText(value, settings.Items, culture),
-            _ => Convert.ToString(value, culture) ?? string.Empty,
+            _ => Convert.ToString(value, culture) ?? string.Empty
         };
     }
 
@@ -101,7 +101,7 @@ internal static class CellText
                 TimeSpan span when target == typeof(TimeOnly) => TimeOnly.FromTimeSpan(span),
                 TimeOnly time when target == typeof(TimeSpan) => time.ToTimeSpan(),
                 IConvertible convertible when typeof(IConvertible).IsAssignableFrom(target) => Convert.ChangeType(convertible, target, CultureInfo.InvariantCulture),
-                _ => null,
+                _ => null
             };
         }
         catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException or ArgumentException)
@@ -113,7 +113,7 @@ internal static class CellText
     private static string FormatNumber(object value, string format, CultureInfo culture) => value switch
     {
         decimal or double or float or int or long or short or byte or uint or ulong or ushort or sbyte => ((IFormattable)value).ToString(format, culture),
-        _ => Convert.ToString(value, culture) ?? string.Empty,
+        _ => Convert.ToString(value, culture) ?? string.Empty
     };
 
     public static string FormatDate(DateOnly date, string format, CultureInfo culture, IReadOnlyList<SheetJapaneseEra>? eras) =>
@@ -124,7 +124,7 @@ internal static class CellText
         DateOnly date => FormatDate(date, format, culture, eras),
         DateTime dateTime => FormatDate(DateOnly.FromDateTime(dateTime), format, culture, eras),
         DateTimeOffset offset => FormatDate(DateOnly.FromDateTime(offset.Date), format, culture, eras),
-        _ => Convert.ToString(value, culture) ?? string.Empty,
+        _ => Convert.ToString(value, culture) ?? string.Empty
     };
 
     private static string FormatTime(object value, string format, CultureInfo culture) => value switch
@@ -132,7 +132,7 @@ internal static class CellText
         TimeOnly time => time.ToString(format, culture),
         TimeSpan span when (span >= TimeSpan.Zero) && (span < TimeSpan.FromDays(1)) => TimeOnly.FromTimeSpan(span).ToString(format, culture),
         DateTime dateTime => TimeOnly.FromDateTime(dateTime).ToString(format, culture),
-        _ => Convert.ToString(value, culture) ?? string.Empty,
+        _ => Convert.ToString(value, culture) ?? string.Empty
     };
 
     private static bool HasSeconds(object value) => value switch
@@ -140,17 +140,17 @@ internal static class CellText
         TimeOnly time => time.Second != 0,
         TimeSpan span => span.Seconds != 0,
         DateTime dateTime => dateTime.Second != 0,
-        _ => false,
+        _ => false
     };
 
     private static bool IsTrue(object value) => value switch
     {
         bool flag => flag,
         string text => string.Equals(text, "true", StringComparison.OrdinalIgnoreCase),
-        _ => false,
+        _ => false
     };
 
-    private static string ListText(object value, IReadOnlyList<CellListItem> items, CultureInfo culture)
+    private static string ListText(object value, IEnumerable<CellListItem> items, CultureInfo culture)
     {
         var text = Convert.ToString(value, culture) ?? string.Empty;
         foreach (var item in items)

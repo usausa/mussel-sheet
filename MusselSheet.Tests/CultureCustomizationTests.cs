@@ -20,8 +20,7 @@ public sealed class CultureCustomizationTests : BunitContext
     [Fact]
     public void SettingsAreFoundFromTheCultureToItsParents()
     {
-        var options = new MusselSheetOptions();
-        options.Cultures["ja-JP"] = new SheetCulture { DateFormat = "yyyy年M月d日" };
+        var options = new MusselSheetOptions { Cultures = { ["ja-JP"] = new SheetCulture { DateFormat = "yyyy年M月d日" } } };
 
         Assert.Equal("yyyy年M月d日", options.DateFormatFor(Japanese));
         Assert.Same(SheetTexts.Japanese, options.TextsFor(Japanese));

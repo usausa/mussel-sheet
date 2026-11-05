@@ -100,5 +100,5 @@ internal sealed class Observation
     public void OnRowsInserted(Sheet sheet, int index, int count) => rows?.OnInserted(sheet, index, count, null);
 
     private IEnumerable<int> CurrentColumns(Sheet sheet) =>
-        columns is null ? Enumerable.Range(0, sheet.ColumnCount) : columns.Where(sheet.Contains).Select(x => x.Index).Order();
+        columns?.Where(sheet.Contains).Select(x => x.Index).Order() ?? Enumerable.Range(0, sheet.ColumnCount);
 }

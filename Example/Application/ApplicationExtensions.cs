@@ -72,7 +72,7 @@ public static class ApplicationExtensions
             DefaultRequestCulture = new RequestCulture(SupportedCultures.Names[0]),
             SupportedCultures = [.. SupportedCultures.Names.Select(CultureInfo.GetCultureInfo)],
             SupportedUICultures = [.. SupportedCultures.Names.Select(CultureInfo.GetCultureInfo)],
-            RequestCultureProviders = [new CookieRequestCultureProvider()],
+            RequestCultureProviders = [new CookieRequestCultureProvider()]
         });
 
         return app;

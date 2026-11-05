@@ -236,7 +236,7 @@ internal sealed class SettingsBuilder
         Editor = editor,
         Formatter = formatter,
         StyleProvider = styleProvider,
-        Style = BuildStyle(),
+        Style = BuildStyle()
     };
 
     private void ApplyInput(CellSettings settings)
@@ -312,7 +312,7 @@ internal sealed class SettingsBuilder
             FontColor = foreground,
             FillColor = background,
             CssClass = cssClass,
-            Borders = borders,
+            Borders = borders
         };
     }
 }

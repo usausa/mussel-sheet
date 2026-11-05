@@ -72,7 +72,7 @@ public sealed partial class FormPage
                 ["Item", "Quantity", "Unit price", "Amount"],
                 ["Notebook PC", 2m, 128000m],
                 ["Mouse", 5m, 2400m],
-                ["Monitor", 2m, 32000m],
+                ["Monitor", 2m, 32000m]
             ]);
             sheet["C9"].Value = "Total";
             Calculate(sheet);

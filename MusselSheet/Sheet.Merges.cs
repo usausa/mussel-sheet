@@ -1,7 +1,5 @@
 namespace MusselSheet;
 
-using MusselSheet.Internal;
-
 // A merged range behaves as its top-left cell: value, settings and error mark all come from it
 public sealed partial class Sheet
 {

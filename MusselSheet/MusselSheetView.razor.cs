@@ -237,7 +237,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
     internal int ColumnVersion { get; private set; }
 
     [Inject]
-    private IJSRuntime JS { get; set; } = default!;
+    private IJSRuntime Runtime { get; set; } = default!;
 
     [Inject]
     private IServiceProvider Services { get; set; } = default!;
@@ -286,7 +286,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
                 builder.Append(" mussel-sheet-frozen-rows");
             }
 
-            if ((AdditionalAttributes is not null) && AdditionalAttributes.TryGetValue("class", out var extra) && (extra is not null))
+            if (AdditionalAttributes?.GetValueOrDefault("class") is { } extra)
             {
                 builder.Append(' ').Append(extra);
             }

@@ -65,7 +65,7 @@ public sealed partial class ComputedCellsPage
                 ["Customer", "Aster Trading", "Lines"],
                 ["Item", "Quantity", "Unit price", "Amount"],
                 ["Notebook", 10m, 120m],
-                ["Ballpoint pen", 20m, 80m],
+                ["Ballpoint pen", 20m, 80m]
             ]);
             sheet["C7"].Value = "Subtotal";
             sheet["C8"].Value = "Total (with tax)";

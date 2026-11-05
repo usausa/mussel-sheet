@@ -102,7 +102,7 @@ public sealed partial class FormattingPage
                 ["Thick", null, "CellBorder.Thick"],
                 ["Dashed", null, "CellBorder.Dashed"],
                 ["Dotted", null, "CellBorder.Dotted"],
-                ["Double", null, "CellBorder.DoubleLine.WithColor"],
+                ["Double", null, "CellBorder.DoubleLine.WithColor"]
             ]);
         }
 

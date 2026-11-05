@@ -55,7 +55,7 @@ public sealed partial class CustomizationPage
             ["Color", "#1a73e8", "F2 opens the editor"],
             ["Rating", 3m, "F2 opens the editor"],
             ["Required", "Text", "Clear it: a registered message"],
-            ["Menu", "Text", "Right-click: a registered item"],
+            ["Menu", "Text", "Right-click: a registered item"]
         ]);
         return sheet;
     }

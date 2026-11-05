@@ -102,7 +102,7 @@ public sealed class CellCallbackTests : BunitContext
         {
             "1" => "承認済",
             "0" => "未承認",
-            _ => null,
+            _ => null
         });
         sheet.Range("B1").Configure(c =>
         {
@@ -135,7 +135,7 @@ public sealed class CellCallbackTests : BunitContext
             {
                 < 0m => new CellStyle { FontColor = "#c62828", Bold = false, Strikethrough = true, IndentLevel = 1, CssClass = "minus" },
                 > 1000m => new CellStyle { FillColor = "red;display:none" },
-                _ => null,
+                _ => null
             };
         });
 

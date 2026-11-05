@@ -16,5 +16,5 @@ public enum CellChangeReason
 
     Cut,
 
-    Fill,
+    Fill
 }

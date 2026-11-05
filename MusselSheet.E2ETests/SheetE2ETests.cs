@@ -952,30 +952,30 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     [Fact]
     public async Task ColumnHeadersStopBelowAFixedPageHeader()
     {
-        const int AppBarHeight = 48;
-        const int LastRow = 11;
+        const int appBarHeight = 48;
+        const int lastRow = 11;
 
         var sample = await OpenAsync("playground", "server");
         await sample.Page.SetViewportSizeAsync(1280, 240);
 
         await sample.Cell(0, 0).ClickAsync();
-        for (var i = 0; i < LastRow; i++)
+        for (var i = 0; i < lastRow; i++)
         {
             await sample.Keyboard.PressAsync("ArrowDown");
         }
 
         await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: A12");
         var header = await SamplePage.RectAsync(sample.ColumnHeader(0));
-        Assert.Equal(AppBarHeight, header[1]);
+        Assert.Equal(appBarHeight, header[1]);
 
-        for (var i = 0; i < LastRow; i++)
+        for (var i = 0; i < lastRow; i++)
         {
             await sample.Keyboard.PressAsync("ArrowUp");
         }
 
         await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: A1");
         var cell = await SamplePage.RectAsync(sample.Cell(0, 0));
-        Assert.True(cell[1] >= AppBarHeight + header[3], $"The cell is at {cell[1]}.");
+        Assert.True(cell[1] >= appBarHeight + header[3], $"The cell is at {cell[1]}.");
     }
 
     [Fact]

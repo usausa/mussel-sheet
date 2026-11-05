@@ -6,5 +6,5 @@ public enum VerticalAlignment
 
     Center,
 
-    Bottom,
+    Bottom
 }

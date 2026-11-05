@@ -50,19 +50,19 @@ public sealed partial class MusselSheetView
         {
             SheetMoveDirection.Right => "right",
             SheetMoveDirection.None => "none",
-            _ => "down",
+            _ => "down"
         };
         var rowEnd = RowEndMode switch
         {
             SheetRowEndMode.Stop => "stop",
             SheetRowEndMode.LeaveSheet => "leave",
-            _ => "next",
+            _ => "next"
         };
         var skip = SkipReadOnlyMode switch
         {
             SheetSkipReadOnlyMode.None => "none",
             SheetSkipReadOnlyMode.All => "all",
-            _ => "enterTab",
+            _ => "enterTab"
         };
         return new ScriptOptionsData(
             enterDirection,
@@ -87,7 +87,7 @@ public sealed partial class MusselSheetView
 
     private async Task AttachAsync()
     {
-        module ??= await JS.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(true);
+        module ??= await Runtime.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(true);
         self ??= DotNetObjectReference.Create(new SheetScriptBridge(this));
         var options = ScriptOptions();
         sentMap = MapSignature();

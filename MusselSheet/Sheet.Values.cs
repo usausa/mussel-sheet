@@ -64,10 +64,10 @@ public sealed partial class Sheet
 
     public string GetText(int row, int column)
     {
-        var settings = GetSettings(row, column);
+        var resolved = GetSettings(row, column);
         var value = GetValue(row, column);
-        var text = CellText.Display(value, settings, Culture);
-        return settings.Formatter?.Invoke(new CellFormatContext(this, new CellAddress(row, column), value, text)) ?? text;
+        var text = CellText.Display(value, resolved, Culture);
+        return resolved.Formatter?.Invoke(new CellFormatContext(this, new CellAddress(row, column), value, text)) ?? text;
     }
 
     public string GetEditText(int row, int column) =>

@@ -43,7 +43,7 @@ internal static partial class CellInput
         CellKind.Date when reading.Japanese => NormalizeWidth(text).Replace('・', '/'),
         CellKind.Date => NormalizeWidth(text),
         CellKind.Number or CellKind.Time or CellKind.Checkbox => NormalizeWidth(text),
-        _ => text,
+        _ => text
     };
 
     public static string ConvertCharacters(string text, CellCharacterConversions conversions)
@@ -360,7 +360,7 @@ internal static partial class CellInput
             {
                 DateOrder.YearMonthDay => (a, b, c),
                 DateOrder.MonthDayYear => (c, a, b),
-                _ => (c, b, a),
+                _ => (c, b, a)
             };
             return true;
         }
@@ -448,7 +448,7 @@ internal static partial class CellInput
             decimal number => ((minimum?.Number is { } low) && (number < low), (maximum?.Number is { } high) && (number > high)),
             DateOnly date => ((minimum?.Date is { } low) && (date < low), (maximum?.Date is { } high) && (date > high)),
             TimeOnly time => ((minimum?.Time is { } low) && (time < low), (maximum?.Time is { } high) && (time > high)),
-            _ => (false, false),
+            _ => (false, false)
         };
         if (!below && !above)
         {
@@ -508,7 +508,7 @@ internal static partial class CellInput
         CellCharacterRestriction.Katakana => texts.Katakana,
         CellCharacterRestriction.HalfwidthKatakana => texts.HalfwidthKatakana,
         CellCharacterRestriction.Alphanumeric => texts.Alphanumeric,
-        _ => texts.Digits,
+        _ => texts.Digits
     };
 
     private static bool IsHalfwidth(int code) => (code <= 0x7F) || code is >= 0xFF61 and <= 0xFF9F;
@@ -522,7 +522,7 @@ internal static partial class CellInput
         CellCharacterRestriction.HalfwidthKatakana => code is (>= 0xFF65 and <= 0xFF9F) or 0x20,
         CellCharacterRestriction.Alphanumeric => code is (>= '0' and <= '9') or (>= 'A' and <= 'Z') or (>= 'a' and <= 'z'),
         CellCharacterRestriction.Digits => code is >= '0' and <= '9',
-        _ => true,
+        _ => true
     };
 
     private static string NormalizeWidth(string text)
@@ -535,7 +535,7 @@ internal static partial class CellInput
                 >= '！' and <= '～' => (char)(ch - 0xFEE0),
                 '　' => ' ',
                 'ー' or '−' or '‐' or '―' => '-',
-                _ => ch,
+                _ => ch
             });
         }
 
@@ -551,7 +551,7 @@ internal static partial class CellInput
             {
                 >= '！' and <= '～' => (char)(ch - 0xFEE0),
                 '　' => ' ',
-                _ => ch,
+                _ => ch
             });
         }
 
@@ -597,7 +597,7 @@ internal static partial class CellInput
         'ワ' => 'ヷ',
         'ヲ' => 'ヺ',
         _ when VoicedKana.Contains(kana, StringComparison.Ordinal) => (char)(kana + 1),
-        _ => null,
+        _ => null
     };
 
     private static string ShiftKana(string text, char first, char last, char iteration, int shift)
@@ -616,7 +616,7 @@ internal static partial class CellInput
     {
         '9' => char.IsAsciiDigit(ch),
         'A' => char.IsAsciiLetter(ch),
-        _ => char.IsAsciiLetterOrDigit(ch),
+        _ => char.IsAsciiLetterOrDigit(ch)
     };
 
     private static bool IsSeparator(char ch) => (ch <= 0x7F) && !char.IsAsciiLetterOrDigit(ch);

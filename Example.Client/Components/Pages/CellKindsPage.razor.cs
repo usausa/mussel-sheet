@@ -17,7 +17,7 @@ public sealed partial class CellKindsPage
         "Oak Bank",
         "Pine Transport",
         "Rowan Pharma",
-        "Willow Design",
+        "Willow Design"
     ];
 
     private readonly SheetEventLog log = new();
@@ -45,7 +45,7 @@ public sealed partial class CellKindsPage
             ("Product code", "CharacterConversions, CharacterRestriction"),
             ("Customer", "SuggestionProvider"),
             ("Done", "CheckedText, UncheckedText"),
-            ("Notes", "WrapText"),
+            ("Notes", "WrapText")
         ];
 
         var sheet = new Sheet(rows.Length, 3);

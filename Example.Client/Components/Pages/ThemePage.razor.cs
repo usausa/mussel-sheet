@@ -7,7 +7,7 @@ public sealed partial class ThemePage
         new("Default", null, null),
         new("Shared variables on a container", "theme-slate", null),
         new("Sheet variables on the sheet", null, "theme-green"),
-        new("Dark", null, "theme-dark"),
+        new("Dark", null, "theme-dark")
     ];
 
     private readonly SheetEventLog log = new();
@@ -54,7 +54,7 @@ public sealed partial class ThemePage
             ["Checkbox", true],
             ["Read-only", "Read-only"],
             ["Border", "Medium"],
-            ["Error", "Error"],
+            ["Error", "Error"]
         ]);
         sheet.SetError(7, 1, "An error mark");
         return sheet;

@@ -10,7 +10,7 @@ using MusselSheet.Internal;
 public sealed partial class MusselSheetView
 {
     internal Task<CommitResult> PasteAsync(int row, int column, string text, bool optimistic) =>
-        CommitCoreAsync(row, column, text ?? string.Empty, optimistic, CellChangeReason.Paste);
+        CommitCoreAsync(row, column, text, optimistic, CellChangeReason.Paste);
 
     // JS copies to the clipboard; this only clears the value, same as Delete
     internal Task<CommitResult> CutAsync(int row, int column) =>

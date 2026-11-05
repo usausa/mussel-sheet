@@ -211,7 +211,7 @@ public sealed class SheetDesignTests
         sheet.SetValues(0, 0, [
             ["経費精算書"],
             ["品名", "数量", "単価", "状態"],
-            ["ノート", 12m, 120m, "1"],
+            ["ノート", 12m, 120m, "1"]
         ]);
         sheet.SetValues(5, 1, [[new DateOnly(2026, 11, 3), new TimeOnly(9, 30), true]]);
         return sheet;

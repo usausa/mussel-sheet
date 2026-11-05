@@ -48,7 +48,7 @@ public sealed record SheetTexts
         CalendarToday = "今日",
         CalendarPrevious = "前の月",
         CalendarNext = "次の月",
-        CellInput = "セルの入力",
+        CellInput = "セルの入力"
     };
 
     public string Required { get; init; } = "Enter a value.";

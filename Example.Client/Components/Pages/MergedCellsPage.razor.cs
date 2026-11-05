@@ -68,7 +68,7 @@ public sealed partial class MergedCellsPage
                 ["Subject", "Office supplies"],
                 ["Item", "Quantity", "Unit price", "Amount"],
                 ["Copy paper", 10m, 450m],
-                ["Ballpoint pen", 50m, 120m],
+                ["Ballpoint pen", 50m, 120m]
             ]);
             sheet["A8"].Value = "Total";
             sheet["A9"].Value = "Notes";

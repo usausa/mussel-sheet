@@ -17,7 +17,7 @@ public sealed class ValueFormTests
             [new DateTime(2026, 11, 5, 9, 0, 0, DateTimeKind.Unspecified), new TimeSpan(9, 30, 0)],
             [new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero), new TimeSpan(9, 30, 15)],
             ["Not a date", new DateTime(2026, 1, 1, 10, 15, 30, DateTimeKind.Unspecified)],
-            [null, "Not a time"],
+            [null, "Not a time"]
         ]);
 
         Assert.Equal("2026/11/05", sheet.GetText(0, 0));
@@ -93,7 +93,7 @@ public sealed class ValueFormTests
         Assert.Equal(expected, JapaneseEraText.Format(date, format, CultureInfo.GetCultureInfo("ja-JP"), SheetJapaneseEra.BuiltIn));
     }
 
-    private static (string Type, string Value) Saved(IReadOnlyList<CellValueDesign> values, string cell)
+    private static (string Type, string Value) Saved(IEnumerable<CellValueDesign> values, string cell)
     {
         var value = values.Single(x => x.Cell == cell);
         return (value.Type, value.Value);
