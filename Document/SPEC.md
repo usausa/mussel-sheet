@@ -81,8 +81,9 @@ Values are never inherited. Deleting shrinks rules and drops empty ones. These m
 | `Custom` | Any | See [Custom cells](#-custom-cells) | `CustomDisplay`, or the value as text, with `Format` if formattable |
 
 - Empty text is `null` in every kind. Text starting with `=` is ordinary text.
-- A value of another type shows as text. `Date` also shows `DateTime` and `DateTimeOffset`, and `Time` also `TimeSpan` and `DateTime`.
-- With only one of `CheckedText` and `UncheckedText`, the other state shows nothing.
+- A value of another type shows as text. In a `Checkbox`, anything but `true` or the text `true` in any case is unchecked. `Date` also shows `DateTime` and `DateTimeOffset`, and `Time` also `TimeSpan` and `DateTime`.
+- Without `CheckedText` and `UncheckedText`, the text of a `Checkbox` is `☑` or `☐`, and `☐` for no value. `GetText`, `Formatter` and `CellDisplayContext.Text` get this text.
+- With only one of `CheckedText` and `UncheckedText`, the other state shows nothing, and its click area is the size of the box.
 - `Label` is not drawn like a read-only cell.
 
 | Rule | Applies to | Check |
@@ -181,7 +182,7 @@ Ctrl also means ⌘, and `—` leaves the key to the browser. On an input-disabl
 - Ctrl+D with one row selected copies the row above, and with several copies the first row to the others. Ctrl+R does the same with columns. The source's edit text runs the steps of each target. The selection stays.
 - The editor grows right with long text, and down with `WrapText`.
 
-`ReadyKeys` applies in ready, `EditingKeys` in input and edit. A listed key acts as the default key of its `SheetCommands` value, and `null` leaves it to the browser. Write keys as `Ctrl+Alt+Shift+Key`, in any order and case, where `Key` is a character, `Space` or a `KeyboardEvent.key` name. Default keys: `Edit` F2, `ClearContents` Delete, `Undo` Ctrl+Z, `Redo` Ctrl+Y, `SelectAll` Ctrl+A, `FillDown` Ctrl+D, `FillRight` Ctrl+R, `Today` Ctrl+;, `FillSelection` Ctrl+Enter, `Menu` Shift+F10, `OpenList` Alt+Down, `MoveNext` Enter, `MovePrevious` Shift+Enter, `TabNext` Tab, `TabPrevious` Shift+Tab, `Cancel` Esc, `NewLine` Alt+Enter.
+`ReadyKeys` applies in ready, `EditingKeys` in input and edit. A listed key acts as the default key of its `SheetCommands` value, and `null` leaves it to the browser. Unlisted keys keep their action, so a command's default key still works unless it is also set to `null`. Write keys as `Ctrl+Alt+Shift+Key`, in any order and case, where `Key` is a character, `Space` or a `KeyboardEvent.key` name. Default keys: `Edit` F2, `ClearContents` Delete, `Undo` Ctrl+Z, `Redo` Ctrl+Y, `SelectAll` Ctrl+A, `FillDown` Ctrl+D, `FillRight` Ctrl+R, `Today` Ctrl+;, `FillSelection` Ctrl+Enter, `Menu` Shift+F10, `OpenList` Alt+Down, `MoveNext` Enter, `MovePrevious` Shift+Enter, `TabNext` Tab, `TabPrevious` Shift+Tab, `Cancel` Esc, `NewLine` Alt+Enter.
 
 ## 🗾 IME
 
@@ -255,6 +256,8 @@ In the table, `Text`, `Mask`, `AutoComplete` and `List` cells carry `mso-number-
 > Note: `mso-number-format` makes Excel keep leading zeros. Copying undrawn cells uses the asynchronous clipboard, and if the browser refuses, nothing is copied.
 
 > Note: The edit text of a typed cell is the committed text: a cell committed as `1,234` copies as `1,234`.
+
+> Note: Copy does not escape a leading `=`, so Excel may read such text as a formula.
 
 Cut copies and clears at once, without rules. Input-disabled cells are copied but not cleared.
 

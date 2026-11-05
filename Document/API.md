@@ -38,6 +38,7 @@ The sheet component. `Sheet` is required, and other attributes such as `class` a
 | `MenuItemClicked` | `SheetMenuItemClickedEventArgs` | An item registered in `MusselSheetOptions.Menu` |
 
 `CellChangeReason` tells where a value came from: `Input`, `ClearContents`, `Toggle`, `Undo`, `Redo`, `Paste`, `Cut` or `Fill`.  
+No event comes before editing starts, because input starts in the browser without waiting for C#. To block input, set `ReadOnly` beforehand.  
 
 ### Members
 
@@ -83,6 +84,7 @@ The model of the sheet. Rows and columns are numbered from 0; addresses use the 
 
 `SheetRange` has `Configure`, `GetValues`, `SetValues`, `ClearContents`, `Merge`, `Unmerge` and `BorderAround`.  
 `SheetRow` and `SheetColumn` also have `Index`, `ActualHeight` / `ActualWidth` and `HeaderText`. `Cell` also has `Address`, `IsChanged`, `OriginalValue`, `TryGetValue<T>`, `Configure` and `ClearContents`.  
+A `Cell` or `SheetRange` holds a fixed address, so get it again after inserting or deleting rows or columns. `SheetRow` and `SheetColumn` stay with their data.  
 
 ## 📍 Addresses
 
@@ -175,13 +177,13 @@ var copy = Sheet.FromDesign(SheetDesignJson.Read(json), functions);
 
 ## 🌐 Options
 
-`services.AddMusselSheet(options => …)` sets what applies to every sheet.  
+`services.AddMusselSheet(options => …)` sets what applies to every sheet. It is optional; without it the built-in values apply.  
 
 | Name | Description |
 |---|---|
 | `Cultures` | `SheetCulture` by culture name: `Texts`, `DateFormat`, `FirstDayOfWeek` and `JapaneseDates`. `SheetTexts.English` and `SheetTexts.Japanese` are built in; change them with `with` |
 | `Defaults` | `MusselSheetDefaults`: default values of the parameters of the view, under the same names |
-| `ReadyKeys`, `EditingKeys` | A key such as `Ctrl+K` to a `SheetCommands` value. `null` leaves the key to the browser |
+| `ReadyKeys`, `EditingKeys` | A key such as `Ctrl+K` to a `SheetCommands` value. `null` leaves the key to the browser, and unlisted keys keep their action |
 | `Menu` | `Hidden` commands and additional `Items` (`SheetMenuItem`) of the context menu |
 | `Eras` | `SheetJapaneseEra`: `Name`, `ShortName`, `Initial` and `Start`. `SheetJapaneseEra.BuiltIn` is the default |
 
@@ -226,7 +228,7 @@ There is no dark theme yet, so the shared variables do not reach a sheet inside 
 |---|---|
 | Render mode | Needs an interactive render mode (Server, WebAssembly or Auto). Static rendering only shows the values |
 | Content Security Policy | `style-src` needs `'unsafe-inline'`: the layout is written in `style` attributes and a `<style>` element, and the cells lose their size without it. `script-src 'self'` is enough for the script |
-| Size | Tested up to 10,000 rows x 50 columns |
+| Size | Tested up to 10,000 rows x 50 columns with a fixed `Width` and `Height`. With `auto`, every row and column is drawn |
 | Paste | Up to 16 MB of text |
 | Suggestions | The first 50 candidates of `SuggestionProvider` |
 | Focus | Focus moving out of the sheet commits the edit, so a button calling `CommitEditAsync` or `CancelEditAsync` must keep the focus (`@onmousedown:preventDefault`) |
