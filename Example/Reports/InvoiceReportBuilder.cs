@@ -20,8 +20,6 @@ public static class InvoiceReportBuilder
 
     public static byte[] Build(InvoiceData invoice)
     {
-        ArgumentNullException.ThrowIfNull(invoice);
-
         using var workbook = new TemplateWorkbook(TemplatePath, Options);
         var sheet = workbook.GetSheet(0);
         sheet.ReplacePlaceholders(invoice.Fields);

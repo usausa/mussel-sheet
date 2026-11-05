@@ -1,7 +1,7 @@
 namespace MusselSheet.Internal;
 
-// Rows are tracked by object, and removed rows stay remembered, so undo brings them back as they were. A region
-// that grows like a detail also takes rows inserted inside it and directly above or below it.
+// Rows are tracked by object, and removed rows stay remembered, so undo brings them back as they were.
+// A region that grows like a detail also takes rows inserted inside it and directly above or below it.
 internal sealed class TrackedRows
 {
     private readonly List<SheetRow> rows;

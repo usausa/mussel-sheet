@@ -19,14 +19,12 @@ public sealed class SheetEventLog
 
     public void OnCellCommitted(CellCommittedEventArgs e)
     {
-        ArgumentNullException.ThrowIfNull(e);
         var error = e.Error is null ? string.Empty : $" (error: {e.Error})";
         Add($"{e.Address} {e.Reason}: {Format(e.OldValue)} → {Format(e.Value)}{error}");
     }
 
     public void OnMenuItemClicked(SheetMenuItemClickedEventArgs e)
     {
-        ArgumentNullException.ThrowIfNull(e);
         Add($"Menu item {e.Name}: {e.Selection}");
     }
 

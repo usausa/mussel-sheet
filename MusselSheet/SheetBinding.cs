@@ -6,7 +6,6 @@ using System.Linq.Expressions;
 
 using MusselSheet.Internal;
 
-// Setters are found by reflection from the expressions, so trimming has to keep the properties
 public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T> : IDisposable, ISheetBinding
     where T : class
 {

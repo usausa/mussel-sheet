@@ -18,8 +18,8 @@ public sealed partial class MusselSheetView
     private SheetMap BuildMap() =>
         SheetMapBuilder.Build(Sheet, HeaderHeight, HeaderWidth, ValidationMode, InputContext, CalendarInfo.From(Sheet.Culture, Options.FirstDayOfWeekFor(Sheet.Culture)));
 
-    // Resend the sheet map only when the shape or settings changed. After a user-driven row change, send it
-    // without waiting for the render to finish, so it arrives before JS moves to that row.
+    // Resend the sheet map only when the shape or settings changed. After a user-driven row change,
+    // send it without waiting for the render to finish, so it arrives before JS moves to that row.
     private async Task SyncMapAsync()
     {
         var map = MapSignature();

@@ -6,9 +6,6 @@ using System.Text.Json.Serialization.Metadata;
 
 using MusselSheet.Internal;
 
-// UnsafeRelaxedJsonEscaping on purpose: this is a file format, so nothing is escaped for HTML embedding; an app
-// that puts the JSON into HTML has to escape it itself. NewLine is fixed to LF so the output does not depend
-// on the OS.
 public static class SheetDesignJson
 {
     private static readonly JsonTypeInfo<SheetDesign> TypeInfo = CreateTypeInfo();

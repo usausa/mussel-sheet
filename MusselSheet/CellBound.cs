@@ -4,18 +4,18 @@ using System.Globalization;
 
 public readonly record struct CellBound
 {
+    public decimal? Number { get; }
+
+    public DateOnly? Date { get; }
+
+    public TimeOnly? Time { get; }
+
     private CellBound(decimal? number, DateOnly? date, TimeOnly? time)
     {
         Number = number;
         Date = date;
         Time = time;
     }
-
-    public decimal? Number { get; }
-
-    public DateOnly? Date { get; }
-
-    public TimeOnly? Time { get; }
 
     public static implicit operator CellBound(decimal value) => FromDecimal(value);
 

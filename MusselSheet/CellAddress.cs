@@ -39,7 +39,6 @@ public readonly record struct CellAddress(int Row, int Column)
 
     public static string ColumnName(int column)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(column);
         var buffer = new char[8];
         var position = buffer.Length;
         for (var value = column + 1; value > 0; value = (value - 1) / 26)

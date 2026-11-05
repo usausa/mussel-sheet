@@ -5,8 +5,6 @@ public static class SheetOptionsSetup
 {
     public static void Configure(MusselSheetOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
-
         options.ReadyKeys["F4"] = SheetCommands.Edit;
 
         options.Menu.Items.Add(new SheetMenuItem { Name = "log-selection", Text = "Log the selection", Texts = { ["ja"] = "選択範囲を記録に出す" } });

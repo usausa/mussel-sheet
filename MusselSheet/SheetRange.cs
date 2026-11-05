@@ -2,15 +2,15 @@ namespace MusselSheet;
 
 public sealed class SheetRange
 {
+    public Sheet Sheet { get; }
+
+    public CellRange Range { get; }
+
     internal SheetRange(Sheet sheet, CellRange range)
     {
         Sheet = sheet;
         Range = range;
     }
-
-    public Sheet Sheet { get; }
-
-    public CellRange Range { get; }
 
     public void Configure(Action<CellSettings> configure) => Sheet.Configure(Range, configure);
 

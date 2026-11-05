@@ -3,7 +3,6 @@ namespace MusselSheet.Internal;
 internal enum Axis
 {
     Row,
-
     Column
 }
 

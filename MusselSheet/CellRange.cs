@@ -6,18 +6,6 @@ public readonly record struct CellRange
 {
     public const int End = int.MaxValue;
 
-    public CellRange(int top, int left, int bottom, int right)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(top);
-        ArgumentOutOfRangeException.ThrowIfNegative(left);
-        ArgumentOutOfRangeException.ThrowIfLessThan(bottom, top);
-        ArgumentOutOfRangeException.ThrowIfLessThan(right, left);
-        Top = top;
-        Left = left;
-        Bottom = bottom;
-        Right = right;
-    }
-
     public static CellRange All { get; } = new(0, 0, End, End);
 
     public int Top { get; }
@@ -31,6 +19,14 @@ public readonly record struct CellRange
     public bool IsEntireColumns => (Top == 0) && (Bottom == End);
 
     public bool IsEntireRows => (Left == 0) && (Right == End);
+
+    public CellRange(int top, int left, int bottom, int right)
+    {
+        Top = top;
+        Left = left;
+        Bottom = bottom;
+        Right = right;
+    }
 
     public static CellRange Cell(int row, int column) => new(row, column, row, column);
 

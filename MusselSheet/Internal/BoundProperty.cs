@@ -28,7 +28,6 @@ internal sealed class BoundProperty
 
     public static BoundProperty Of<T, TValue>(Expression<Func<T, TValue>> expression)
     {
-        ArgumentNullException.ThrowIfNull(expression);
         var body = expression.Body;
         while (body is UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } unary)
         {
