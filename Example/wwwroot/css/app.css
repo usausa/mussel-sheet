@@ -20,13 +20,6 @@ code {
 }
 
 /* Render mode switch */
-.mode {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-}
-
 .mode-switch {
     display: flex;
     gap: 4px;
@@ -35,10 +28,6 @@ code {
 .mode-switch .active {
     background: var(--mud-palette-surface);
     color: var(--mud-palette-primary);
-}
-
-.mode-state {
-    min-width: 72px;
 }
 
 /* Sample frame */

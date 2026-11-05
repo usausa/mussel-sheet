@@ -35,18 +35,13 @@ public sealed class SheetFunctions
     internal string? NameOf(Delegate? function) => (function is not null) && names.TryGetValue(function, out var name) ? name : null;
 
     internal T Get<T>(string name)
-        where T : Delegate
-    {
-        ArgumentNullException.ThrowIfNull(name);
-        return functions.TryGetValue(name, out var function) && (function is T typed)
+        where T : Delegate =>
+        functions.TryGetValue(name, out var function) && (function is T typed)
             ? typed
             : throw new KeyNotFoundException($"The function '{name}' is not registered as {typeof(T).Name}.");
-    }
 
     private void Add(string name, Delegate function)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ArgumentNullException.ThrowIfNull(function);
         if (functions.Remove(name, out var old))
         {
             names.Remove(old);

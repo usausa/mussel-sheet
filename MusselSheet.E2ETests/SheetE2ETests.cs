@@ -1,7 +1,5 @@
 namespace MusselSheet.E2ETests;
 
-using Microsoft.Playwright;
-
 using static Microsoft.Playwright.Assertions;
 
 // A real IME cannot be driven, so it is verified manually (the composition events are synthesized here);
@@ -622,7 +620,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Page.GetByRole(AriaRole.Link, new() { Name = "日本語" }).ClickAsync();
         await Expect(culture).ToContainTextAsync("Culture: ja-JP / UI culture: ja-JP / Sheet.Culture: ja-JP");
         await sample.WaitForSheetAsync();
-        await Expect(sample.Page.Locator(".mode-state")).ToHaveTextAsync("Interactive");
+        await sample.WaitForSheetAsync();
         await Expect(sample.Cell(2, 1)).ToHaveTextAsync("2026/11/05");
         await SamplePage.RightClickAsync(sample.Cell(1, 1));
         await Expect(sample.MenuItem("copy")).ToContainTextAsync("コピー");
@@ -1214,7 +1212,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Page.Locator(".mode-switch").GetByText("WebAssembly").ClickAsync();
         await Expect(active).ToHaveTextAsync("WebAssembly");
         await Expect(sample.Page.Locator("h1")).ToHaveTextAsync("Form");
-        await Expect(sample.Page.Locator(".mode-state")).ToHaveTextAsync("Interactive", new() { Timeout = 30_000 });
+        await sample.WaitForSheetAsync();
         Assert.EndsWith("/form", sample.Page.Url, StringComparison.Ordinal);
 
         await sample.Cell(3, 1).ClickAsync();
@@ -1239,7 +1237,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await Expect(sample.Page.Locator("h1")).ToHaveTextAsync("Form");
         await Expect(sample.Cell(3, 0)).ToHaveTextAsync("Notebook PC");
         await Expect(sample.Cell(8, 3)).ToHaveTextAsync("332,000");
-        await Expect(sample.Page.Locator(".mode-state")).ToHaveTextAsync("Prerendered");
+        await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveCountAsync(0);
         await Expect(sample.Page.Locator(".mode-switch a.active")).ToHaveTextAsync(mode == "wasm" ? "WebAssembly" : "Server");
     }
 

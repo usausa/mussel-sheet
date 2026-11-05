@@ -329,17 +329,4 @@ public sealed class SheetStructureTests
         Assert.Equal("f", sheet.GetValue(1, 2));
         Assert.Equal(CellKind.Number, sheet.GetSettings(0, 1).Kind);
     }
-
-    [Fact]
-    public void StructureChangesValidateArguments()
-    {
-        var sheet = new Sheet(3, 3);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => sheet.InsertRows(4, 1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => sheet.InsertRows(0, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => sheet.DeleteRows(2, 2));
-        Assert.Throws<ArgumentOutOfRangeException>(() => sheet.DeleteColumns(-1, 1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => sheet[3, 0]);
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Sheet(-1, 1));
-    }
 }

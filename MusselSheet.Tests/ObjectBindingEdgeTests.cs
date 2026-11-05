@@ -2,8 +2,6 @@ namespace MusselSheet;
 
 using System.Collections.ObjectModel;
 
-using Bunit;
-
 public sealed class ObjectBindingEdgeTests : BunitContext
 {
     public enum Status

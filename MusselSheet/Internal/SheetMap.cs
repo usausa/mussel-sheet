@@ -46,7 +46,7 @@ internal sealed record InputRule(
     int? MaxLength,
     int? MaxByteLength,
     string? Pattern,
-    IReadOnlyList<RuleItem>? Items,
+    IReadOnlyList<ScriptItem>? Items,
     string? Message,
     string? Ime,
     string? Mask,
@@ -61,7 +61,7 @@ internal sealed record InputRule(
 
 internal sealed record EditorFont(bool Bold, bool Italic, bool Underline, bool Strikethrough, int? Size, string? Color);
 
-internal sealed record RuleItem(string Value, string Text);
+internal sealed record ScriptItem(string Value, string Text);
 
 internal static class SheetMapBuilder
 {
@@ -192,7 +192,7 @@ internal static class SheetMapBuilder
         settings.MaxLength,
         settings.MaxByteLength,
         settings.Pattern,
-        (settings.Kind is CellKind.List or CellKind.AutoComplete) && (settings.Items.Count > 0) ? [.. settings.Items.Select(x => new RuleItem(x.Value, x.DisplayText))] : null,
+        (settings.Kind is CellKind.List or CellKind.AutoComplete) && (settings.Items.Count > 0) ? [.. settings.Items.Select(x => new ScriptItem(x.Value, x.DisplayText))] : null,
         settings.ErrorMessage,
         settings.ImeMode == ImeMode.Off ? "half" : null,
         CellInput.ActiveMask(settings),

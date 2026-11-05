@@ -1,7 +1,5 @@
 namespace MusselSheet.E2ETests;
 
-using Microsoft.Playwright;
-
 public sealed class SamplePage(IBrowserContext context, IPage page) : IAsyncDisposable
 {
     public IPage Page => page;

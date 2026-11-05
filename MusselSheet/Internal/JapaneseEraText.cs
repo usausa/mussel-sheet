@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-// Input rules must match matchWareki in musselsheet.js
+// Input rules must match matchWareki in MusselSheet.js
 internal static partial class JapaneseEraText
 {
     public static bool IsEraFormat(string format)

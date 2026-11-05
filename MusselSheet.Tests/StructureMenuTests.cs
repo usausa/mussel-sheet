@@ -1,7 +1,5 @@
 namespace MusselSheet;
 
-using Bunit;
-
 public sealed class StructureMenuTests : BunitContext
 {
     public StructureMenuTests()

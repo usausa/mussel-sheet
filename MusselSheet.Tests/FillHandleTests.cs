@@ -1,7 +1,5 @@
 namespace MusselSheet;
 
-using Bunit;
-
 using MusselSheet.Internal;
 
 public sealed class FillHandleTests : BunitContext

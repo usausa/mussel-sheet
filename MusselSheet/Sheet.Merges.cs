@@ -51,11 +51,7 @@ public sealed partial class Sheet
         Raise(new SheetChangedEventArgs(SheetChangeKind.Merges, range));
     }
 
-    public CellRange? GetMergeArea(int row, int column)
-    {
-        CheckCell(row, column);
-        return MergeIndex().TryGetValue(MergeKey(row, column), out var range) ? range : null;
-    }
+    public CellRange? GetMergeArea(int row, int column) => MergeIndex().TryGetValue(MergeKey(row, column), out var range) ? range : null;
 
     internal bool IsCovered(int row, int column) =>
         MergeIndex().TryGetValue(MergeKey(row, column), out var range) && ((range.Top != row) || (range.Left != column));

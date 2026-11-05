@@ -1,12 +1,9 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 
-<div class="mode">
-    <div class="mode-switch" role="group" aria-label="Render mode">
-        <MudButton Href="@Link("server")" Size="Size.Small" Color="Color.Inherit" Variant="@VariantOf(!IsWebAssembly)" Class="@ClassOf(!IsWebAssembly)" data-enhance-nav="false">Server</MudButton>
-        <MudButton Href="@Link("wasm")" Size="Size.Small" Color="Color.Inherit" Variant="@VariantOf(IsWebAssembly)" Class="@ClassOf(IsWebAssembly)" data-enhance-nav="false">WebAssembly</MudButton>
-    </div>
-    <MudText Typo="Typo.caption" Class="mode-state">@(RendererInfo.IsInteractive ? "Interactive" : "Prerendered")</MudText>
+<div class="mode-switch" role="group" aria-label="Render mode">
+    <MudButton Href="@Link("server")" Size="Size.Small" Color="Color.Inherit" Variant="@VariantOf(!IsWebAssembly)" Class="@ClassOf(!IsWebAssembly)" data-enhance-nav="false">Server</MudButton>
+    <MudButton Href="@Link("wasm")" Size="Size.Small" Color="Color.Inherit" Variant="@VariantOf(IsWebAssembly)" Class="@ClassOf(IsWebAssembly)" data-enhance-nav="false">WebAssembly</MudButton>
 </div>
 
 @code {

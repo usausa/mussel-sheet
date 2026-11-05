@@ -24,11 +24,6 @@ public sealed class SheetRow
         get => height;
         set
         {
-            if (value is { } px)
-            {
-                ArgumentOutOfRangeException.ThrowIfNegativeOrZero(px);
-            }
-
             if (height != value)
             {
                 height = value;

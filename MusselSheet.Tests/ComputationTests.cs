@@ -1,7 +1,5 @@
 namespace MusselSheet;
 
-using Bunit;
-
 public sealed class ComputationTests : BunitContext
 {
     public ComputationTests()

@@ -1,6 +1,5 @@
 namespace MusselSheet;
 
-using System.Globalization;
 using System.Runtime.CompilerServices;
 
 internal static class TestCulture

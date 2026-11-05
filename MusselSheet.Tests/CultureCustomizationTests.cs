@@ -1,9 +1,5 @@
 namespace MusselSheet;
 
-using System.Globalization;
-
-using Bunit;
-
 using MusselSheet.Internal;
 
 public sealed class CultureCustomizationTests : BunitContext

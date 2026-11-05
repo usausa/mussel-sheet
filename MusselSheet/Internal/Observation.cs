@@ -21,7 +21,6 @@ internal sealed class Observation
 
     public static Observation Of(Sheet sheet, string text, string? name = null)
     {
-        ArgumentNullException.ThrowIfNull(text);
         name ??= text;
         if (CellAddress.TryParse(text, out var address) && (address.Row < sheet.RowCount) && (address.Column < sheet.ColumnCount))
         {
@@ -40,7 +39,6 @@ internal sealed class Observation
 
     public static Observation SameRow(Sheet sheet, string column, string? name = null)
     {
-        ArgumentNullException.ThrowIfNull(column);
         if (!CellAddress.TryParseColumn(column, out var index) || (index >= sheet.ColumnCount))
         {
             throw new ArgumentException($"'{column}' is not a column inside the sheet.", nameof(column));

@@ -1,7 +1,5 @@
 namespace MusselSheet;
 
-using Bunit;
-
 public sealed class FrozenPaneTests : BunitContext
 {
     public FrozenPaneTests()
@@ -105,15 +103,6 @@ public sealed class FrozenPaneTests : BunitContext
 
         cut.Render(p => p.Add(x => x.FrozenRows, 3));
         Assert.Equal(["0", "1", "2"], FrozenRows(cut));
-    }
-
-    [Fact]
-    public void FrozenCountsCannotBeNegative()
-    {
-        var sheet = new Sheet(1, 1);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => sheet.FrozenRows = -1);
-        Assert.Throws<ArgumentOutOfRangeException>(() => sheet.FrozenColumns = -1);
     }
 
     private static IEnumerable<string?> FrozenRows(IRenderedComponent<MusselSheetView> cut) =>

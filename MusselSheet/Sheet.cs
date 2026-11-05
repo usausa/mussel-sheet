@@ -18,8 +18,6 @@ public sealed partial class Sheet
 
     public Sheet(int rows, int columns)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(rows);
-        ArgumentOutOfRangeException.ThrowIfNegative(columns);
         DefaultRowHeight = 24;
         DefaultColumnWidth = 100;
         Culture = DefaultCulture();
@@ -51,7 +49,6 @@ public sealed partial class Sheet
         get;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
             field = value;
             NotifyLayout();
         }
@@ -62,7 +59,6 @@ public sealed partial class Sheet
         get;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
             field = value;
             NotifyLayout();
         }
@@ -73,7 +69,6 @@ public sealed partial class Sheet
         get;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
             if (field != value)
             {
                 field = value;
@@ -87,7 +82,6 @@ public sealed partial class Sheet
         get;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
             if (field != value)
             {
                 field = value;
@@ -101,7 +95,6 @@ public sealed partial class Sheet
         get;
         set
         {
-            ArgumentNullException.ThrowIfNull(value);
             field = value;
             Raise(new SheetChangedEventArgs(SheetChangeKind.Reset));
         }
@@ -115,14 +108,7 @@ public sealed partial class Sheet
     // by SheetRow.ContentVersion.
     internal int StructureVersion { get; private set; }
 
-    public Cell this[int row, int column]
-    {
-        get
-        {
-            CheckCell(row, column);
-            return new Cell(this, row, column);
-        }
-    }
+    public Cell this[int row, int column] => new(this, row, column);
 
     public Cell this[string address]
     {
@@ -139,29 +125,16 @@ public sealed partial class Sheet
 
     public void Configure(CellRange range, Action<CellSettings> configure)
     {
-        ArgumentNullException.ThrowIfNull(configure);
         var patch = new CellSettings();
         configure(patch);
         AddRule(range, patch);
     }
 
-    public void Configure(CellRange range, CellSettings patch)
-    {
-        ArgumentNullException.ThrowIfNull(patch);
-        AddRule(range, patch.Clone());
-    }
+    public void Configure(CellRange range, CellSettings patch) => AddRule(range, patch.Clone());
 
-    public ResolvedCellSettings GetSettings(int row, int column)
-    {
-        CheckCell(row, column);
-        return settings.Resolve(row, column);
-    }
+    public ResolvedCellSettings GetSettings(int row, int column) => settings.Resolve(row, column);
 
-    internal CellEdges GetEdges(int row, int column)
-    {
-        CheckCell(row, column);
-        return settings.ResolveEdges(row, column, column + 1 < ColumnCount, row + 1 < RowCount);
-    }
+    internal CellEdges GetEdges(int row, int column) => settings.ResolveEdges(row, column, column + 1 < ColumnCount, row + 1 < RowCount);
 
     public IDisposable BeginUpdate()
     {
@@ -207,14 +180,6 @@ public sealed partial class Sheet
             pendingReset = false;
             Changed?.Invoke(this, new SheetChangedEventArgs(SheetChangeKind.Reset));
         }
-    }
-
-    private void CheckCell(int row, int column)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(row);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(row, RowCount);
-        ArgumentOutOfRangeException.ThrowIfNegative(column);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(column, ColumnCount);
     }
 
     private void Reindex()

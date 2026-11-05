@@ -17,11 +17,7 @@ internal sealed record ScriptOptionsData(
     bool AllowFill,
     int FrozenRows,
     int FrozenColumns,
-    ScriptKeysData Keys,
-    ScriptMenuData Menu);
-
-internal sealed record ScriptKeysData(IReadOnlyDictionary<string, string?> Ready, IReadOnlyDictionary<string, string?> Editing);
-
-internal sealed record ScriptMenuData(IReadOnlyList<string> Hidden, IReadOnlyList<ScriptMenuItemData> Items);
-
-internal sealed record ScriptMenuItemData(string Name, string Text);
+    IReadOnlyDictionary<string, string?> ReadyKeys,
+    IReadOnlyDictionary<string, string?> EditingKeys,
+    IReadOnlyList<string> HiddenMenuItems,
+    IReadOnlyList<ScriptItem> MenuItems);

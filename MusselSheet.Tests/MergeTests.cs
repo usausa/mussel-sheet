@@ -1,7 +1,5 @@
 namespace MusselSheet;
 
-using Bunit;
-
 public sealed class MergeTests : BunitContext
 {
     public MergeTests()

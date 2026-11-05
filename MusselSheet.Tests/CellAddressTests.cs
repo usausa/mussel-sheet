@@ -58,10 +58,4 @@ public sealed class CellAddressTests
         Assert.Equal("A1", new CellAddress(0, 0).ToString());
         Assert.Equal("AB12", new CellAddress(11, 27).ToString());
     }
-
-    [Fact]
-    public void ColumnNameRejectsNegativeIndex()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CellAddress.ColumnName(-1));
-    }
 }

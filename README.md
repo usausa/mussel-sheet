@@ -16,7 +16,7 @@ Each cell has its own kind, rules and style, so one sheet works as a list or a f
 Link the stylesheet in the page head.  
 
 ```html
-<link rel="stylesheet" href="_content/MusselSheet/musselsheet.css" />
+<link rel="stylesheet" href="_content/MusselSheet/MusselSheet.css" />
 ```
 
 Create a `Sheet` and show it in an interactive component.  

@@ -11,7 +11,6 @@ public sealed partial class Sheet
     public SheetBinding<T> Bind<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(T source)
         where T : class
     {
-        ArgumentNullException.ThrowIfNull(source);
         var binding = new SheetBinding<T>(this, source);
         bindings.Add(binding);
         return binding;

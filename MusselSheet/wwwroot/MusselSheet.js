@@ -1063,10 +1063,10 @@ export function menuEntries(kind, range, size, options, editable, messages) {
             options.allowInsertColumns && { action: 'insertColumnsRight', label: fill(messages.menuInsertColumnsRight, cols), disabled: false },
             options.allowDeleteColumns && { action: 'deleteColumns', label: fill(messages.menuDeleteColumns, cols), disabled: cols >= size.cols },
         ],
-        (options.menu?.items ?? []).map(x => ({ action: 'app', name: x.name, label: x.text, disabled: false })),
+        (options.menuItems ?? []).map(x => ({ action: 'app', name: x.value, label: x.text, disabled: false })),
     ];
 
-    const hidden = new Set((options.menu?.hidden ?? []).map(x => x.toLowerCase()));
+    const hidden = new Set((options.hiddenMenuItems ?? []).map(x => x.toLowerCase()));
     const entries = [];
     for (const group of groups) {
         const shown = group.filter(x => x && (x.action === 'app' || !hidden.has(x.action.toLowerCase())));
@@ -1999,7 +1999,7 @@ class SheetController {
     // Keys assigned by the app (ReadyKeys, EditingKeys) are checked first. A null assignment unbinds the key:
     // the sheet ignores it and the browser handles it. Unlisted keys keep their built-in behavior.
     handleKey(k) {
-        const table = this.state === READY ? this.opts.keys?.ready : this.opts.keys?.editing;
+        const table = this.state === READY ? this.opts.readyKeys : this.opts.editingKeys;
         const combo = comboOf(k);
         if (table && Object.hasOwn(table, combo)) {
             const command = table[combo];

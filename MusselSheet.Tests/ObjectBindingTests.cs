@@ -4,8 +4,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-using Bunit;
-
 public sealed class ObjectBindingTests : BunitContext
 {
     public ObjectBindingTests()

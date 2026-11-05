@@ -14,33 +14,9 @@ public sealed class CellStyle
 
     public bool? Strikethrough { get; set; }
 
-    public int? FontSize
-    {
-        get;
-        set
-        {
-            if (value is { } px)
-            {
-                ArgumentOutOfRangeException.ThrowIfNegativeOrZero(px);
-            }
+    public int? FontSize { get; set; }
 
-            field = value;
-        }
-    }
-
-    public int? IndentLevel
-    {
-        get;
-        set
-        {
-            if (value is { } level)
-            {
-                ArgumentOutOfRangeException.ThrowIfNegative(level);
-            }
-
-            field = value;
-        }
-    }
+    public int? IndentLevel { get; set; }
 
     public string? FontColor { get; set; }
 

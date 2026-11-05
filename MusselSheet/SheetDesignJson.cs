@@ -10,17 +10,10 @@ public static class SheetDesignJson
 {
     private static readonly JsonTypeInfo<SheetDesign> TypeInfo = CreateTypeInfo();
 
-    public static string Write(SheetDesign design)
-    {
-        ArgumentNullException.ThrowIfNull(design);
-        return JsonSerializer.Serialize(design, TypeInfo);
-    }
+    public static string Write(SheetDesign design) => JsonSerializer.Serialize(design, TypeInfo);
 
-    public static SheetDesign Read(string json)
-    {
-        ArgumentNullException.ThrowIfNull(json);
-        return JsonSerializer.Deserialize(json, TypeInfo) ?? throw new JsonException("The JSON has no sheet design.");
-    }
+    public static SheetDesign Read(string json) =>
+        JsonSerializer.Deserialize(json, TypeInfo) ?? throw new JsonException("The JSON has no sheet design.");
 
     private static JsonTypeInfo<SheetDesign> CreateTypeInfo()
     {

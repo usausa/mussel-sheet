@@ -19,11 +19,6 @@ public sealed class SheetColumn
         get => width;
         set
         {
-            if (value is { } px)
-            {
-                ArgumentOutOfRangeException.ThrowIfNegativeOrZero(px);
-            }
-
             if (width != value)
             {
                 width = value;

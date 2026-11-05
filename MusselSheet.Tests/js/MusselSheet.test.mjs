@@ -39,7 +39,7 @@ import {
     fillTarget,
     frozenIndex,
     SheetMap,
-} from '../../MusselSheet/wwwroot/musselsheet.js';
+} from '../../MusselSheet/wwwroot/MusselSheet.js';
 
 const JA = { decimal: '.', group: ',', order: 'ymd', editDate: 'yyyy/MM/dd', japanese: true };
 const US = { decimal: '.', group: ',', order: 'mdy', editDate: 'M/d/yyyy', japanese: false };
@@ -658,14 +658,15 @@ test('右クリックメニューは、隠した組み込みの項目を出さ�
     const options = {
         allowInsertRows: true,
         allowDeleteRows: true,
-        menu: { hidden: ['cut', 'deleteRows'], items: [{ name: 'note', text: 'Note' }] },
+        hiddenMenuItems: ['cut', 'deleteRows'],
+        menuItems: [{ value: 'note', text: 'Note' }],
     };
     const entries = menuEntries('cell', range, size, options, true, labels);
     assert.deepEqual(entries.map(x => x ? x.action : '-'), ['copy', 'paste', '-', 'insertRowsAbove', 'insertRowsBelow', '-', 'app']);
     assert.equal(entries.at(-1).name, 'note');
     assert.equal(entries.at(-1).label, 'Note');
 
-    const onlyApp = menuEntries('cell', range, size, { menu: { hidden: ['cut', 'copy', 'paste'], items: [{ name: 'a', text: 'A' }] } }, true, labels);
+    const onlyApp = menuEntries('cell', range, size, { hiddenMenuItems: ['cut', 'copy', 'paste'], menuItems: [{ value: 'a', text: 'A' }] }, true, labels);
     assert.deepEqual(onlyApp.map(x => x ? x.action : '-'), ['app']);
 });
 

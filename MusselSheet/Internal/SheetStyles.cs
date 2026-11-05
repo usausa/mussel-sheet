@@ -3,7 +3,7 @@ namespace MusselSheet.Internal;
 using System.Globalization;
 using System.Text;
 
-// Alignment, emphasis and border kinds map to fixed classes in musselsheet.css; colors, font sizes,
+// Alignment, emphasis and border kinds map to fixed classes in MusselSheet.css; colors, font sizes,
 // indents and column widths are emitted into a per-instance <style> instead of per-cell inline styles.
 internal sealed class SheetStyles
 {

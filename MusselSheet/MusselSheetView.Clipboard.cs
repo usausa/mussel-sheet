@@ -19,7 +19,6 @@ public sealed partial class MusselSheetView
     // JS sends the text as a stream: it can be large, and Interactive Server limits a message to 32 KB
     internal async Task<PasteResult> PasteRangeAsync(int top, int left, int bottom, int right, IJSStreamReference data)
     {
-        ArgumentNullException.ThrowIfNull(data);
         string text;
         try
         {

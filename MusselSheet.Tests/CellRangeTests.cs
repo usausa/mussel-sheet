@@ -98,12 +98,4 @@ public sealed class CellRangeTests
         Assert.Equal(new CellRange(0, 0, 2, 3), clipped);
         Assert.False(CellRange.Parse("F1").TryClip(10, 5, out _));
     }
-
-    [Fact]
-    public void ConstructorRejectsReversedOrNegativeCorners()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CellRange(2, 0, 1, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CellRange(0, 2, 0, 1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CellRange(-1, 0, 1, 0));
-    }
 }

@@ -4,11 +4,7 @@ using MusselSheet.Internal;
 
 public sealed partial class Sheet
 {
-    public object? GetValue(int row, int column)
-    {
-        CheckCell(row, column);
-        return rowList[row].Cells[column]?.Value;
-    }
+    public object? GetValue(int row, int column) => rowList[row].Cells[column]?.Value;
 
     public T? GetValue<T>(int row, int column)
     {
@@ -24,20 +20,14 @@ public sealed partial class Sheet
 
     public void SetValue(int row, int column, object? value)
     {
-        CheckCell(row, column);
         Store(row, column, value, null, null);
         Raise(new SheetChangedEventArgs(SheetChangeKind.Values, CellRange.Cell(row, column)));
     }
 
-    public string? GetError(int row, int column)
-    {
-        CheckCell(row, column);
-        return rowList[row].Cells[column]?.Error;
-    }
+    public string? GetError(int row, int column) => rowList[row].Cells[column]?.Error;
 
     public void SetError(int row, int column, string? message)
     {
-        CheckCell(row, column);
         var sheetRow = rowList[row];
         var data = sheetRow.Cells[column];
         if (string.Equals(data?.Error, message, StringComparison.Ordinal))
@@ -56,11 +46,7 @@ public sealed partial class Sheet
         Raise(new SheetChangedEventArgs(SheetChangeKind.Errors, CellRange.Cell(row, column)));
     }
 
-    public string? GetInputText(int row, int column)
-    {
-        CheckCell(row, column);
-        return rowList[row].Cells[column]?.Input;
-    }
+    public string? GetInputText(int row, int column) => rowList[row].Cells[column]?.Input;
 
     public string GetText(int row, int column)
     {
@@ -98,13 +84,11 @@ public sealed partial class Sheet
 
     public void SetValues(int top, int left, IReadOnlyList<IReadOnlyList<object?>> values)
     {
-        ArgumentNullException.ThrowIfNull(values);
         if (values.Count == 0)
         {
             return;
         }
 
-        CheckCell(top, left);
         var width = values.Max(x => x.Count);
         if ((top + values.Count > RowCount) || (left + width > ColumnCount))
         {
@@ -145,15 +129,10 @@ public sealed partial class Sheet
         Raise(new SheetChangedEventArgs(SheetChangeKind.Values, clipped));
     }
 
-    public bool IsChanged(int row, int column)
-    {
-        CheckCell(row, column);
-        return rowList[row].Cells[column] is { HasOriginal: true };
-    }
+    public bool IsChanged(int row, int column) => rowList[row].Cells[column] is { HasOriginal: true };
 
     public object? GetOriginalValue(int row, int column)
     {
-        CheckCell(row, column);
         var data = rowList[row].Cells[column];
         return data is { HasOriginal: true } ? data.Original : data?.Value;
     }
@@ -209,7 +188,6 @@ public sealed partial class Sheet
 
     internal CellSnapshot GetSnapshot(int row, int column)
     {
-        CheckCell(row, column);
         var data = rowList[row].Cells[column];
         return data is null ? default : new CellSnapshot(data.Value, data.Input, data.Error);
     }
@@ -217,7 +195,6 @@ public sealed partial class Sheet
     // A user action: the first time a cell changes, its previous value is remembered as the original (change mark)
     internal void SetInput(int row, int column, object? value, string? input, string? error = null)
     {
-        CheckCell(row, column);
         var cells = rowList[row].Cells;
         if (cells[column] is not { HasOriginal: true })
         {

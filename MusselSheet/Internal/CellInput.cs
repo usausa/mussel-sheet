@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-// Must stay in step with normalizeText and checkInput in musselsheet.js: change both together
+// Must stay in step with normalizeText and checkInput in MusselSheet.js: change both together
 internal static partial class CellInput
 {
     // Full-width counterparts, indexed by the half-width code point minus U+FF61
@@ -282,7 +282,7 @@ internal static partial class CellInput
 
     // Decimal and group separators come from the sheet culture (en-US: '.' and ','; de-DE: ',' and '.').
     // At least one digit is required. When the group separator is a space (French and others), a plain space is
-    // accepted too. Same as parseNumber in musselsheet.js.
+    // accepted too. Same as parseNumber in MusselSheet.js.
     private static bool TryParseNumber(string text, ReadingRules reading, out decimal number)
     {
         number = 0;
@@ -309,7 +309,7 @@ internal static partial class CellInput
 
     // Separators are '/', '-' and '.'; the field order follows the sheet culture, but a leading 4-digit year is read
     // under any culture. A missing year uses today's year, and Japanese reading also accepts kanji forms and wareki.
-    // Same as matchDate in musselsheet.js.
+    // Same as matchDate in MusselSheet.js.
     private static bool TryParseDate(string text, InputContext context, out DateOnly date)
     {
         var (today, reading) = (context.Today, context.Reading);

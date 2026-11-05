@@ -1,11 +1,8 @@
 namespace MusselSheet.E2ETests;
 
 using System.Diagnostics;
-using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
-
-using Microsoft.Playwright;
 
 // Starts the Example app on a free port and opens it in an installed Edge or Chrome;
 // Playwright's own browsers are not downloaded, and tests are skipped when neither is installed

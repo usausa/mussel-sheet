@@ -28,7 +28,6 @@ internal static class SheetDesigner
 
     public static Sheet FromDesign(SheetDesign design, SheetFunctions? functions)
     {
-        ArgumentNullException.ThrowIfNull(design);
         if (design.Version != 1)
         {
             throw new NotSupportedException($"The sheet design version {design.Version} is not supported.");

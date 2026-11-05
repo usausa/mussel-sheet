@@ -1,7 +1,5 @@
 namespace MusselSheet;
 
-using System.Globalization;
-
 using MusselSheet.Internal;
 
 public sealed class CellInputTests

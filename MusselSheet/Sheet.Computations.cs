@@ -8,17 +8,12 @@ public sealed partial class Sheet
 
     public SheetComputation Compute(string target, IReadOnlyList<string> observed, Func<CellComputeContext, object?> compute)
     {
-        ArgumentNullException.ThrowIfNull(observed);
-        ArgumentNullException.ThrowIfNull(compute);
         var address = CellAddress.Parse(target);
-        CheckCell(address.Row, address.Column);
         return Register(new SheetComputation(this, CellRange.Cell(address), false, [.. observed.Select(x => Observation.Of(this, x))], compute));
     }
 
     public SheetComputation ComputeRows(string range, IReadOnlyList<string> observed, Func<CellComputeContext, object?> compute)
     {
-        ArgumentNullException.ThrowIfNull(observed);
-        ArgumentNullException.ThrowIfNull(compute);
         var target = CellRange.Parse(range);
         if ((target.Left != target.Right) || (target.Left >= ColumnCount) || (!target.IsEntireColumns && (target.Bottom >= RowCount)))
         {

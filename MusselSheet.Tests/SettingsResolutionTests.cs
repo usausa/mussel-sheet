@@ -218,14 +218,5 @@ public sealed class SettingsResolutionTests
         Assert.Same(sheet.GetSettings(0, 0), sheet.GetSettings(2, 1));
     }
 
-    [Fact]
-    public void GetSettingsRejectsCellsOutsideTheSheet()
-    {
-        var sheet = new Sheet(2, 2);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => sheet.GetSettings(2, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => sheet.GetSettings(0, -1));
-    }
-
     private static string? RejectLongText(CellValidationContext context) => context.Text.Length > 3 ? "4文字以上は入力できません" : null;
 }

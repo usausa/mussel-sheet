@@ -8,10 +8,6 @@ public sealed partial class Sheet
 
     public void InsertRows(int index, int count, bool inheritSettings = true)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(index);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RowCount);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
-
         var template = index > 0 ? rowList[index - 1] : rowList.FirstOrDefault();
         var source = InheritSource(index, count, inheritSettings && (template is not null));
         var rows = CreateRows(count, inheritSettings ? template?.Height : null);
@@ -20,10 +16,6 @@ public sealed partial class Sheet
 
     public void DeleteRows(int index, int count)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(index);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index + count, RowCount);
-
         TakeRows(index, count, RangeTransform.Remove(settings.Rules, Axis.Row, index, count), RangeTransform.RemoveMerges(merges, Axis.Row, index, count));
     }
 
@@ -31,10 +23,6 @@ public sealed partial class Sheet
 
     public void InsertColumns(int index, int count, bool inheritSettings = true)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(index);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, ColumnCount);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
-
         var template = index > 0 ? columnList[index - 1] : columnList.FirstOrDefault();
         var source = InheritSource(index, count, inheritSettings && (template is not null));
         var columns = CreateColumns(count, inheritSettings ? template?.Width : null);
@@ -43,10 +31,6 @@ public sealed partial class Sheet
 
     public void DeleteColumns(int index, int count)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(index);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index + count, ColumnCount);
-
         TakeColumns(index, count, RangeTransform.Remove(settings.Rules, Axis.Column, index, count), RangeTransform.RemoveMerges(merges, Axis.Column, index, count));
     }
 
@@ -75,9 +59,6 @@ public sealed partial class Sheet
     // The same row objects are put back, so history entries that point at their cells stay valid
     internal void PutRows(int index, IReadOnlyList<SheetRow> rows, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(index);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RowCount);
-
         foreach (var row in rows)
         {
             if (row.Cells.Length != ColumnCount)
@@ -105,9 +86,6 @@ public sealed partial class Sheet
 
     internal void PutColumns(int index, IReadOnlyList<SheetColumn> columns, IReadOnlyDictionary<SheetRow, CellData?[]>? cells, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(index);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, ColumnCount);
-
         var count = columns.Count;
         columnList.InsertRange(index, columns);
         foreach (var row in rowList)

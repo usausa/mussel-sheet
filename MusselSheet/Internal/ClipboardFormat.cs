@@ -2,7 +2,7 @@ namespace MusselSheet.Internal;
 
 using System.Text;
 
-// Must stay in step with parseClipboard, toTsv and toHtml in musselsheet.js: change both together
+// Must stay in step with parseClipboard, toTsv and toHtml in MusselSheet.js: change both together
 internal static class ClipboardFormat
 {
     // Written as a <style> class like Excel's own copy: with style attributes alone Excel dropped leading zeros.
@@ -133,7 +133,7 @@ internal static class ClipboardFormat
         return null;
     }
 
-    // Escapes the same five characters as escapeHtml in musselsheet.js (ampersand, angle brackets, both quotes)
+    // Escapes the same five characters as escapeHtml in MusselSheet.js (ampersand, angle brackets, both quotes)
     private static string Escape(string text) =>
         text.Replace("&", "&amp;", StringComparison.Ordinal)
             .Replace("<", "&lt;", StringComparison.Ordinal)

@@ -10,7 +10,7 @@ using MusselSheet.Internal;
 
 public sealed partial class MusselSheetView : IAsyncDisposable
 {
-    private const string ModulePath = "./_content/MusselSheet/musselsheet.js";
+    private const string ModulePath = "./_content/MusselSheet/MusselSheet.js";
 
     private const int DefaultViewportHeight = 600;
 

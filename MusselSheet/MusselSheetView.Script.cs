@@ -38,12 +38,6 @@ public sealed partial class MusselSheetView
         }
     }
 
-    private ScriptKeysData ScriptKeys() => new(KeyCombo.NormalizeAll(Options.ReadyKeys), KeyCombo.NormalizeAll(Options.EditingKeys));
-
-    private ScriptMenuData ScriptMenu() => new(
-        [.. Options.Menu.Hidden],
-        [.. Options.Menu.Items.Select(static x => new ScriptMenuItemData(x.Name, x.TextFor(CultureInfo.CurrentUICulture)))]);
-
     private ScriptOptionsData ScriptOptions()
     {
         var enterDirection = MoveAfterReturnDirection switch
@@ -81,8 +75,10 @@ public sealed partial class MusselSheetView
             FillHandleEnabled,
             FrozenRowCount,
             FrozenColumnCount,
-            ScriptKeys(),
-            ScriptMenu());
+            KeyCombo.NormalizeAll(Options.ReadyKeys),
+            KeyCombo.NormalizeAll(Options.EditingKeys),
+            [.. Options.Menu.Hidden],
+            [.. Options.Menu.Items.Select(static x => new ScriptItem(x.Name, x.TextFor(CultureInfo.CurrentUICulture)))]);
     }
 
     private async Task AttachAsync()

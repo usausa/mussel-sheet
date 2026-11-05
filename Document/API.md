@@ -189,7 +189,7 @@ var copy = Sheet.FromDesign(SheetDesignJson.Read(json), functions);
 
 ## 🎨 Theme
 
-Link `_content/MusselSheet/musselsheet.css` in the page head; the sheet needs it. Colors come from CSS variables, and an app changes them by setting the variables, from any selector and in any file order.
+Link `_content/MusselSheet/MusselSheet.css` in the page head; the sheet needs it. Colors come from CSS variables, and an app changes them by setting the variables, from any selector and in any file order.
 
 These are shared with MusselChart. Set them on any container to theme both libraries.
 

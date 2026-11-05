@@ -68,8 +68,6 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     public SheetRowsBinding<TItem> Column<TValue>(int column, Expression<Func<TItem, TValue>> property)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(column);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(column, sync.Sheet.ColumnCount);
         if (!frame.IsEntireRows && ((column < frame.Left) || (column > frame.Right)))
         {
             throw new ArgumentOutOfRangeException(nameof(column), "The column must be inside the range of the rows.");
@@ -444,7 +442,6 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private void Bind(SheetRow row, TItem item)
     {
-        ArgumentNullException.ThrowIfNull(item);
         items[row] = item;
         remembered.AddOrUpdate(row, item);
         Subscribe(item);

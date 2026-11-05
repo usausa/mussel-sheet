@@ -40,10 +40,6 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
     public SheetBinding<T> Cell<TValue>(int row, int column, Expression<Func<T, TValue>> property)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        ArgumentOutOfRangeException.ThrowIfNegative(row);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(row, Sheet.RowCount);
-        ArgumentOutOfRangeException.ThrowIfNegative(column);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(column, Sheet.ColumnCount);
         var link = new CellLink(Sheet.Rows[row], Sheet.Columns[column], BoundProperty.Of(property));
         cells.Add(link);
         sync.Show(Source, link.Property, row, column);
@@ -58,7 +54,6 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
         where TItem : class
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        ArgumentNullException.ThrowIfNull(columns);
         var rows = new SheetRowsBinding<TItem>(sync, Source, range, BoundProperty.Of(list));
         columns(rows);
         rows.Attach();

@@ -16,7 +16,7 @@ public sealed class JavaScriptTests
             WorkingDirectory = FindSolutionDirectory()
         };
         startInfo.ArgumentList.Add("--test");
-        startInfo.ArgumentList.Add(Path.Combine("MusselSheet.Tests", "js", "musselsheet.test.mjs"));
+        startInfo.ArgumentList.Add(Path.Combine("MusselSheet.Tests", "js", "MusselSheet.test.mjs"));
 
         using var process = StartProcess(startInfo);
         if (process is null)

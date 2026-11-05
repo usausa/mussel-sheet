@@ -1,7 +1,5 @@
 namespace MusselSheet;
 
-using System.Globalization;
-
 public sealed class SheetChangedTests
 {
     [Fact]

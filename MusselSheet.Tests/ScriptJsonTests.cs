@@ -80,16 +80,19 @@ public sealed class ScriptJsonTests
             true,
             1,
             2,
-            new ScriptKeysData(new Dictionary<string, string?> { ["F4"] = "edit" }, new Dictionary<string, string?>()),
-            new ScriptMenuData(["cut"], [new ScriptMenuItemData("log", "Log")]));
+            new Dictionary<string, string?> { ["F4"] = "edit" },
+            new Dictionary<string, string?>(),
+            ["cut"],
+            [new ScriptItem("log", "Log")]);
 
         var json = SheetScriptJson.ToElement(options);
 
-        string[] names = ["enterDirection", "readyEnter", "tabReturn", "rowEnd", "skipReadOnly", "lastRowEnter", "commitMode", "autosize", "customEditor", "allowInsertRows", "allowDeleteRows", "allowInsertColumns", "allowDeleteColumns", "allowFill", "frozenRows", "frozenColumns", "keys", "menu"];
+        string[] names = ["enterDirection", "readyEnter", "tabReturn", "rowEnd", "skipReadOnly", "lastRowEnter", "commitMode", "autosize", "customEditor", "allowInsertRows", "allowDeleteRows", "allowInsertColumns", "allowDeleteColumns", "allowFill", "frozenRows", "frozenColumns", "readyKeys", "editingKeys", "hiddenMenuItems", "menuItems"];
         Assert.Equal(names, json.EnumerateObject().Select(static x => x.Name));
-        Assert.Equal("edit", json.GetProperty("keys").GetProperty("ready").GetProperty("F4").GetString());
-        Assert.Equal("cut", json.GetProperty("menu").GetProperty("hidden")[0].GetString());
-        Assert.Equal("Log", json.GetProperty("menu").GetProperty("items")[0].GetProperty("text").GetString());
+        Assert.Equal("edit", json.GetProperty("readyKeys").GetProperty("F4").GetString());
+        Assert.Equal("cut", json.GetProperty("hiddenMenuItems")[0].GetString());
+        Assert.Equal("log", json.GetProperty("menuItems")[0].GetProperty("value").GetString());
+        Assert.Equal("Log", json.GetProperty("menuItems")[0].GetProperty("text").GetString());
     }
 
     [Fact]

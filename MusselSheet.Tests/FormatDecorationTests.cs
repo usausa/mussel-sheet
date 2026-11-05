@@ -1,7 +1,5 @@
 namespace MusselSheet;
 
-using Bunit;
-
 using MusselSheet.Internal;
 
 public sealed class FormatDecorationTests : BunitContext
@@ -37,10 +35,6 @@ public sealed class FormatDecorationTests : BunitContext
         Assert.Equal(2, a1.IndentLevel);
         Assert.True(sheet.GetSettings(1, 1).Style.Italic);
         Assert.Null(new Sheet(1, 1).GetSettings(0, 0).Style.FontSize);
-
-        var style = new CellStyle();
-        Assert.Throws<ArgumentOutOfRangeException>(() => style.FontSize = 0);
-        Assert.Throws<ArgumentOutOfRangeException>(() => style.IndentLevel = -1);
     }
 
     [Fact]

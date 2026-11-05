@@ -101,7 +101,7 @@ public sealed class SheetMapTests
         Assert.Equal("1,000", number.MaximumText);
         Assert.Equal("accept", number.Policy);
         Assert.Equal("stay", list.Policy);
-        RuleItem[] items = [new("S", "営業部"), new("総務部", "総務部")];
+        ScriptItem[] items = [new("S", "営業部"), new("総務部", "総務部")];
         Assert.Equal(items, list.Items);
     }
 
