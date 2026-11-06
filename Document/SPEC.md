@@ -36,7 +36,7 @@ Cells in one column can differ in kind, rules and style. By default rows are 24 
 
 Edit form by kind: `Number` uses format `G`, without group separators. `Date` uses `SheetCulture.EditDateFormat` if set, otherwise the culture's short date pattern with a 4-digit year, or `yyyy/MM/dd`, `MM/dd/yyyy` or `dd/MM/yyyy` by field order when the pattern has other characters than `y M d / . -`. `Time` uses `HH:mm`, or `HH:mm:ss` when seconds are not 0. `Checkbox` uses `true` or `false`, and nothing without a value. `List` and `AutoComplete` use the item's display text.
 
-> Note: A sheet gets the registered options when a view shows it, and `Text` and `EditText` are then what the view shows. A sheet no view has shown uses the built-in languages.
+> Note: A sheet and its view follow `Sheet.Options`. If it is not set, the view sets the registered options when it shows the sheet, so `Text` and `EditText` are then what the view shows; until then the sheet uses the built-in languages. To read text with no view, pass the registered options: `new Sheet(rows, columns) { Options = options }`.
 
 ### Rows and columns
 

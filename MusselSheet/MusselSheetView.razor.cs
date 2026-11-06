@@ -242,11 +242,9 @@ public sealed partial class MusselSheetView : IAsyncDisposable
     [Inject]
     private IServiceProvider Services { get; set; } = default!;
 
-    private MusselSheetOptions Options
-    {
-        get => field ??= Services.GetService(typeof(MusselSheetOptions)) as MusselSheetOptions ?? MusselSheetOptions.Default;
-        set;
-    }
+    private MusselSheetOptions? RegisteredOptions => Services.GetService(typeof(MusselSheetOptions)) as MusselSheetOptions;
+
+    private MusselSheetOptions Options => Sheet.EffectiveOptions;
 
     internal SheetTexts Texts => Options.TextsFor(CultureInfo.CurrentUICulture);
 
@@ -403,7 +401,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
         if (!defaultsApplied)
         {
             defaultsApplied = true;
-            ApplyDefaults(Options.Defaults);
+            ApplyDefaults((parameters.GetValueOrDefault<Sheet>(nameof(Sheet))?.Options ?? RegisteredOptions ?? MusselSheetOptions.Default).Defaults);
         }
 
         return base.SetParametersAsync(parameters);
@@ -420,7 +418,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
         {
             Unsubscribe();
             Sheet.Changed += OnSheetChanged;
-            Sheet.Options = Options;
+            Sheet.UseRegisteredOptions(RegisteredOptions);
             subscribed = Sheet;
             layoutVersion = -1;
             history.Clear();

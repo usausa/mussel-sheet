@@ -16,6 +16,8 @@ public sealed partial class Sheet
 
     private bool pendingReset;
 
+    private MusselSheetOptions? options;
+
     public Sheet(int rows, int columns)
     {
         DefaultRowHeight = 24;
@@ -90,8 +92,16 @@ public sealed partial class Sheet
         }
     }
 
-    // The view that shows this sheet gives its options, so that Text and EditText are what the view shows
-    internal MusselSheetOptions Options { get; set; } = MusselSheetOptions.Default;
+    // Not set, the sheet uses the built-in languages until a view shows it with registered options
+    public MusselSheetOptions? Options
+    {
+        get => options;
+        set
+        {
+            options = value;
+            Raise(new SheetChangedEventArgs(SheetChangeKind.Reset));
+        }
+    }
 
     public CultureInfo Culture
     {
@@ -104,6 +114,8 @@ public sealed partial class Sheet
     }
 
     public SheetRange Cells => new(this, CellRange.All);
+
+    internal MusselSheetOptions EffectiveOptions => options ?? MusselSheetOptions.Default;
 
     internal IReadOnlyList<SettingsRule> Rules => settings.Rules;
 
@@ -146,6 +158,9 @@ public sealed partial class Sheet
     }
 
     internal void NotifyLayout() => Raise(new SheetChangedEventArgs(SheetChangeKind.Layout));
+
+    // Not a change of the sheet: a view calls this before it first shows the sheet
+    internal void UseRegisteredOptions(MusselSheetOptions? registered) => options ??= registered;
 
     private static CultureInfo DefaultCulture() => CultureInfo.CurrentCulture;
 

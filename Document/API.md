@@ -67,6 +67,7 @@ The model of the sheet. Rows and columns are numbered from 0; addresses use the 
 | `DefaultRowHeight`, `DefaultColumnWidth` | Default sizes in pixels |
 | `FrozenRows`, `FrozenColumns` | Rows from the top and columns from the left that stay visible |
 | `Culture` | How text is shown and read; the current culture by default |
+| `Options` | The `MusselSheetOptions` the sheet and its view follow. If not set, a view showing the sheet sets the registered ones; until then the built-in languages apply |
 | `this[row, column]`, `this[address]` | A `Cell` with `Value`, `Text`, `EditText`, `InputText`, `Error`, `Settings` and `GetValue<T>()` |
 | `Range(address)`, `Cells` | A `SheetRange`, or all cells |
 | `Configure(range, settings)`, `GetSettings(row, column)` | Adds cell settings; later settings win item by item |
@@ -176,7 +177,7 @@ var copy = Sheet.FromDesign(SheetDesignJson.Read(json), functions);
 
 ## 🌐 Options
 
-`services.AddMusselSheet(options => …)` sets what applies to every sheet. It is optional; without it the built-in values apply.  
+`services.AddMusselSheet(options => …)` sets what applies to every sheet and registers the `MusselSheetOptions`. A sheet with its own `Sheet.Options` follows those instead. It is optional; without it the built-in values apply.  
 
 | Name | Description |
 |---|---|
