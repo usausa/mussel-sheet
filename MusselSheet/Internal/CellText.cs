@@ -10,7 +10,7 @@ internal static class CellText
 
     private const string DefaultTimeFormat = "HH:mm";
 
-    public static string Display(object? value, ResolvedCellSettings settings, CultureInfo culture, string? dateFormat = null, IReadOnlyList<SheetJapaneseEra>? eras = null)
+    public static string Display(object? value, ResolvedCellSettings settings, CultureInfo culture, string? dateFormat = null, DateRules? dates = null)
     {
         if (settings.Kind == CellKind.Checkbox)
         {
@@ -25,7 +25,7 @@ internal static class CellText
         return settings.Kind switch
         {
             CellKind.Number => FormatNumber(value, settings.Format ?? "G", culture),
-            CellKind.Date => FormatDate(value, settings.Format ?? dateFormat ?? culture.DateTimeFormat.ShortDatePattern, culture, eras),
+            CellKind.Date => FormatDate(value, settings.Format ?? dateFormat ?? culture.DateTimeFormat.ShortDatePattern, culture, dates),
             CellKind.Time => FormatTime(value, settings.Format ?? DefaultTimeFormat, culture),
             CellKind.List or CellKind.AutoComplete => ListText(value, settings.Items, culture),
             CellKind.Custom when (settings.Format is { } format) && (value is IFormattable formattable) => formattable.ToString(format, culture),
@@ -33,7 +33,7 @@ internal static class CellText
         };
     }
 
-    public static string Edit(object? value, ResolvedCellSettings settings, CultureInfo culture)
+    public static string Edit(object? value, ResolvedCellSettings settings, CultureInfo culture, DateRules? dates = null)
     {
         if (value is null)
         {
@@ -43,7 +43,7 @@ internal static class CellText
         return settings.Kind switch
         {
             CellKind.Number => FormatNumber(value, "G", culture),
-            CellKind.Date => FormatDate(value, ReadingRules.EditFormat(culture), culture, null),
+            CellKind.Date => FormatDate(value, LiteralSeparators(dates?.EditFormat ?? ReadingRules.EditFormat(culture)), culture, dates),
             CellKind.Time => FormatTime(value, HasSeconds(value) ? "HH:mm:ss" : DefaultTimeFormat, culture),
             CellKind.Checkbox => IsTrue(value) ? "true" : "false",
             CellKind.List or CellKind.AutoComplete => ListText(value, settings.Items, culture),
@@ -116,14 +116,18 @@ internal static class CellText
         _ => Convert.ToString(value, culture) ?? string.Empty
     };
 
-    public static string FormatDate(DateOnly date, string format, CultureInfo culture, IReadOnlyList<SheetJapaneseEra>? eras) =>
-        JapaneseEraText.IsEraFormat(format) ? JapaneseEraText.Format(date, format, culture, eras ?? SheetJapaneseEra.BuiltIn) : date.ToString(format, culture);
+    public static string FormatDate(DateOnly date, string format, CultureInfo culture, DateRules? dates) =>
+        DateRules.IsEraFormat(format) ? (dates ?? DateRules.None).Format(date, format, culture) : date.ToString(format, culture);
 
-    private static string FormatDate(object value, string format, CultureInfo culture, IReadOnlyList<SheetJapaneseEra>? eras) => value switch
+    // The edit text is read back, so its '/' stays '/' even where the culture's date separator is something else
+    private static string LiteralSeparators(string format) =>
+        format.Contains('\'', StringComparison.Ordinal) ? format : format.Replace("/", "'/'", StringComparison.Ordinal);
+
+    private static string FormatDate(object value, string format, CultureInfo culture, DateRules? dates) => value switch
     {
-        DateOnly date => FormatDate(date, format, culture, eras),
-        DateTime dateTime => FormatDate(DateOnly.FromDateTime(dateTime), format, culture, eras),
-        DateTimeOffset offset => FormatDate(DateOnly.FromDateTime(offset.Date), format, culture, eras),
+        DateOnly date => FormatDate(date, format, culture, dates),
+        DateTime dateTime => FormatDate(DateOnly.FromDateTime(dateTime), format, culture, dates),
+        DateTimeOffset offset => FormatDate(DateOnly.FromDateTime(offset.Date), format, culture, dates),
         _ => Convert.ToString(value, culture) ?? string.Empty
     };
 

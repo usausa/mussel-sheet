@@ -38,9 +38,7 @@ public sealed class CellSettings
 
     public ImeMode? ImeMode { get; set; }
 
-    public CellCharacterRestriction? CharacterRestriction { get; set; }
-
-    public CellCharacterConversions? CharacterConversions { get; set; }
+    public SheetCharacterSet? CharacterRestriction { get; set; }
 
     public string? Mask { get; set; }
 
@@ -83,7 +81,6 @@ public sealed class CellSettings
         ValidationMode = ValidationMode,
         ImeMode = ImeMode,
         CharacterRestriction = CharacterRestriction,
-        CharacterConversions = CharacterConversions,
         Mask = Mask,
         CheckedText = CheckedText,
         UncheckedText = UncheckedText,

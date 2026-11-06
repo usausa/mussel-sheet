@@ -90,12 +90,15 @@ public sealed partial class Sheet
         }
     }
 
+    // The view that shows this sheet gives its options, so that Text and EditText are what the view shows
+    internal MusselSheetOptions Options { get; set; } = MusselSheetOptions.Default;
+
     public CultureInfo Culture
     {
         get;
         set
         {
-            field = value;
+            field = ReadingRules.Gregorian(value);
             Raise(new SheetChangedEventArgs(SheetChangeKind.Reset));
         }
     }

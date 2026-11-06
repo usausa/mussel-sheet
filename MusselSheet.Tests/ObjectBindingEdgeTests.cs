@@ -90,7 +90,7 @@ public sealed class ObjectBindingEdgeTests : BunitContext
             .Cell("E1", static x => x.Done)
             .Cell("F1", static x => x.State);
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
-        var texts = SheetTexts.Japanese;
+        var texts = JapaneseTexts.Default;
 
         Assert.Equal(texts.WholeNumber, await Commit(0));
         Assert.Equal(texts.Number, await Commit(1));

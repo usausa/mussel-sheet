@@ -13,15 +13,15 @@ public sealed class CultureReadingTests
     [Fact]
     public void ReadingRulesComeFromTheCulture()
     {
-        var japanese = ReadingRules.From(CultureInfo.GetCultureInfo("ja-JP"), true);
+        var japanese = ReadingRules.From(CultureInfo.GetCultureInfo("ja-JP"));
         Assert.Equal(DateOrder.YearMonthDay, japanese.DateOrder);
         Assert.Equal("yyyy/MM/dd", japanese.EditDateFormat);
 
-        var english = ReadingRules.From(English, false);
+        var english = ReadingRules.From(English);
         Assert.Equal(DateOrder.MonthDayYear, english.DateOrder);
         Assert.Equal("M/d/yyyy", english.EditDateFormat);
 
-        var german = ReadingRules.From(German, false);
+        var german = ReadingRules.From(German);
         Assert.Equal(DateOrder.DayMonthYear, german.DateOrder);
         Assert.Equal(",", german.DecimalSeparator);
         Assert.Equal(".", german.GroupSeparator);
@@ -84,6 +84,6 @@ public sealed class CultureReadingTests
     private static InputContext Context(string name)
     {
         var culture = CultureInfo.GetCultureInfo(name);
-        return new InputContext(culture, Today, SheetTexts.English, culture.DateTimeFormat.ShortDatePattern, ReadingRules.From(culture, false));
+        return new InputContext(culture, Today, SheetTexts.English, culture.DateTimeFormat.ShortDatePattern, ReadingRules.From(culture));
     }
 }

@@ -40,9 +40,7 @@ public sealed record ResolvedCellSettings
 
     public ImeMode ImeMode { get; init; }
 
-    public CellCharacterRestriction CharacterRestriction { get; init; }
-
-    public CellCharacterConversions CharacterConversions { get; init; }
+    public SheetCharacterSet CharacterRestriction { get; init; } = SheetCharacters.None;
 
     public string? Mask { get; init; }
 

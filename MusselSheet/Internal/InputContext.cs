@@ -4,8 +4,6 @@ using System.Globalization;
 
 internal sealed record InputContext(CultureInfo Culture, DateOnly Today, SheetTexts Texts, string DateFormat, ReadingRules Reading)
 {
-    public IReadOnlyList<SheetJapaneseEra> Eras { get; init; } = SheetJapaneseEra.BuiltIn;
-
     public static string Fill(string template, string first, string? second = null)
     {
         var text = template.Replace("{0}", first, StringComparison.Ordinal);
@@ -13,6 +11,8 @@ internal sealed record InputContext(CultureInfo Culture, DateOnly Today, SheetTe
     }
 
     public static string Fill(string template, int value) => Fill(template, value.ToString(CultureInfo.InvariantCulture));
+
+    public DateRules Dates => Reading.Dates;
 
     public string DateMessage => Fill(Texts.Date, DateFormat);
 
@@ -31,13 +31,6 @@ internal sealed record InputContext(CultureInfo Culture, DateOnly Today, SheetTe
         ["maxByteLength"] = Texts.MaxByteLength,
         ["pattern"] = Texts.Pattern,
         ["mask"] = Texts.Mask,
-        ["fullwidth"] = Texts.Fullwidth,
-        ["halfwidth"] = Texts.Halfwidth,
-        ["hiragana"] = Texts.Hiragana,
-        ["katakana"] = Texts.Katakana,
-        ["halfwidthKatakana"] = Texts.HalfwidthKatakana,
-        ["alphanumeric"] = Texts.Alphanumeric,
-        ["digits"] = Texts.Digits,
         ["notEditable"] = Texts.NotEditable,
         ["canceled"] = Texts.Canceled,
         ["menuCut"] = Texts.MenuCut,

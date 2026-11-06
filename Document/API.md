@@ -101,7 +101,7 @@ Everything is optional, and later settings win item by item. `Sheet.GetSettings`
 |---|---|
 | `Kind` | `Text`, `Label`, `Number`, `Date`, `Time`, `Checkbox`, `List`, `Mask`, `AutoComplete` or `Custom` |
 | `ReadOnly` | The cell can be selected and copied but not edited |
-| `Format` | A .NET format string; dates also take the Japanese era symbols (`ggge年M月d日`) |
+| `Format` | A .NET format string; dates also take the era symbols of the sheet's culture (`ggge年M月d日`) |
 | `WrapText` | Alt+Enter adds a line break, and the text wraps in the cell |
 | `MoveGroup` | Enter and Tab cycle inside cells of the same name |
 | `Required`, `Minimum`, `Maximum`, `MaxLength`, `MaxByteLength`, `Pattern` | Input rules; the limits (`CellBound`) take a number, a `DateOnly` or a `TimeOnly` |
@@ -109,11 +109,10 @@ Everything is optional, and later settings win item by item. `Sheet.GetSettings`
 | `ErrorMessage`, `InputMessage` | The message of an error, and the note shown when the cell is selected |
 | `ValidationMode` | Overrides the mode of the view |
 | `Validator` | A function that returns an error message |
-| `Corrector` | A function that corrects the value before the rules run |
+| `Corrector` | A function that corrects the value before the rules run. Width and kana conversion of text goes here |
 | `Formatter`, `StyleProvider` | Functions that return the shown text and the style by value; they do not limit the input |
 | `ImeMode` | `NoControl`, or `Off` to prefer direct input |
-| `CharacterRestriction` | `Fullwidth`, `Halfwidth`, `Hiragana`, `Katakana`, `HalfwidthKatakana`, `Alphanumeric` or `Digits` |
-| `CharacterConversions` | Flags: `FullwidthAsciiToHalfwidth`, `HalfwidthKatakanaToFullwidth`, `HiraganaToKatakana` and `KatakanaToHiragana` |
+| `CharacterRestriction` | A `SheetCharacterSet`: `SheetCharacters.None`, `Fullwidth`, `Halfwidth`, `Alphanumeric` or `Digits`, `JapaneseCharacters.Hiragana`, `Katakana` or `HalfwidthKatakana`, or your own |
 | `Mask` | The input mask of `CellKind.Mask` |
 | `CheckedText`, `UncheckedText` | The texts of a checkbox shown as text |
 | `Editor` | The name passed to `CustomEditor` |
@@ -173,7 +172,7 @@ var copy = Sheet.FromDesign(SheetDesignJson.Read(json), functions);
 ```
 
 `ToDesign` keeps sizes, frozen rows and columns, rules in order, merged cells, labels and computed cells, and `includeValues` adds the input values. Functions are saved by the name in `SheetFunctions`.  
-`SheetFunctions` has `AddValidator`, `AddCorrector`, `AddFormatter`, `AddStyleProvider`, `AddSuggestionProvider` and `AddComputation`, and gets them back by name with `Validator`, `Corrector`, `Formatter`, `StyleProvider`, `SuggestionProvider` and `Computation`. `SheetDesign` and the `…Design` types are the shape of the JSON.  
+`SheetFunctions` has `AddValidator`, `AddCorrector`, `AddFormatter`, `AddStyleProvider`, `AddSuggestionProvider`, `AddComputation` and `AddCharacterSet`, and gets them back by name with `Validator`, `Corrector`, `Formatter`, `StyleProvider`, `SuggestionProvider`, `Computation` and `CharacterSet`. `SheetDesign` and the `…Design` types are the shape of the JSON.  
 
 ## 🌐 Options
 
@@ -181,11 +180,12 @@ var copy = Sheet.FromDesign(SheetDesignJson.Read(json), functions);
 
 | Name | Description |
 |---|---|
-| `Cultures` | `SheetCulture` by culture name: `Texts`, `DateFormat`, `FirstDayOfWeek` and `JapaneseDates`. `SheetTexts.English` and `SheetTexts.Japanese` are built in; change them with `with` |
+| `Cultures` | `SheetCulture` by culture name: `Texts`, `DateFormat`, `EditDateFormat`, `FirstDayOfWeek`, `Eras`, `EraFirstYear`, `DateForms`, `Readings` and `DateReadings`. The empty name and `ja` are built in; change their texts with `with` |
 | `Defaults` | `MusselSheetDefaults`: default values of the parameters of the view, under the same names |
 | `ReadyKeys`, `EditingKeys` | A key such as `Ctrl+K` to a `SheetCommands` value. `null` leaves the key to the browser, and unlisted keys keep their action |
 | `Menu` | `Hidden` commands and additional `Items` (`SheetMenuItem`) of the context menu |
-| `Eras` | `SheetJapaneseEra`: `Name`, `ShortName`, `Initial` and `Start`. `SheetJapaneseEra.BuiltIn` is the default |
+
+English and Japanese are built in. `JapaneseLanguage`, `JapaneseTexts` and `JapaneseCharacters` are in `MusselSheet.Languages.Japanese`. A language of your own is written the same way: see Languages in the [specification](SPEC.md).  
 
 `SheetCommands`: `Edit`, `ClearContents`, `Undo`, `Redo`, `SelectAll`, `FillDown`, `FillRight`, `Today`, `FillSelection`, `Menu`, `OpenList`, `MoveNext`, `MovePrevious`, `TabNext`, `TabPrevious`, `Cancel` and `NewLine`.  
 

@@ -1,13 +1,21 @@
 namespace MusselSheet;
 
+using System.Collections.Concurrent;
 using System.Globalization;
+using System.Runtime.CompilerServices;
+
+using MusselSheet.Internal;
+using MusselSheet.Languages;
 
 public sealed class MusselSheetOptions
 {
+    private readonly ConcurrentDictionary<string, DateRules> dates = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly ConditionalWeakTable<CultureInfo, ReadingRules> readings = [];
+
     public MusselSheetOptions()
     {
-        Cultures[string.Empty] = new SheetCulture { Texts = SheetTexts.English };
-        Cultures["ja"] = new SheetCulture { Texts = SheetTexts.Japanese, JapaneseDates = true };
+        BuiltInLanguages.AddTo(this);
     }
 
     public IDictionary<string, SheetCulture> Cultures { get; } = new Dictionary<string, SheetCulture>(StringComparer.OrdinalIgnoreCase);
@@ -19,8 +27,6 @@ public sealed class MusselSheetOptions
     public IDictionary<string, string?> EditingKeys { get; } = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
     public SheetMenuOptions Menu { get; } = new();
-
-    public IList<SheetJapaneseEra> Eras { get; } = [.. SheetJapaneseEra.BuiltIn];
 
     internal static MusselSheetOptions Default { get; } = new();
 
@@ -64,5 +70,34 @@ public sealed class MusselSheetOptions
 
     internal DayOfWeek FirstDayOfWeekFor(CultureInfo culture) => FindValue(culture, x => x.FirstDayOfWeek) ?? culture.DateTimeFormat.FirstDayOfWeek;
 
-    internal bool JapaneseDatesFor(CultureInfo culture) => FindValue(culture, x => x.JapaneseDates) ?? false;
+    // Made once per culture, because the view asks for every cell and every commit:
+    // configure the options before the first sheet is shown
+    internal DateRules DatesFor(CultureInfo culture) =>
+        dates.TryGetValue(culture.Name, out var rules) ? rules : AddDates(culture);
+
+    internal ReadingRules ReadingFor(CultureInfo culture)
+    {
+        if (!readings.TryGetValue(culture, out var reading))
+        {
+            reading = ReadingRules.From(culture) with
+            {
+                Dates = DatesFor(culture),
+                EditDateFormat = Find(culture, static x => x.EditDateFormat) ?? ReadingRules.EditFormat(culture),
+                Readings = Find(culture, static x => x.Readings),
+                DateReadings = Find(culture, static x => x.DateReadings)
+            };
+            readings.AddOrUpdate(culture, reading);
+        }
+
+        return reading;
+    }
+
+    private DateRules AddDates(CultureInfo culture) => dates.GetOrAdd(culture.Name, _ => new DateRules(
+        FindList(culture, static x => x.Eras),
+        Find(culture, static x => x.EraFirstYear),
+        FindList(culture, static x => x.DateForms),
+        Find(culture, static x => x.EditDateFormat)));
+
+    private IList<T> FindList<T>(CultureInfo culture, Func<SheetCulture, IList<T>> pick) =>
+        Find(culture, x => pick(x) is { Count: > 0 } list ? list : null) ?? [];
 }

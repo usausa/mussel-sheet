@@ -12,12 +12,33 @@ internal enum DateOrder
 
 // Separators and date order come from the sheet's CultureInfo (pass a custom one to Sheet.Culture to
 // change them), so display, edit text and reading cannot diverge. The JS validation receives the same values.
-internal sealed partial record ReadingRules(string DecimalSeparator, string GroupSeparator, DateOrder DateOrder, string EditDateFormat, bool Japanese)
+internal sealed partial record ReadingRules(string DecimalSeparator, string GroupSeparator, string TimeSeparator, DateOrder DateOrder, string EditDateFormat)
 {
-    public static ReadingRules From(CultureInfo culture, bool japanese)
+    public DateRules Dates { get; init; } = DateRules.None;
+
+    public SheetCharacterMap? Readings { get; init; }
+
+    public SheetCharacterMap? DateReadings { get; init; }
+
+    // A culture whose two number separators are the same has no grouping that could be told from the decimal point
+    public static ReadingRules From(CultureInfo culture)
     {
         var numbers = culture.NumberFormat;
-        return new(numbers.NumberDecimalSeparator, numbers.NumberGroupSeparator, OrderOf(culture), EditFormat(culture), japanese);
+        var group = numbers.NumberGroupSeparator == numbers.NumberDecimalSeparator ? string.Empty : numbers.NumberGroupSeparator;
+        return new(numbers.NumberDecimalSeparator, group, culture.DateTimeFormat.TimeSeparator, OrderOf(culture), EditFormat(culture));
+    }
+
+    // A value is always a Gregorian date, whatever calendar the culture has by default
+    public static CultureInfo Gregorian(CultureInfo culture)
+    {
+        if (culture.DateTimeFormat.Calendar is GregorianCalendar)
+        {
+            return culture;
+        }
+
+        var clone = (CultureInfo)culture.Clone();
+        clone.DateTimeFormat.Calendar = new GregorianCalendar();
+        return clone;
     }
 
     public static DateOrder OrderOf(CultureInfo culture)
@@ -53,6 +74,7 @@ internal sealed partial record ReadingRules(string DecimalSeparator, string Grou
     public ReadingInfo ForScript() => new(
         DecimalSeparator,
         GroupSeparator,
+        TimeSeparator,
         DateOrder switch
         {
             DateOrder.DayMonthYear => "dmy",
@@ -60,7 +82,12 @@ internal sealed partial record ReadingRules(string DecimalSeparator, string Grou
             _ => "ymd"
         },
         EditDateFormat,
-        Japanese);
+        Dates.Patterns,
+        Readings?.Characters,
+        DateReadings?.Characters,
+        [.. Dates.Eras.Select(static x => new EraInfo(x.Name, x.ShortName, x.Initial, x.Start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), x.FirstYear))],
+        Dates.FirstYear?.Text,
+        Dates.FirstYear?.Unit);
 
     [GeneratedRegex("^(?=[^y]*y)(?=[^M]*M)(?=[^d]*d)[yMd/.-]+$")]
     private static partial Regex NumericDatePattern();

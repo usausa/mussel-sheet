@@ -19,7 +19,7 @@ public sealed class CultureCustomizationTests : BunitContext
         var options = new MusselSheetOptions { Cultures = { ["ja-JP"] = new SheetCulture { DateFormat = "yyyy年M月d日" } } };
 
         Assert.Equal("yyyy年M月d日", options.DateFormatFor(Japanese));
-        Assert.Same(SheetTexts.Japanese, options.TextsFor(Japanese));
+        Assert.Same(JapaneseTexts.Default, options.TextsFor(Japanese));
         Assert.Same(SheetTexts.English, options.TextsFor(CultureInfo.GetCultureInfo("fr-FR")));
 
         Assert.Equal("M/d/yyyy", options.DateFormatFor(English));
@@ -31,7 +31,7 @@ public sealed class CultureCustomizationTests : BunitContext
     [Fact]
     public async Task RegisteredTextsAreUsedForTheUiCulture()
     {
-        Services.AddMusselSheet(o => o.Cultures["ja"].Texts = SheetTexts.Japanese with { Number = "数字だけを入れてください" });
+        Services.AddMusselSheet(static o => o.Cultures["ja"].Texts = JapaneseTexts.Default with { Number = "数字だけを入れてください" });
         var sheet = new Sheet(1, 1);
         sheet.Range("A1").Configure(c => c.Kind = CellKind.Number);
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));

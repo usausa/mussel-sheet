@@ -38,7 +38,7 @@ public sealed class CommitPipelineTests : BunitContext
 
         Assert.False(result.Ok);
         Assert.False(result.Stored);
-        Assert.Equal(SheetTexts.Japanese.Number, result.Error);
+        Assert.Equal(JapaneseTexts.Default.Number, result.Error);
         Assert.Equal(5m, sheet.GetValue(0, 0));
         Assert.Null(sheet.GetError(0, 0));
     }
@@ -54,7 +54,7 @@ public sealed class CommitPipelineTests : BunitContext
         Assert.False(result.Ok);
         Assert.True(result.Stored);
         Assert.Equal("abc", sheet.GetValue(0, 0));
-        Assert.Equal(SheetTexts.Japanese.Number, sheet.GetError(0, 0));
+        Assert.Equal(JapaneseTexts.Default.Number, sheet.GetError(0, 0));
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed class CommitPipelineTests : BunitContext
 
         Assert.True(result.Stored);
         Assert.Equal("abc", sheet.GetValue(0, 0));
-        Assert.Equal(SheetTexts.Japanese.Number, sheet.GetError(0, 0));
+        Assert.Equal(JapaneseTexts.Default.Number, sheet.GetError(0, 0));
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class CommitPipelineTests : BunitContext
         var readOnly = await Commit(cut, 0, 0, "x", true);
         var label = await Commit(cut, 0, 1, "x", true);
 
-        Assert.Equal(SheetTexts.Japanese.NotEditable, readOnly.Error);
+        Assert.Equal(JapaneseTexts.Default.NotEditable, readOnly.Error);
         Assert.False(label.Stored);
         Assert.Null(sheet.GetValue(0, 0));
         Assert.Null(sheet.GetValue(0, 1));

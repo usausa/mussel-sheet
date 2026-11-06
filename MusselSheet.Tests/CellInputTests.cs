@@ -8,19 +8,19 @@ public sealed class CellInputTests
 
     private static readonly DateOnly Today = new(2026, 11, 2);
 
-    private static readonly InputContext Context = new(Japanese, Today, SheetTexts.Japanese, "yyyy/MM/dd", ReadingRules.From(Japanese, true));
+    private static readonly InputContext Context = new(Japanese, Today, JapaneseTexts.Default, "yyyy/MM/dd", MusselSheetOptions.Default.ReadingFor(Japanese));
 
     [Theory]
-    [InlineData(CellCharacterRestriction.Fullwidth, "abc", "全角で入力してください")]
-    [InlineData(CellCharacterRestriction.Halfwidth, "あ", "半角で入力してください")]
-    [InlineData(CellCharacterRestriction.Hiragana, "カ", "ひらがなで入力してください")]
-    [InlineData(CellCharacterRestriction.Katakana, "か", "全角カタカナで入力してください")]
-    [InlineData(CellCharacterRestriction.HalfwidthKatakana, "カ", "半角カタカナで入力してください")]
-    [InlineData(CellCharacterRestriction.Alphanumeric, "あ", "半角英数字で入力してください")]
-    [InlineData(CellCharacterRestriction.Digits, "a", "半角数字で入力してください")]
-    public void EveryRestrictionHasItsMessage(CellCharacterRestriction restriction, string text, string expected)
+    [InlineData("fullwidth", "abc", "全角で入力してください")]
+    [InlineData("halfwidth", "あ", "半角で入力してください")]
+    [InlineData("hiragana", "カ", "ひらがなで入力してください")]
+    [InlineData("katakana", "か", "全角カタカナで入力してください")]
+    [InlineData("halfwidthKatakana", "カ", "半角カタカナで入力してください")]
+    [InlineData("alphanumeric", "あ", "半角英数字で入力してください")]
+    [InlineData("digits", "a", "半角数字で入力してください")]
+    public void EveryRestrictionHasItsMessage(string restriction, string text, string expected)
     {
-        var settings = Settings(CellKind.Text) with { CharacterRestriction = restriction };
+        var settings = Settings(CellKind.Text) with { CharacterRestriction = TestLanguages.Set(restriction) };
 
         Assert.Equal(expected, CellInput.Check(text, settings, Context, out _, out _));
     }
@@ -41,7 +41,7 @@ public sealed class CellInputTests
 
         Assert.Null(CellInput.Check("TRUE", settings, Context, out var value, out _));
         Assert.True(value is true);
-        Assert.Equal(SheetTexts.Japanese.Check, CellInput.Check("abc", settings, Context, out _, out _));
+        Assert.Equal(JapaneseTexts.Default.Check, CellInput.Check("abc", settings, Context, out _, out _));
     }
 
     [Theory]
@@ -78,7 +78,7 @@ public sealed class CellInputTests
     public void NumberRejectsOtherText(string text)
     {
         Assert.False(CellInput.TryConvert(text, Settings(CellKind.Number), Context, out _, out var error));
-        Assert.Equal(SheetTexts.Japanese.Number, error);
+        Assert.Equal(JapaneseTexts.Default.Number, error);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class CellInputTests
         Assert.True(CellInput.TryConvert("9:05:30", Settings(CellKind.Time), Context, out var time, out _));
         Assert.Equal(new TimeOnly(9, 5, 30), time);
         Assert.False(CellInput.TryConvert("24:00", Settings(CellKind.Time), Context, out _, out var error));
-        Assert.Equal(SheetTexts.Japanese.Time, error);
+        Assert.Equal(JapaneseTexts.Default.Time, error);
     }
 
     // Two-digit years follow Excel: 00-29 are 2000s, 30-99 are 1900s
@@ -159,13 +159,13 @@ public sealed class CellInputTests
         Assert.True(CellInput.TryConvert("s", settings, Context, out value, out _));
         Assert.Equal("S", value);
         Assert.False(CellInput.TryConvert("開発部", settings, Context, out _, out var error));
-        Assert.Equal(SheetTexts.Japanese.List, error);
+        Assert.Equal(JapaneseTexts.Default.List, error);
     }
 
     [Fact]
     public void ValidateChecksRequiredRangeLengthAndPattern()
     {
-        Assert.Equal(SheetTexts.Japanese.Required, CellInput.Validate(null, string.Empty, Settings(CellKind.Text) with { Required = true }, Context));
+        Assert.Equal(JapaneseTexts.Default.Required, CellInput.Validate(null, string.Empty, Settings(CellKind.Text) with { Required = true }, Context));
         var range = Settings(CellKind.Number) with { Minimum = 0, Maximum = 100, Format = "N0" };
         Assert.Equal("0 から 100 の範囲で入力してください", CellInput.Validate(101m, "101", range, Context));
         Assert.Null(CellInput.Validate(100m, "100", range, Context));
@@ -174,7 +174,7 @@ public sealed class CellInputTests
         Assert.Equal("2 文字以内で入力してください", CellInput.Validate("𠮷野家", "𠮷野家", Settings(CellKind.Text) with { MaxLength = 2 }, Context));
         Assert.Null(CellInput.Validate("𠮷野家", "𠮷野家", Settings(CellKind.Text) with { MaxLength = 3 }, Context));
         Assert.Equal("4 バイト以内で入力してください(全角は2バイト)", CellInput.Validate("あいう", "あいう", Settings(CellKind.Text) with { MaxByteLength = 4 }, Context));
-        Assert.Equal(SheetTexts.Japanese.Pattern, CellInput.Validate("1234567", "1234567", Settings(CellKind.Text) with { Pattern = "[0-9]{3}-[0-9]{4}" }, Context));
+        Assert.Equal(JapaneseTexts.Default.Pattern, CellInput.Validate("1234567", "1234567", Settings(CellKind.Text) with { Pattern = "[0-9]{3}-[0-9]{4}" }, Context));
         Assert.Null(CellInput.Validate("abc", "abc", Settings(CellKind.Text) with { Pattern = "(" }, Context));
     }
 
@@ -201,51 +201,33 @@ public sealed class CellInputTests
     }
 
     [Theory]
-    [InlineData("ＡＢＣ１２３　＃", CellCharacterConversions.FullwidthAsciiToHalfwidth, "ABC123 #")]
-    [InlineData("ｶﾞｷﾞｸﾞ ﾊﾟﾋﾟ ｳﾞ ｱｲｳ ﾞ", CellCharacterConversions.HalfwidthKatakanaToFullwidth, "ガギグ パピ ヴ アイウ ゛")]
-    [InlineData("やまだ たろう ゝ", CellCharacterConversions.HiraganaToKatakana, "ヤマダ タロウ ヽ")]
-    [InlineData("ヤマダ ヴ", CellCharacterConversions.KatakanaToHiragana, "やまだ ゔ")]
-    [InlineData("ｻﾄｳ", CellCharacterConversions.HalfwidthKatakanaToFullwidth | CellCharacterConversions.KatakanaToHiragana, "さとう")]
-    [InlineData("そのまま", CellCharacterConversions.None, "そのまま")]
-    public void ConvertCharactersMatchesTheScript(string text, CellCharacterConversions conversions, string expected)
+    [InlineData("ヤマダ　タロウ・ー", "katakana", true)]
+    [InlineData("ヤマダ太郎", "katakana", false)]
+    [InlineData("やまだ ー", "hiragana", true)]
+    [InlineData("ﾔﾏﾀﾞ", "halfwidthKatakana", true)]
+    [InlineData("ＡＢＣあ", "fullwidth", true)]
+    [InlineData("ABCあ", "fullwidth", false)]
+    [InlineData("ABC ﾔ", "halfwidth", true)]
+    [InlineData("A1b2", "alphanumeric", true)]
+    [InlineData("A1-2", "alphanumeric", false)]
+    [InlineData("0123", "digits", true)]
+    [InlineData("12a", "digits", false)]
+    [InlineData("何でも", "none", true)]
+    public void RestrictionsMatchTheScript(string text, string restriction, bool expected)
     {
-        Assert.Equal(expected, CellInput.ConvertCharacters(text, conversions));
-    }
-
-    [Theory]
-    [InlineData("ヤマダ　タロウ・ー", CellCharacterRestriction.Katakana, true)]
-    [InlineData("ヤマダ太郎", CellCharacterRestriction.Katakana, false)]
-    [InlineData("やまだ ー", CellCharacterRestriction.Hiragana, true)]
-    [InlineData("ﾔﾏﾀﾞ", CellCharacterRestriction.HalfwidthKatakana, true)]
-    [InlineData("ＡＢＣあ", CellCharacterRestriction.Fullwidth, true)]
-    [InlineData("ABCあ", CellCharacterRestriction.Fullwidth, false)]
-    [InlineData("ABC ﾔ", CellCharacterRestriction.Halfwidth, true)]
-    [InlineData("A1b2", CellCharacterRestriction.Alphanumeric, true)]
-    [InlineData("A1-2", CellCharacterRestriction.Alphanumeric, false)]
-    [InlineData("0123", CellCharacterRestriction.Digits, true)]
-    [InlineData("12a", CellCharacterRestriction.Digits, false)]
-    [InlineData("何でも", CellCharacterRestriction.None, true)]
-    public void RestrictionsMatchTheScript(string text, CellCharacterRestriction restriction, bool expected)
-    {
-        Assert.Equal(expected, CellInput.IsAllowed(text, restriction));
+        Assert.Equal(expected, CellInput.IsAllowed(text, TestLanguages.Set(restriction)));
     }
 
     [Fact]
-    public void RestrictionIsCheckedAfterConversionOnlyForTextKinds()
+    public void RestrictionIsCheckedOnlyForTextKinds()
     {
-        var kana = Settings(CellKind.Text) with
-        {
-            CharacterRestriction = CellCharacterRestriction.Katakana,
-            CharacterConversions = CellCharacterConversions.HalfwidthKatakanaToFullwidth | CellCharacterConversions.HiraganaToKatakana
-        };
+        var kana = Settings(CellKind.Text) with { CharacterRestriction = JapaneseCharacters.Katakana };
 
-        var normalized = CellInput.Normalize("やまだ ﾀﾛｳ", kana, Context.Reading);
-
-        Assert.Equal("ヤマダ タロウ", normalized);
-        Assert.Null(CellInput.Check(normalized, kana, Context, out _, out _));
-        Assert.Equal(SheetTexts.Japanese.Katakana, CellInput.Check("山田", kana, Context, out _, out _));
-        Assert.Equal(SheetTexts.Japanese.Digits, CellInput.Check("12a", Settings(CellKind.Text) with { CharacterRestriction = CellCharacterRestriction.Digits }, Context, out _, out _));
-        Assert.Null(CellInput.Check("12", Settings(CellKind.Number) with { CharacterRestriction = CellCharacterRestriction.Katakana }, Context, out _, out _));
+        Assert.Equal("やまだ ﾀﾛｳ", CellInput.Normalize("やまだ ﾀﾛｳ", kana, Context.Reading));
+        Assert.Null(CellInput.Check("ヤマダ タロウ", kana, Context, out _, out _));
+        Assert.Equal(JapaneseTexts.Default.CharacterSets["katakana"], CellInput.Check("山田", kana, Context, out _, out _));
+        Assert.Equal(JapaneseTexts.Default.CharacterSets["digits"], CellInput.Check("12a", Settings(CellKind.Text) with { CharacterRestriction = SheetCharacters.Digits }, Context, out _, out _));
+        Assert.Null(CellInput.Check("12", Settings(CellKind.Number) with { CharacterRestriction = JapaneseCharacters.Katakana }, Context, out _, out _));
     }
 
     [Theory]

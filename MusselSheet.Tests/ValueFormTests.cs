@@ -61,7 +61,7 @@ public sealed class ValueFormTests
     [InlineData("ja-JP", "ymd")]
     public void DateOrderComesFromTheCulture(string culture, string expected)
     {
-        Assert.Equal(expected, ReadingRules.From(CultureInfo.GetCultureInfo(culture), false).ForScript().Order);
+        Assert.Equal(expected, ReadingRules.From(CultureInfo.GetCultureInfo(culture)).ForScript().Order);
     }
 
     [Theory]
@@ -87,8 +87,10 @@ public sealed class ValueFormTests
     {
         var date = new DateOnly(2026, 11, 5);
 
-        Assert.Equal(isEra, JapaneseEraText.IsEraFormat(format));
-        Assert.Equal(expected, JapaneseEraText.Format(date, format, CultureInfo.GetCultureInfo("ja-JP"), SheetJapaneseEra.BuiltIn));
+        var culture = CultureInfo.GetCultureInfo("ja-JP");
+
+        Assert.Equal(isEra, DateRules.IsEraFormat(format));
+        Assert.Equal(expected, MusselSheetOptions.Default.DatesFor(culture).Format(date, format, culture));
     }
 
     private static (string Type, string Value) Saved(IEnumerable<CellValueDesign> values, string cell)

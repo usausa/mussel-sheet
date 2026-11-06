@@ -40,7 +40,7 @@ public sealed class KeyOperationTests : BunitContext
         var result = await cut.InvokeAsync(() => cut.Instance.FillAsync(0, 0, 0, 1, "abc")).ConfigureAwait(true);
 
         Assert.Equal("abc", sheet.GetValue(0, 1));
-        Assert.Equal(SheetTexts.Japanese.Number, sheet.GetError(0, 0));
+        Assert.Equal(JapaneseTexts.Default.Number, sheet.GetError(0, 0));
         Assert.Equal("1 セルは規則に合わないため、エラーの印を付けました", result.Message);
     }
 
@@ -81,7 +81,7 @@ public sealed class KeyOperationTests : BunitContext
         Assert.Equal(12m, sheet.GetValue(0, 1));
         Assert.Equal(12m, sheet.GetValue(0, 2));
         Assert.Equal("x", sheet.GetValue(1, 2));
-        Assert.Equal(SheetTexts.Japanese.Number, sheet.GetError(1, 2));
+        Assert.Equal(JapaneseTexts.Default.Number, sheet.GetError(1, 2));
         Assert.Equal("2 セルは規則に合わないため、エラーの印を付けました", result.Message);
     }
 

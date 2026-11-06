@@ -158,7 +158,7 @@ public sealed partial class MusselSheetView
                 return vertical ? Sheet.GetEditText(source.Top + index, column) : Sheet.GetEditText(row, source.Left + index);
             }
 
-            return series(position) is { } value ? CellText.Edit(value, Sheet.GetSettings(row, column), Sheet.Culture) : null;
+            return series(position) is { } value ? CellText.Edit(value, Sheet.GetSettings(row, column), Sheet.Culture, Dates) : null;
         }
     }
 

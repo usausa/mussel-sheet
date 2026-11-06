@@ -1,5 +1,7 @@
 namespace Example.Client.Components.Pages;
 
+using Smart.Text.Japanese;
+
 public sealed partial class CellKindsPage
 {
     private static readonly string[] Customers =
@@ -42,7 +44,7 @@ public sealed partial class CellKindsPage
             ("Accept and mark", "ValidationMode = AcceptAndMark"),
             ("Revert", "ValidationMode = Revert"),
             ("Phone", "Mask = 999-9999-9999"),
-            ("Product code", "CharacterConversions, CharacterRestriction"),
+            ("Product code", "Corrector, CharacterRestriction"),
             ("Customer", "SuggestionProvider"),
             ("Done", "CheckedText, UncheckedText"),
             ("Notes", "WrapText")
@@ -126,8 +128,8 @@ public sealed partial class CellKindsPage
             });
             sheet.Range("B15").Configure(static c =>
             {
-                c.CharacterConversions = CellCharacterConversions.FullwidthAsciiToHalfwidth;
-                c.CharacterRestriction = CellCharacterRestriction.Alphanumeric;
+                c.Corrector = static x => x.Value is string text ? KanaConverter.Convert(text, KanaOption.WidthFold) : x.Value;
+                c.CharacterRestriction = SheetCharacters.Alphanumeric;
                 c.ImeMode = ImeMode.Off;
             });
             sheet.Range("B16").Configure(static c =>

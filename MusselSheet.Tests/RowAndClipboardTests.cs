@@ -143,7 +143,7 @@ public sealed class RowAndClipboardTests : BunitContext
         var optimistic = await Paste(cut, 0, 1, "abc", true);
         Assert.True(optimistic.Stored);
         Assert.Equal("abc", sheet.GetValue(0, 1));
-        Assert.Equal(SheetTexts.Japanese.Number, sheet.GetError(0, 1));
+        Assert.Equal(JapaneseTexts.Default.Number, sheet.GetError(0, 1));
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class RowAndClipboardTests : BunitContext
         var result = await Paste(cut, 2, 1, "1", true);
 
         Assert.False(result.Stored);
-        Assert.Equal(SheetTexts.Japanese.NotEditable, result.Error);
+        Assert.Equal(JapaneseTexts.Default.NotEditable, result.Error);
     }
 
     [Fact]

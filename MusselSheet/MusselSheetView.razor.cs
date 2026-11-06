@@ -252,9 +252,9 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     internal string DateFormat => Options.DateFormatFor(Sheet.Culture);
 
-    internal InputContext InputContext => new(Sheet.Culture, Today, Texts, DateFormat, ReadingRules.From(Sheet.Culture, Options.JapaneseDatesFor(Sheet.Culture))) { Eras = Eras };
+    internal InputContext InputContext => new(Sheet.Culture, Today, Texts, DateFormat, Options.ReadingFor(Sheet.Culture));
 
-    internal IReadOnlyList<SheetJapaneseEra> Eras => Options.Eras as IReadOnlyList<SheetJapaneseEra> ?? [.. Options.Eras];
+    internal DateRules Dates => Options.DatesFor(Sheet.Culture);
 
     private CommitResult Rejected => new(false, Texts.NotEditable, false);
 
@@ -420,6 +420,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
         {
             Unsubscribe();
             Sheet.Changed += OnSheetChanged;
+            Sheet.Options = Options;
             subscribed = Sheet;
             layoutVersion = -1;
             history.Clear();

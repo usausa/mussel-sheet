@@ -156,9 +156,7 @@ internal sealed class SettingsBuilder
 
     private ImeMode inputHint;
 
-    private CellCharacterRestriction characterRestriction;
-
-    private CellCharacterConversions characterConversions;
+    private SheetCharacterSet? characterRestriction;
 
     private string? mask;
 
@@ -227,8 +225,7 @@ internal sealed class SettingsBuilder
         Corrector = corrector,
         ValidationMode = validationPolicy,
         ImeMode = inputHint,
-        CharacterRestriction = characterRestriction,
-        CharacterConversions = characterConversions,
+        CharacterRestriction = characterRestriction ?? SheetCharacters.None,
         Mask = mask,
         CheckedText = checkedText,
         UncheckedText = uncheckedText,
@@ -248,7 +245,6 @@ internal sealed class SettingsBuilder
         moveGroup = settings.MoveGroup ?? moveGroup;
         inputHint = settings.ImeMode ?? inputHint;
         characterRestriction = settings.CharacterRestriction ?? characterRestriction;
-        characterConversions = settings.CharacterConversions ?? characterConversions;
         mask = settings.Mask ?? mask;
         checkedText = settings.CheckedText ?? checkedText;
         uncheckedText = settings.UncheckedText ?? uncheckedText;

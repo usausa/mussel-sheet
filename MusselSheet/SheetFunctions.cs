@@ -8,6 +8,8 @@ public sealed class SheetFunctions
 
     private readonly Dictionary<Delegate, string> names = [];
 
+    private readonly Dictionary<string, SheetCharacterSet> characterSets = new(StringComparer.OrdinalIgnoreCase);
+
     public void AddValidator(string name, Func<CellValidationContext, string?> function) => Add(name, function);
 
     public void AddCorrector(string name, Func<CellCorrectionContext, object?> function) => Add(name, function);
@@ -20,6 +22,8 @@ public sealed class SheetFunctions
 
     public void AddComputation(string name, Func<CellComputeContext, object?> function) => Add(name, function);
 
+    public void AddCharacterSet(SheetCharacterSet set) => characterSets[set.Name] = set;
+
     public Func<CellValidationContext, string?> Validator(string name) => Get<Func<CellValidationContext, string?>>(name);
 
     public Func<CellCorrectionContext, object?> Corrector(string name) => Get<Func<CellCorrectionContext, object?>>(name);
@@ -31,6 +35,9 @@ public sealed class SheetFunctions
     public Func<CellSuggestionContext, Task<IReadOnlyList<string>>> SuggestionProvider(string name) => Get<Func<CellSuggestionContext, Task<IReadOnlyList<string>>>>(name);
 
     public Func<CellComputeContext, object?> Computation(string name) => Get<Func<CellComputeContext, object?>>(name);
+
+    public SheetCharacterSet CharacterSet(string name) =>
+        characterSets.TryGetValue(name, out var set) ? set : throw new KeyNotFoundException($"The character set '{name}' is not registered.");
 
     internal string? NameOf(Delegate? function) => (function is not null) && names.TryGetValue(function, out var name) ? name : null;
 

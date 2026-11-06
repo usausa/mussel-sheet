@@ -6,7 +6,7 @@ public sealed class JapaneseEraTests : BunitContext
 {
     private static readonly CultureInfo Japanese = CultureInfo.GetCultureInfo("ja-JP");
 
-    private static readonly InputContext Context = new(Japanese, new DateOnly(2026, 11, 2), SheetTexts.Japanese, "yyyy/MM/dd", ReadingRules.From(Japanese, true));
+    private static readonly InputContext Context = new(Japanese, new DateOnly(2026, 11, 2), JapaneseTexts.Default, "yyyy/MM/dd", MusselSheetOptions.Default.ReadingFor(Japanese));
 
     public JapaneseEraTests()
     {
@@ -28,14 +28,14 @@ public sealed class JapaneseEraTests : BunitContext
     [InlineData(2025, 11, 5, "ggge年(yyyy年)", "令和7年(2025年)")]
     public void EraCodesInTheFormatShowTheJapaneseEra(int year, int month, int day, string format, string expected)
     {
-        Assert.Equal(expected, CellText.FormatDate(new DateOnly(year, month, day), format, Japanese, SheetJapaneseEra.BuiltIn));
+        Assert.Equal(expected, CellText.FormatDate(new DateOnly(year, month, day), format, Japanese, Context.Dates));
     }
 
     [Fact]
     public void DatesBeforeTheFirstEraUseTheShortDateFormat()
     {
-        Assert.Equal("1800/01/01", CellText.FormatDate(new DateOnly(1800, 1, 1), "ggge年M月d日", Japanese, SheetJapaneseEra.BuiltIn));
-        Assert.Equal("2025/11/05", CellText.FormatDate(new DateOnly(2025, 11, 5), "yyyy/MM/dd", Japanese, SheetJapaneseEra.BuiltIn));
+        Assert.Equal("1800/01/01", CellText.FormatDate(new DateOnly(1800, 1, 1), "ggge年M月d日", Japanese, Context.Dates));
+        Assert.Equal("2025/11/05", CellText.FormatDate(new DateOnly(2025, 11, 5), "yyyy/MM/dd", Japanese, Context.Dates));
     }
 
     // Years past an era's end are accepted and counted on from its start (H32 = 2020)
@@ -52,6 +52,11 @@ public sealed class JapaneseEraTests : BunitContext
     [InlineData("平成32年1月1日", 2020, 1, 1)]
     [InlineData("S64.1.7", 1989, 1, 7)]
     [InlineData("M45.7.29", 1912, 7, 29)]
+    [InlineData("令7年11月5日", 2025, 11, 5)]
+    [InlineData("平31年4月30日", 2019, 4, 30)]
+    [InlineData("令元年5月1日", 2019, 5, 1)]
+    [InlineData("令和元/5/1", 2019, 5, 1)]
+    [InlineData("R元.5.1", 2019, 5, 1)]
     public void JapaneseEraDatesAreRead(string text, int year, int month, int day)
     {
         Assert.True(CellInput.TryConvert(text, Date, Context, out var value, out _));
@@ -60,6 +65,8 @@ public sealed class JapaneseEraTests : BunitContext
 
     [Theory]
     [InlineData("令和1年4月30日")]
+    [InlineData("令1年4月30日")]
+    [InlineData("令和100年1月1日")]
     [InlineData("R0.1.1")]
     [InlineData("X7.1.1")]
     [InlineData("R071105")]
@@ -76,7 +83,7 @@ public sealed class JapaneseEraTests : BunitContext
         Assert.True(CellInput.TryConvert(CellInput.Normalize("Ｒ７．１１．５", CellKind.Date, Context.Reading), Date, Context, out var value, out _));
         Assert.Equal(new DateOnly(2025, 11, 5), value);
 
-        var english = Context with { Reading = ReadingRules.From(Japanese, false) };
+        var english = Context with { Reading = ReadingRules.From(Japanese) };
         Assert.False(CellInput.TryConvert("R7.11.5", Date, english, out _, out _));
 
         var settings = new ResolvedCellSettings { Kind = CellKind.Date, Format = "ggge年M月d日", Minimum = new DateOnly(2026, 1, 1) };
@@ -86,7 +93,7 @@ public sealed class JapaneseEraTests : BunitContext
     [Fact]
     public async Task RegisteredErasAreUsedForInputAndDisplay()
     {
-        Services.AddMusselSheet(o => o.Eras.Add(new SheetJapaneseEra("新元", "新", "N", new DateOnly(2040, 1, 1))));
+        Services.AddMusselSheet(static o => o.Cultures["ja"].Eras.Add(new SheetEra("新元", "新", "N", new DateOnly(2040, 1, 1))));
         var sheet = new Sheet(1, 1);
         sheet.Range("A1").Configure(c =>
         {
@@ -99,6 +106,25 @@ public sealed class JapaneseEraTests : BunitContext
 
         Assert.Equal(new DateOnly(2041, 3, 4), sheet.GetValue(0, 0));
         Assert.Equal("新元2年3月4日", cut.Find(".mussel-sheet-row[data-r='0'] .mussel-sheet-cell[data-c='0']").TextContent);
+    }
+
+    [Fact]
+    public void TheTextOfACellIsWhatTheViewShows()
+    {
+        var sheet = new Sheet(1, 1) { Culture = Japanese };
+        sheet.Range("A1").Configure(static c =>
+        {
+            c.Kind = CellKind.Date;
+            c.Format = "ggge年M月d日";
+        });
+        sheet.SetValue(0, 0, new DateOnly(2025, 11, 5));
+
+        Assert.Equal("令和7年11月5日", sheet.GetText(0, 0));
+
+        Services.AddMusselSheet(static o => o.Cultures["ja"].Eras.Add(new SheetEra("新元", "新", "N", new DateOnly(2020, 1, 1))));
+        Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+
+        Assert.Equal("新元6年11月5日", sheet.GetText(0, 0));
     }
 
     private static ResolvedCellSettings Date => new() { Kind = CellKind.Date };

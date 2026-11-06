@@ -7,6 +7,8 @@ using Example.Client.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
+using Smart.Text.Japanese;
+
 public sealed partial class JapaneseFormPage
 {
     private const decimal TaxRate = 0.1m;
@@ -90,8 +92,8 @@ public sealed partial class JapaneseFormPage
             });
             sheet.Range("B5").Configure(static c =>
             {
-                c.CharacterConversions = CellCharacterConversions.HiraganaToKatakana | CellCharacterConversions.HalfwidthKatakanaToFullwidth;
-                c.CharacterRestriction = CellCharacterRestriction.Katakana;
+                c.Corrector = static x => x.Value is string text ? KanaConverter.Convert(text, KanaOption.HiraganaToKatakana | KanaOption.HankanaToKatakana) : x.Value;
+                c.CharacterRestriction = JapaneseCharacters.Katakana;
                 c.InputMessage = "ひらがな・半角カナは全角カタカナに変換します";
             });
             sheet.Range("B6").Configure(static c => c.Required = true);

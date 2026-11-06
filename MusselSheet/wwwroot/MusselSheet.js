@@ -100,44 +100,62 @@ const YEAR_FIRST_DATE_TEXT = /^([0-9]{4})[/.-]([0-9]{1,2})[/.-]([0-9]{1,2})$/;
 const SHORT_YEAR_FIRST_DATE_TEXT = /^([0-9]{2})[/.-]([0-9]{1,2})[/.-]([0-9]{1,2})$/;
 const YEAR_LAST_DATE_TEXT = /^([0-9]{1,2})[/.-]([0-9]{1,2})[/.-]([0-9]{2}|[0-9]{4})$/;
 const YEARLESS_DATE_TEXT = /^([0-9]{1,2})[/.-]([0-9]{1,2})$/;
-const KANJI_DATE_TEXT = /^(?:([0-9]{4}|[0-9]{2})年)?([0-9]{1,2})月([0-9]{1,2})日$/;
 const DIGITS_DATE_TEXT = /^(?:[0-9]{4}|[0-9]{6}|[0-9]{8})$/;
 const TIME_TEXT = /^([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?$/;
 const BOUND_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const BOUND_TIME = /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/;
 
-const FULLWIDTH_KANA = '。「」、・ヲァィゥェォャュョッーアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン゛゜';
-const VOICED_KANA = 'カキクケコサシスセソタチツテトハヒフヘホ';
-const SEMI_VOICED_KANA = 'ハヒフヘホ';
+// No language is written in this file: a language reaches it only as the data in map.reading, made ready here.
+// C# compiles the date forms, so both sides run the same regular expressions.
+export function compileReading(info = {}) {
+    const reading = {
+        decimal: '.',
+        group: ',',
+        time: ':',
+        order: 'ymd',
+        editDate: 'yyyy/MM/dd',
+        forms: [],
+        readings: null,
+        dateReadings: null,
+        eras: [],
+        eraFirstYear: null,
+        eraFirstYearUnit: null,
+        sets: {},
+        ...info,
+    };
+    reading.compiledForms = reading.forms.map(x => new RegExp(x));
+    reading.readingTable = compileTable(reading.readings);
+    reading.dateReadingTable = compileTable(reading.dateReadings);
+    return reading;
+}
 
-// Must match the values of C# CharacterConversions
-const CONVERT_FULLWIDTH_ASCII = 1;
-const CONVERT_HALFWIDTH_KATAKANA = 2;
-const CONVERT_HIRAGANA_TO_KATAKANA = 4;
-const CONVERT_KATAKANA_TO_HIRAGANA = 8;
+function compileTable(map) {
+    if (!map) {
+        return null;
+    }
 
-const DEFAULT_READING = { decimal: '.', group: ',', order: 'ymd', editDate: 'yyyy/MM/dd', japanese: false };
+    const table = new Map(Object.entries(map));
+    return { table, first: new Set([...table.keys()].map(x => x[0])) };
+}
 
-// With the Japanese reading, '・' in a date becomes '/':
-// a Japanese IME produces it when '/' is typed.
+const DEFAULT_READING = compileReading();
+
 export function normalizeText(text, kind, reading = DEFAULT_READING) {
     if (kind === 'list') {
-        return text.trim();
+        return trimText(text);
     }
 
     if (kind === 'date') {
-        const out = normalizeWidth(text);
-        return reading.japanese ? out.replace(/・/g, '/') : out;
+        return convertText(normalizeWidth(text, reading), reading.dateReadingTable);
     }
 
-    return HALFWIDTH_KINDS.has(kind) ? normalizeWidth(text) : text;
+    return HALFWIDTH_KINDS.has(kind) ? normalizeWidth(text, reading) : text;
 }
 
 export function prepareText(rule, text, reading = DEFAULT_READING) {
     const lines = normalizeLines(text, rule.multiline);
     const mask = rule.mask;
-    let out = mask ? normalizeWidth(lines) : normalizeText(lines, rule.kind, reading);
-    out = convertCharacters(out, rule.conversions ?? 0);
+    const out = mask ? normalizeWidth(lines, reading) : normalizeText(lines, rule.kind, reading);
     if (mask) {
         const formatted = formatMask(out, mask);
         if (formatted !== null) {
@@ -152,104 +170,63 @@ export function normalizeLines(text, multiline) {
     return multiline ? text.replace(/\r\n|\r/g, '\n') : text.replace(/\r\n|\n|\r/g, '');
 }
 
-// A Japanese IME types the hyphen key as the long-vowel mark, so it and other dash lookalikes become '-'
-function normalizeWidth(text) {
+// JavaScript's whitespace and .NET's together, the same as CellInput.TrimCharacters in C#
+function trimText(text) {
+    return text.replace(/^[\s\x85]+|[\s\x85]+$/g, '');
+}
+
+// What every language shares: full-width ASCII and the ideographic space become half-width, the minus sign that
+// many cultures show becomes '-', and bidirectional marks are not read. The language's own readings come next.
+function normalizeWidth(text, reading) {
+    return trimText(convertText(toHalfwidth(text), reading.readingTable));
+}
+
+function toHalfwidth(text) {
     let out = '';
-    for (const ch of text) {
-        const code = ch.charCodeAt(0);
+    let copied = 0;
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        let value = null;
         if (code >= 0xFF01 && code <= 0xFF5E) {
-            out += String.fromCharCode(code - 0xFEE0);
-        } else if (ch === '　') {
-            out += ' ';
-        } else if (ch === 'ー' || ch === '−' || ch === '‐' || ch === '―') {
-            out += '-';
-        } else {
-            out += ch;
+            value = String.fromCharCode(code - 0xFEE0);
+        } else if (code === 0x3000) {
+            value = ' ';
+        } else if (code === 0x2212) {
+            value = '-';
+        } else if (code === 0x200E || code === 0x200F || code === 0x061C) {
+            value = '';
+        }
+
+        if (value !== null) {
+            out += text.slice(copied, i) + value;
+            copied = i + 1;
         }
     }
 
-    return out.trim();
+    return copied === 0 ? text : out + text.slice(copied);
 }
 
-export function convertCharacters(text, flags) {
-    if (flags & CONVERT_FULLWIDTH_ASCII) {
-        text = toHalfwidthAscii(text);
+// Only a character some key starts with is looked up, the same as SheetCharacterMap.Convert in C#.
+// Text with none of them is returned as it is.
+function convertText(text, map) {
+    if (!map) {
+        return text;
     }
 
-    if (flags & CONVERT_HALFWIDTH_KATAKANA) {
-        text = toFullwidthKatakana(text);
-    }
-
-    if (flags & CONVERT_HIRAGANA_TO_KATAKANA) {
-        text = shiftKana(text, 0x3041, 0x3096, 0x309D, 0x60);
-    }
-
-    if (flags & CONVERT_KATAKANA_TO_HIRAGANA) {
-        text = shiftKana(text, 0x30A1, 0x30F6, 0x30FD, -0x60);
-    }
-
-    return text;
-}
-
-function toHalfwidthAscii(text) {
     let out = '';
-    for (let i = 0; i < text.length; i++) {
-        const code = text.charCodeAt(i);
-        if (code >= 0xFF01 && code <= 0xFF5E) {
-            out += String.fromCharCode(code - 0xFEE0);
-        } else {
-            out += code === 0x3000 ? ' ' : text[i];
-        }
-    }
-    return out;
-}
-
-function toFullwidthKatakana(text) {
-    let out = '';
-    for (let i = 0; i < text.length; i++) {
-        const code = text.charCodeAt(i);
-        if (code < 0xFF61 || code > 0xFF9F) {
-            out += text[i];
-            continue;
+    let copied = 0;
+    for (let i = 0; i < text.length;) {
+        const size = text.codePointAt(i) > 0xFFFF ? 2 : 1;
+        const value = map.first.has(text[i]) ? map.table.get(text.slice(i, i + size)) : undefined;
+        if (value !== undefined) {
+            out += text.slice(copied, i) + value;
+            copied = i + size;
         }
 
-        const kana = FULLWIDTH_KANA[code - 0xFF61];
-        const next = text.charCodeAt(i + 1);
-        const voiced = next === 0xFF9E ? voice(kana) : null;
-        if (voiced) {
-            out += voiced;
-            i++;
-        } else if (next === 0xFF9F && SEMI_VOICED_KANA.includes(kana)) {
-            out += String.fromCharCode(kana.charCodeAt(0) + 2);
-            i++;
-        } else {
-            out += kana;
-        }
+        i += size;
     }
-    return out;
-}
 
-function voice(kana) {
-    switch (kana) {
-        case 'ウ':
-            return 'ヴ';
-        case 'ワ':
-            return 'ヷ';
-        case 'ヲ':
-            return 'ヺ';
-        default:
-            return VOICED_KANA.includes(kana) ? String.fromCharCode(kana.charCodeAt(0) + 1) : null;
-    }
-}
-
-function shiftKana(text, first, last, iteration, shift) {
-    let out = '';
-    for (let i = 0; i < text.length; i++) {
-        const code = text.charCodeAt(i);
-        const inRange = (code >= first && code <= last) || code === iteration || code === iteration + 1;
-        out += inRange ? String.fromCharCode(code + shift) : text[i];
-    }
-    return out;
+    return copied === 0 ? text : out + text.slice(copied);
 }
 
 export function formatMask(text, mask) {
@@ -302,42 +279,32 @@ function isSeparator(ch) {
     return ch.charCodeAt(0) <= 0x7F && !isAsciiAlnum(ch);
 }
 
-export function isAllowed(text, restriction) {
-    if (!restriction) {
+export function isAllowed(text, restriction, reading = DEFAULT_READING) {
+    const ranges = restriction ? reading.sets[restriction] : null;
+    if (!ranges) {
         return true;
     }
 
     for (const ch of text) {
-        if (!allows(ch.codePointAt(0), restriction)) {
+        if (!inRanges(ranges, ch.codePointAt(0))) {
             return false;
         }
     }
     return true;
 }
 
-function isHalfwidthCode(code) {
-    return code <= 0x7F || (code >= 0xFF61 && code <= 0xFF9F);
+function inRanges(ranges, code) {
+    for (let i = 0; i + 1 < ranges.length; i += 2) {
+        if (code >= ranges[i] && code <= ranges[i + 1]) {
+            return true;
+        }
+    }
+    return false;
 }
 
-function allows(code, restriction) {
-    switch (restriction) {
-        case 'fullwidth':
-            return !isHalfwidthCode(code);
-        case 'halfwidth':
-            return isHalfwidthCode(code);
-        case 'hiragana':
-            return (code >= 0x3041 && code <= 0x3096) || code === 0x309D || code === 0x309E || code === 0x30FC || code === 0x20 || code === 0x3000;
-        case 'katakana':
-            return (code >= 0x30A1 && code <= 0x30FE) || code === 0x20 || code === 0x3000;
-        case 'halfwidthKatakana':
-            return (code >= 0xFF65 && code <= 0xFF9F) || code === 0x20;
-        case 'alphanumeric':
-            return (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A);
-        case 'digits':
-            return code >= 0x30 && code <= 0x39;
-        default:
-            return true;
-    }
+// ASCII and Unicode's half-width forms, the same as SheetCharacters.Halfwidth in C#
+function isHalfwidthCode(code) {
+    return code <= 0x7F || (code >= 0xFF61 && code <= 0xFFDC) || (code >= 0xFFE8 && code <= 0xFFEE);
 }
 
 export function checkInput(rule, text, messages, reading = DEFAULT_READING) {
@@ -372,7 +339,7 @@ function findError(rule, text, messages, reading) {
             break;
         }
         case 'time': {
-            const m = TIME_TEXT.exec(text);
+            const m = TIME_TEXT.exec(reading.time ? text.split(reading.time).join(':') : text);
             const second = m?.[3] ?? '0';
             if (!m || Number(m[1]) > 23 || Number(m[2]) > 59 || Number(second) > 59) {
                 return messages.time;
@@ -397,7 +364,7 @@ function findError(rule, text, messages, reading) {
 
     return checkRange(rule, value, messages)
         ?? checkLength(rule, text, messages)
-        ?? checkCharacters(rule, text, messages)
+        ?? checkCharacters(rule, text, messages, reading)
         ?? checkPattern(rule, text, messages);
 }
 
@@ -450,13 +417,13 @@ function checkLength(rule, text, messages) {
     return null;
 }
 
-function checkCharacters(rule, text, messages) {
+function checkCharacters(rule, text, messages, reading) {
     if (!STRING_KINDS.has(rule.kind)) {
         return null;
     }
 
-    if (!isAllowed(text, rule.restriction)) {
-        return messages[rule.restriction];
+    if (!isAllowed(text, rule.restriction, reading)) {
+        return rule.restrictionMessage;
     }
 
     return rule.mask && formatMask(text, rule.mask) === null ? fill(messages.mask, maskDisplay(rule.mask)) : null;
@@ -553,8 +520,8 @@ function numberPattern(reading) {
     if (!entry) {
         const group = /^\s/.test(reading.group) ? '[ \u00a0\u202f]' : escapeRegExp(reading.group);
         entry = {
-            full: new RegExp(`^[+-]?(?:[0-9](?:[0-9]|${group})*)?(?:${escapeRegExp(reading.decimal)}[0-9]+)?$`),
-            group: reading.group ? new RegExp(group, 'g') : /(?!)/g,
+            full: new RegExp(`^[+-]?(?:[0-9](?:[0-9]${group ? `|${group}` : ''})*)?(?:${escapeRegExp(reading.decimal)}[0-9]+)?$`),
+            group: group ? new RegExp(group, 'g') : /(?!)/g,
         };
         numberPatterns.set(key, entry);
     }
@@ -569,14 +536,16 @@ export function parseDate(text, reading = DEFAULT_READING) {
     return matchDate(normalizeText(text, 'date', reading), today(), reading);
 }
 
-// Same rules as C# CellInput.TryParseDate; a leading 4-digit year is read as year-first in every culture
+// Same rules as C# CellInput.TryParseDate: the language's forms first, then the common ones, where a leading 4-digit
+// year is read as year-first in every culture
 export function matchDate(text, base, reading = DEFAULT_READING) {
-    const wareki = reading.japanese ? matchWareki(text, reading.eras) : null;
-    if (wareki) {
-        return wareki;
+    const read = readForms(text, base, reading);
+    if (read !== undefined) {
+        return read;
     }
 
-    const parts = splitDate(text, reading);
+    // Some cultures write "5. 11. 2025." and "5.11.2025."
+    const parts = splitDate(text.replace(/\. /g, '.').replace(/\.+$/, ''), reading);
     if (!parts) {
         return null;
     }
@@ -591,32 +560,59 @@ export function matchDate(text, base, reading = DEFAULT_READING) {
     return isValidDate(date.y, date.m, date.d) ? date : null;
 }
 
-// Same rules as C# JapaneseEraText.TryParse. An era year may run past the era's end (Heisei 32 = 2020),
-// but a date before the era's first day is rejected.
-export function matchWareki(text, eras = []) {
-    let era = null;
-    for (const candidate of eras) {
-        if (text.startsWith(candidate.name) && (!era || candidate.name.length > era.name.length)) {
-            era = candidate;
+// Same rules as C# DateRules.TryRead. undefined: no form matched, so the common forms decide. null: a form matched
+// but the date does not exist. An era year may run past the era's end, but a date before its first day is rejected.
+function readForms(text, base, reading) {
+    for (const regex of reading.compiledForms) {
+        const groups = regex.exec(text)?.groups;
+        if (!groups) {
+            continue;
+        }
+
+        let era = null;
+        let y;
+        if (groups.eraYear !== undefined) {
+            era = findEra(groups, reading);
+            const eraYear = groups.eraYear === reading.eraFirstYear ? era.firstYear : Number(groups.eraYear);
+            if (eraYear < era.firstYear) {
+                return null;
+            }
+
+            y = Number(era.start.slice(0, 4)) + eraYear - era.firstYear;
+        } else {
+            y = groups.year === undefined ? base.y : groups.year.length === 2 ? fullYear(Number(groups.year)) : Number(groups.year);
+        }
+
+        const date = { y, m: Number(groups.month), d: Number(groups.day) };
+        return isValidDate(y, date.m, date.d) && y <= 9999 && (!era || dateKey(date) >= era.start) ? date : null;
+    }
+
+    return undefined;
+}
+
+function findEra(groups, reading) {
+    if (groups.era !== undefined) {
+        return reading.eras.find(x => x.name === groups.era);
+    }
+
+    if (groups.short !== undefined) {
+        return reading.eras.find(x => x.shortName === groups.short);
+    }
+
+    return groups.initial !== undefined
+        ? reading.eras.find(x => x.initial.toUpperCase() === groups.initial.toUpperCase())
+        : reading.eras[reading.eras.length - 1];
+}
+
+function eraOf(date, reading) {
+    const key = dateKey(date);
+    let found = null;
+    for (const era of reading.eras) {
+        if (era.start <= key && (!found || era.start > found.start)) {
+            found = era;
         }
     }
-
-    let parts = null;
-    if (era) {
-        const m = /^(元|[0-9]{1,2})(?:年([0-9]{1,2})月([0-9]{1,2})日|[/.-]([0-9]{1,2})[/.-]([0-9]{1,2}))$/.exec(text.slice(era.name.length));
-        parts = m && [m[1] === '元' ? 1 : Number(m[1]), Number(m[2] ?? m[4]), Number(m[3] ?? m[5])];
-    } else {
-        era = eras.find(x => x.initial.toUpperCase() === text.charAt(0).toUpperCase()) ?? null;
-        const m = era && /^([0-9]{1,2})[/.-]([0-9]{1,2})[/.-]([0-9]{1,2})$/.exec(text.slice(1));
-        parts = m && [Number(m[1]), Number(m[2]), Number(m[3])];
-    }
-
-    if (!parts || parts[0] < 1) {
-        return null;
-    }
-
-    const date = { y: Number(era.start.slice(0, 4)) + parts[0] - 1, m: parts[1], d: parts[2] };
-    return isValidDate(date.y, date.m, date.d) && date.y <= 9999 && dateKey(date) >= era.start ? date : null;
+    return found;
 }
 
 function splitDate(text, reading) {
@@ -645,29 +641,37 @@ function splitDate(text, reading) {
         return [front.length === 0 ? null : front, month, day];
     }
 
-    const kanji = reading.japanese ? KANJI_DATE_TEXT.exec(text) : null;
-    return kanji ? [kanji[1] ?? null, kanji[2], kanji[3]] : null;
+    return null;
 }
 
 function fullYear(year) {
     return year < 30 ? 2000 + year : 1900 + year;
 }
 
+// The symbols of C# DateRules.Format that a date can be read back from
 export function formatDate(date, reading = DEFAULT_READING) {
-    return reading.editDate.replace(/yyyy|yy|MM|M|dd|d/g, token => {
-        switch (token) {
-            case 'yyyy':
-                return String(date.y).padStart(4, '0');
-            case 'yy':
-                return pad2(date.y % 100);
-            case 'MM':
-                return pad2(date.m);
+    const era = eraOf(date, reading);
+    const format = era || !/[ge]/.test(reading.editDate.replace(/'[^']*'/g, '')) ? reading.editDate : 'yyyy/MM/dd';
+    return format.replace(/'[^']*'|g+|e+|y+|M+|d+/g, (token, at) => {
+        switch (token[0]) {
+            case "'":
+                return token.slice(1, -1);
+            case 'g':
+                return token.length >= 3 ? era.name : token.length === 2 ? era.shortName : era.initial;
+            case 'e': {
+                const year = date.y - Number(era.start.slice(0, 4)) + era.firstYear;
+                if (token.length === 1 && year === era.firstYear && reading.eraFirstYear !== null && format.startsWith(reading.eraFirstYearUnit, at + 1)) {
+                    return reading.eraFirstYear;
+                }
+
+                return token.length >= 2 ? pad2(year) : String(year);
+            }
+            case 'y':
+                return token.length >= 3 ? String(date.y).padStart(4, '0') : pad2(date.y % 100);
             case 'M':
-                return String(date.m);
-            case 'dd':
-                return pad2(date.d);
+                return token.length === 2 ? pad2(date.m) : String(date.m);
             default:
-                return String(date.d);
+                return token.length === 2 ? pad2(date.d) : String(date.d);
         }
     });
 }
@@ -1196,7 +1200,7 @@ export class SheetMap {
         this.rowPatterns = map.rowPatterns;
         this.messages = map.messages;
         this.calendar = map.calendar ?? DEFAULT_CALENDAR;
-        this.reading = { ...(map.reading ?? DEFAULT_READING), eras: map.eras ?? [] };
+        this.reading = map.reading ? compileReading(map.reading) : DEFAULT_READING;
         this.colLefts = runningTotals(map.columnWidths);
         const heights = new Array(this.rows).fill(map.defaultRowHeight);
         for (let i = 0; i + 1 < map.customRowHeights.length; i += 2) {

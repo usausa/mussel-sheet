@@ -117,8 +117,7 @@ public sealed class SheetMapTests
         });
         sheet["B1"].Configure(c =>
         {
-            c.CharacterRestriction = CellCharacterRestriction.Katakana;
-            c.CharacterConversions = CellCharacterConversions.HiraganaToKatakana | CellCharacterConversions.HalfwidthKatakanaToFullwidth;
+            c.CharacterRestriction = JapaneseCharacters.Katakana;
         });
         sheet["C1"].Configure(c =>
         {
@@ -138,7 +137,6 @@ public sealed class SheetMapTests
         Assert.Equal("999-9999", rules[0].Mask);
         Assert.Equal("half", rules[0].Ime);
         Assert.Equal("katakana", rules[1].Restriction);
-        Assert.Equal(6, rules[1].Conversions);
         Assert.Null(rules[1].Ime);
         Assert.True(rules[2].Suggest);
         Assert.Equal(2, rules[2].Items?.Count);

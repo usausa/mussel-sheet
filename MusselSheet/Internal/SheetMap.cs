@@ -18,12 +18,26 @@ internal sealed record SheetMap(
     IReadOnlyDictionary<string, string> Messages,
     IReadOnlyList<int> Merges,
     CalendarInfo Calendar,
-    ReadingInfo Reading,
-    IReadOnlyList<EraInfo> Eras);
+    ReadingInfo Reading);
 
-internal sealed record ReadingInfo(string Decimal, string Group, string Order, string EditDate, bool Japanese);
+// A language reaches the browser only as this data. Sets holds what the sheet's rules use.
+internal sealed record ReadingInfo(
+    string Decimal,
+    string Group,
+    string Time,
+    string Order,
+    string EditDate,
+    IReadOnlyList<string> Forms,
+    IReadOnlyDictionary<string, string>? Readings,
+    IReadOnlyDictionary<string, string>? DateReadings,
+    IReadOnlyList<EraInfo> Eras,
+    string? EraFirstYear,
+    string? EraFirstYearUnit)
+{
+    public IReadOnlyDictionary<string, IReadOnlyList<int>> Sets { get; init; } = new Dictionary<string, IReadOnlyList<int>>();
+}
 
-internal sealed record EraInfo(string Name, string Initial, string Start);
+internal sealed record EraInfo(string Name, string ShortName, string Initial, string Start, int FirstYear);
 
 internal sealed record CalendarInfo(IReadOnlyList<string> DayNames, int FirstDay, string YearMonth, IReadOnlyList<string> MonthNames)
 {
@@ -51,7 +65,7 @@ internal sealed record InputRule(
     string? Ime,
     string? Mask,
     string? Restriction,
-    int Conversions,
+    string? RestrictionMessage,
     bool Suggest,
     bool Multiline,
     string? Note,
@@ -67,9 +81,10 @@ internal static class SheetMapBuilder
 {
     public static SheetMap Build(Sheet sheet, int headerHeight, int rowHeaderWidth, SheetValidationMode defaultPolicy, InputContext? context = null, CalendarInfo? calendar = null)
     {
-        context ??= new InputContext(sheet.Culture, DateOnly.FromDateTime(DateTime.Today), SheetTexts.English, sheet.Culture.DateTimeFormat.ShortDatePattern, ReadingRules.From(sheet.Culture, false));
+        context ??= new InputContext(sheet.Culture, DateOnly.FromDateTime(DateTime.Today), SheetTexts.English, sheet.Culture.DateTimeFormat.ShortDatePattern, ReadingRules.From(sheet.Culture));
         calendar ??= CalendarInfo.From(sheet.Culture, sheet.Culture.DateTimeFormat.FirstDayOfWeek);
         var rules = new List<InputRule>();
+        var sets = new Dictionary<string, IReadOnlyList<int>>(StringComparer.Ordinal);
         var ruleIndex = new Dictionary<ResolvedCellSettings, int>(ReferenceEqualityComparer.Instance);
         var patterns = new List<IReadOnlyList<int>>();
         var patternIndex = new Dictionary<int[], int>(PatternComparer.Instance);
@@ -90,6 +105,10 @@ internal static class SheetMapBuilder
                     index = rules.Count;
                     rules.Add(CreateRule(settings, defaultPolicy, context));
                     ruleIndex.Add(settings, index);
+                    if (settings.CharacterRestriction != SheetCharacters.None)
+                    {
+                        sets[settings.CharacterRestriction.Name] = settings.CharacterRestriction.Ranges;
+                    }
                 }
 
                 pattern[c] = index;
@@ -129,8 +148,7 @@ internal static class SheetMapBuilder
             context.ForScript(),
             [.. sheet.MergeAreas.SelectMany(x => new[] { x.Top, x.Left, x.Bottom, x.Right })],
             calendar,
-            context.Reading.ForScript(),
-            [.. context.Eras.Select(x => new EraInfo(x.Name, x.Initial, x.Start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)))]);
+            context.Reading.ForScript() with { Sets = sets });
     }
 
     internal static List<int> RowBounds(Sheet sheet)
@@ -168,18 +186,6 @@ internal static class SheetMapBuilder
         _ => "text"
     };
 
-    public static string? RestrictionName(CellCharacterRestriction restriction) => restriction switch
-    {
-        CellCharacterRestriction.Fullwidth => "fullwidth",
-        CellCharacterRestriction.Halfwidth => "halfwidth",
-        CellCharacterRestriction.Hiragana => "hiragana",
-        CellCharacterRestriction.Katakana => "katakana",
-        CellCharacterRestriction.HalfwidthKatakana => "halfwidthKatakana",
-        CellCharacterRestriction.Alphanumeric => "alphanumeric",
-        CellCharacterRestriction.Digits => "digits",
-        _ => null
-    };
-
     private static InputRule CreateRule(ResolvedCellSettings settings, SheetValidationMode defaultPolicy, InputContext context) => new(
         KindName(settings.Kind),
         settings.IsInputDisabled,
@@ -187,8 +193,8 @@ internal static class SheetMapBuilder
         settings.Required,
         settings.Minimum?.ToString(),
         settings.Maximum?.ToString(),
-        CellInput.FormatBound(settings.Minimum, settings, context.Culture, context.DateFormat, context.Eras),
-        CellInput.FormatBound(settings.Maximum, settings, context.Culture, context.DateFormat, context.Eras),
+        CellInput.FormatBound(settings.Minimum, settings, context.Culture, context.DateFormat, context.Dates),
+        CellInput.FormatBound(settings.Maximum, settings, context.Culture, context.DateFormat, context.Dates),
         settings.MaxLength,
         settings.MaxByteLength,
         settings.Pattern,
@@ -196,8 +202,8 @@ internal static class SheetMapBuilder
         settings.ErrorMessage,
         settings.ImeMode == ImeMode.Off ? "half" : null,
         CellInput.ActiveMask(settings),
-        RestrictionName(settings.CharacterRestriction),
-        (int)settings.CharacterConversions,
+        settings.CharacterRestriction == SheetCharacters.None ? null : settings.CharacterRestriction.Name,
+        settings.CharacterRestriction == SheetCharacters.None ? null : CellInput.CharacterMessage(settings.CharacterRestriction, context.Texts),
         (settings.Kind == CellKind.AutoComplete) && (settings.SuggestionProvider is not null),
         settings.WrapText,
         settings.InputMessage,

@@ -52,12 +52,12 @@ public sealed partial class Sheet
     {
         var resolved = GetSettings(row, column);
         var value = GetValue(row, column);
-        var text = CellText.Display(value, resolved, Culture);
+        var text = CellText.Display(value, resolved, Culture, Options.DateFormatFor(Culture), Options.DatesFor(Culture));
         return resolved.Formatter?.Invoke(new CellFormatContext(this, new CellAddress(row, column), value, text)) ?? text;
     }
 
     public string GetEditText(int row, int column) =>
-        GetInputText(row, column) ?? CellText.Edit(GetValue(row, column), GetSettings(row, column), Culture);
+        GetInputText(row, column) ?? CellText.Edit(GetValue(row, column), GetSettings(row, column), Culture, Options.DatesFor(Culture));
 
     public object?[][] GetValues(CellRange range)
     {

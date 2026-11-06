@@ -13,7 +13,7 @@ public sealed class JavaScriptTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            WorkingDirectory = FindSolutionDirectory()
+            WorkingDirectory = TestPaths.Root
         };
         startInfo.ArgumentList.Add("--test");
         startInfo.ArgumentList.Add(Path.Combine("MusselSheet.Tests", "js", "MusselSheet.test.mjs"));
@@ -44,16 +44,5 @@ public sealed class JavaScriptTests
         {
             return null;
         }
-    }
-
-    private static string FindSolutionDirectory()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while ((directory is not null) && !File.Exists(Path.Combine(directory.FullName, "MusselSheet.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("MusselSheet.slnx が見つかりません");
     }
 }

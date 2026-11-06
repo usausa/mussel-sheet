@@ -20,14 +20,14 @@ public sealed class ScriptJsonTests
 
         var map = SheetScriptJson.ToElement(SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay));
 
-        string[] names = ["rows", "columns", "headerHeight", "rowHeaderWidth", "columnWidths", "defaultRowHeight", "customRowHeights", "rules", "patterns", "rowPatterns", "messages", "merges", "calendar", "reading", "eras"];
+        string[] names = ["rows", "columns", "headerHeight", "rowHeaderWidth", "columnWidths", "defaultRowHeight", "customRowHeights", "rules", "patterns", "rowPatterns", "messages", "merges", "calendar", "reading"];
         Assert.Equal(names, map.EnumerateObject().Select(static x => x.Name));
 
         var rule = map.GetProperty("rules").EnumerateArray().First(static x => x.GetProperty("kind").GetString() == "list");
         Assert.Equal("Sales", rule.GetProperty("items")[0].GetProperty("text").GetString());
         Assert.True(rule.GetProperty("font").GetProperty("bold").GetBoolean());
 
-        string[] reading = ["decimal", "group", "order", "editDate", "japanese"];
+        string[] reading = ["decimal", "group", "time", "order", "editDate", "forms", "readings", "dateReadings", "eras", "eraFirstYear", "eraFirstYearUnit", "sets"];
         Assert.Equal(reading, map.GetProperty("reading").EnumerateObject().Select(static x => x.Name));
 
         string[] calendar = ["dayNames", "firstDay", "yearMonth", "monthNames"];
@@ -35,21 +35,22 @@ public sealed class ScriptJsonTests
     }
 
     [Theory]
-    [InlineData(CellCharacterRestriction.Fullwidth, "fullwidth")]
-    [InlineData(CellCharacterRestriction.Halfwidth, "halfwidth")]
-    [InlineData(CellCharacterRestriction.Hiragana, "hiragana")]
-    [InlineData(CellCharacterRestriction.Katakana, "katakana")]
-    [InlineData(CellCharacterRestriction.HalfwidthKatakana, "halfwidthKatakana")]
-    [InlineData(CellCharacterRestriction.Alphanumeric, "alphanumeric")]
-    [InlineData(CellCharacterRestriction.Digits, "digits")]
-    public void RestrictionsReachTheScriptInItsOwnWords(CellCharacterRestriction restriction, string expected)
+    [InlineData("fullwidth")]
+    [InlineData("halfwidth")]
+    [InlineData("hiragana")]
+    [InlineData("katakana")]
+    [InlineData("halfwidthKatakana")]
+    [InlineData("alphanumeric")]
+    [InlineData("digits")]
+    public void RestrictionsReachTheScriptAsData(string name)
     {
         var sheet = new Sheet(1, 1);
-        sheet["A1"].Configure(c => c.CharacterRestriction = restriction);
+        sheet["A1"].Configure(c => c.CharacterRestriction = TestLanguages.Set(name));
 
         var map = SheetScriptJson.ToElement(SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay));
 
-        Assert.Contains(map.GetProperty("rules").EnumerateArray(), x => x.GetProperty("restriction").GetString() == expected);
+        Assert.Contains(map.GetProperty("rules").EnumerateArray(), x => x.GetProperty("restriction").GetString() == name);
+        Assert.True(map.GetProperty("reading").GetProperty("sets").GetProperty(name).GetArrayLength() >= 2);
     }
 
     [Fact]

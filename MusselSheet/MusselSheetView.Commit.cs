@@ -101,11 +101,11 @@ public sealed partial class MusselSheetView
         }
 
         var settings = Sheet.GetSettings(row, column);
-        var text = CellText.Edit(value, settings, Sheet.Culture);
+        var text = CellText.Edit(value, settings, Sheet.Culture, Dates);
         if (settings.Corrector is { } corrector)
         {
             value = corrector(new CellCorrectionContext(Sheet, new CellAddress(row, column), value, text));
-            text = CellText.Edit(value, settings, Sheet.Culture);
+            text = CellText.Edit(value, settings, Sheet.Culture, Dates);
         }
 
         var error = CellInput.Validate(value, text, settings, InputContext);

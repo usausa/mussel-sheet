@@ -2,6 +2,8 @@ namespace MusselSheet;
 
 using Microsoft.AspNetCore.Components;
 
+using Smart.Text.Japanese;
+
 public sealed class EditorTests : BunitContext
 {
     public EditorTests()
@@ -116,10 +118,10 @@ public sealed class EditorTests : BunitContext
         var result = await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync()).ConfigureAwait(true);
 
         Assert.False(result.Closed);
-        Assert.Equal(SheetTexts.Japanese.Required, result.Error);
+        Assert.Equal(JapaneseTexts.Default.Required, result.Error);
         Assert.NotNull(opened);
-        Assert.Equal(SheetTexts.Japanese.Required, opened.Error);
-        Assert.Equal(SheetTexts.Japanese.Required, cut.Find(".mussel-sheet-custom").TextContent);
+        Assert.Equal(JapaneseTexts.Default.Required, opened.Error);
+        Assert.Equal(JapaneseTexts.Default.Required, cut.Find(".mussel-sheet-custom").TextContent);
 
         var ok = await cut.InvokeAsync(() => opened.CommitAsync("OK")).ConfigureAwait(true);
 
@@ -220,7 +222,7 @@ public sealed class EditorTests : BunitContext
     }
 
     [Fact]
-    public async Task MaskAndConversionsShapeTheStoredText()
+    public async Task MaskAndCorrectorShapeTheStoredText()
     {
         var sheet = new Sheet(1, 2);
         sheet["A1"].Configure(c =>
@@ -230,8 +232,8 @@ public sealed class EditorTests : BunitContext
         });
         sheet["B1"].Configure(c =>
         {
-            c.CharacterConversions = CellCharacterConversions.HiraganaToKatakana;
-            c.CharacterRestriction = CellCharacterRestriction.Katakana;
+            c.Corrector = static x => x.Value is string text ? KanaConverter.Convert(text, KanaOption.HiraganaToKatakana) : x.Value;
+            c.CharacterRestriction = JapaneseCharacters.Katakana;
         });
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
 
@@ -244,7 +246,7 @@ public sealed class EditorTests : BunitContext
         Assert.Equal("123-4567", sheet.GetInputText(0, 0));
         Assert.True(kana.Ok);
         Assert.Equal("ヤマダ", sheet.GetValue(0, 1));
-        Assert.Equal(SheetTexts.Japanese.Katakana, wrong.Error);
+        Assert.Equal(JapaneseTexts.Default.CharacterSets["katakana"], wrong.Error);
         Assert.Equal("ヤマダ", sheet.GetValue(0, 1));
     }
 

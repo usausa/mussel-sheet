@@ -3,6 +3,8 @@ namespace MusselSheet.Internal;
 using System.Globalization;
 using System.Text.Json;
 
+using MusselSheet.Languages;
+
 internal static class SheetDesigner
 {
     private const int DefaultRowHeight = 24;
@@ -113,8 +115,7 @@ internal static class SheetDesigner
             InputMessage = settings.InputMessage,
             ValidationMode = NameOf(settings.ValidationMode),
             ImeMode = NameOf(settings.ImeMode),
-            CharacterRestriction = NameOf(settings.CharacterRestriction),
-            CharacterConversions = NameOf(settings.CharacterConversions),
+            CharacterRestriction = settings.CharacterRestriction?.Name,
             Mask = settings.Mask,
             CheckedText = settings.CheckedText,
             UncheckedText = settings.UncheckedText,
@@ -232,8 +233,7 @@ internal static class SheetDesigner
             InputMessage = rule.InputMessage,
             ValidationMode = Parse<SheetValidationMode>(rule.ValidationMode),
             ImeMode = Parse<ImeMode>(rule.ImeMode),
-            CharacterRestriction = Parse<CellCharacterRestriction>(rule.CharacterRestriction),
-            CharacterConversions = Parse<CellCharacterConversions>(rule.CharacterConversions),
+            CharacterRestriction = rule.CharacterRestriction is { } set ? BuiltInLanguages.FindSet(set) ?? Table(functions, set).CharacterSet(set) : null,
             Mask = rule.Mask,
             CheckedText = rule.CheckedText,
             UncheckedText = rule.UncheckedText,
@@ -316,7 +316,7 @@ internal static class SheetDesigner
     }
 
     private static SheetFunctions Table(SheetFunctions? functions, string name) =>
-        functions ?? throw new InvalidOperationException($"The design uses the function '{name}'. Pass the SheetFunctions that has it.");
+        functions ?? throw new InvalidOperationException($"The design uses '{name}'. Pass the SheetFunctions that has it.");
 
     private static CellRange ParseRange(string text) => text == "*" ? CellRange.All : CellRange.Parse(text);
 

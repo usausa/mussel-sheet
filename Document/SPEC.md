@@ -34,9 +34,9 @@ Cells in one column can differ in kind, rules and style. By default rows are 24 
 | `EditText` | `InputText` if there is one, otherwise the edit form of the value |
 | `InputText` | The committed text after normalization. Empty text, a date without a year and a corrected value keep none. `SetValue` removes it |
 
-Edit form by kind: `Number` uses format `G`, without group separators. `Date` uses the culture's short date pattern with a 4-digit year, or `yyyy/MM/dd`, `MM/dd/yyyy` or `dd/MM/yyyy` by field order when the pattern has other characters than `y M d / . -`. `Time` uses `HH:mm`, or `HH:mm:ss` when seconds are not 0. `Checkbox` uses `true` or `false`, and nothing without a value. `List` and `AutoComplete` use the item's display text.
+Edit form by kind: `Number` uses format `G`, without group separators. `Date` uses `SheetCulture.EditDateFormat` if set, otherwise the culture's short date pattern with a 4-digit year, or `yyyy/MM/dd`, `MM/dd/yyyy` or `dd/MM/yyyy` by field order when the pattern has other characters than `y M d / . -`. `Time` uses `HH:mm`, or `HH:mm:ss` when seconds are not 0. `Checkbox` uses `true` or `false`, and nothing without a value. `List` and `AutoComplete` use the item's display text.
 
-> Note: `Sheet.GetText` does not know the registered options. It uses the culture's short date pattern and the built-in eras, while the view uses `SheetCulture.DateFormat` and `Eras`.
+> Note: A sheet gets the registered options when a view shows it, and `Text` and `EditText` are then what the view shows. A sheet no view has shown uses the built-in languages.
 
 ### Rows and columns
 
@@ -91,8 +91,8 @@ Values are never inherited. Deleting shrinks rules and drops empty ones. These m
 | `Required` | All | Not empty |
 | `Minimum`, `Maximum` | `Number`, `Date`, `Time` | Inclusive. A limit of another type is ignored |
 | `MaxLength` | Strings | Unicode characters, not UTF-16 units |
-| `MaxByteLength` | Strings | ASCII and half-width katakana count 1, others 2 |
-| `CharacterRestriction` | `Text`, `Mask`, `AutoComplete` | `Fullwidth` excludes ASCII and half-width katakana; `Halfwidth` allows only those. `Hiragana` and `Katakana` also allow `ー` and spaces, `Katakana` also `・`, and `HalfwidthKatakana` also the ASCII space. `Alphanumeric` and `Digits` are ASCII |
+| `MaxByteLength` | Strings | ASCII and Unicode's half-width forms count 1, others 2 |
+| `CharacterRestriction` | `Text`, `Mask`, `AutoComplete` | Every character must be in the `SheetCharacterSet`. `SheetCharacters.Fullwidth` excludes ASCII and Unicode's half-width forms, `Halfwidth` allows only those, `Alphanumeric` and `Digits` are ASCII, and `None` lifts a restriction of an earlier rule. `JapaneseCharacters.Hiragana` and `Katakana` also allow `ー` and spaces, `Katakana` also `・`, and `HalfwidthKatakana` also the ASCII space |
 | `Mask` | `Text`, `Mask` | `9` is a digit, `A` an ASCII letter, `X` either, and `\c` the literal `c`. Other characters are separators the input may omit or replace with an ASCII symbol: for `999-9999`, `1234567` and `123 4567` store `123-4567`. An empty editor shows the mask |
 | `Pattern` | All | A regular expression over the whole text. An invalid pattern is ignored, and a match over 200 ms fails |
 
@@ -101,29 +101,36 @@ Values are never inherited. Deleting shrinks rules and drops empty ones. These m
 | # | Step | Detail |
 |---|---|---|
 | 1 | Line breaks | LF with `WrapText`, otherwise removed |
-| 2 | Width | `Number`, `Date`, `Time`, `Checkbox` and masked cells: full-width ASCII becomes half-width, the ideographic space a space, `ー − ‐ ―` become `-`, and the text is trimmed. `Date` with `JapaneseDates`: `・` becomes `/`. `List`: trimmed only |
-| 3 | `CharacterConversions` | In order: full-width ASCII to half-width, half-width katakana to full-width, hiragana to katakana, katakana to hiragana |
-| 4 | Mask | Text that fits takes the mask's form. Other text fails at step 7 |
-| 5 | Conversion | To the kind's value type. Empty text becomes `null`. A failure skips to step 8 |
-| 6 | `Corrector` | Runs also for `null`, and returns the value to use. A corrected string is the text for step 7 |
-| 7 | Rules | The first failure wins: `Required`, `Minimum` and `Maximum`, `MaxLength`, `MaxByteLength`, `CharacterRestriction`, `Mask`, `Pattern` |
-| 8 | `ErrorMessage` | Replaces the message of steps 5 and 7 |
-| 9 | `Validator` | Runs when there is no error. Its message stays as it is |
-| 10 | Binding | A bound value must fit the property |
-| 11 | `CellCommitting` | Can change `Value` and `Error`, or set `Cancel` |
-| 12 | `ValidationMode` | Decides what an error does |
-| 13 | Store | Skipped when the value and error mark are unchanged. Otherwise stores them, then bindings and computed cells run |
-| 14 | `CellCommitted` | Reports `OldValue`, `Value`, `Error` and `Reason` |
+| 2 | Width | `Number`, `Date`, `Time`, `Checkbox` and masked cells: full-width ASCII becomes half-width, the ideographic space a space, `−` becomes `-`, bidirectional marks are dropped, the language's `Readings` apply, and the text is trimmed. `Date`: `DateReadings` also apply. `List`: trimmed only |
+| 3 | Mask | Text that fits takes the mask's form. Other text fails at step 6 |
+| 4 | Conversion | To the kind's value type. Empty text becomes `null`. A failure skips to step 7 |
+| 5 | `Corrector` | Runs also for `null`, and returns the value to use. A corrected string is the text for step 6 |
+| 6 | Rules | The first failure wins: `Required`, `Minimum` and `Maximum`, `MaxLength`, `MaxByteLength`, `CharacterRestriction`, `Mask`, `Pattern` |
+| 7 | `ErrorMessage` | Replaces the message of steps 4 and 6 |
+| 8 | `Validator` | Runs when there is no error. Its message stays as it is |
+| 9 | Binding | A bound value must fit the property |
+| 10 | `CellCommitting` | Can change `Value` and `Error`, or set `Cancel` |
+| 11 | `ValidationMode` | Decides what an error does |
+| 12 | Store | Skipped when the value and error mark are unchanged. Otherwise stores them, then bindings and computed cells run |
+| 13 | `CellCommitted` | Reports `OldValue`, `Value`, `Error` and `Reason` |
 
-The browser runs steps 1 to 5, 7 and 8 first. For a cell with a `Corrector`, it checks only the type.
+Step 2 is not a setting: it always runs on those cells, only to read the value. The sheet does not convert the text of `Text`, `AutoComplete` and `Custom` cells. To convert width or kana, an app uses a `Corrector`, for example with `Usa.Smart.Text.Japanese`:
+
+```csharp
+c.Corrector = static x => x.Value is string text
+    ? KanaConverter.Convert(text, KanaOption.HiraganaToKatakana | KanaOption.HankanaToKatakana)
+    : x.Value;
+```
+
+The browser runs steps 1 to 4, 6 and 7 first. For a cell with a `Corrector`, it checks only the type, so a rule that fails after the `Corrector` fails in C#: with `Optimistic` the sheet has already moved, and the value is stored with an error mark.
 
 | Action | Steps | `Reason` |
 |---|---|---|
 | Typing, a popup pick, Ctrl+Enter | All | `Input` |
-| Custom editor | From step 6, keeps no `InputText` | `Input` |
+| Custom editor | From step 5, keeps no `InputText` | `Input` |
 | Paste; Ctrl+D, Ctrl+R, fill handle; checkbox toggle | All | `Paste`; `Fill`; `Toggle` |
-| Delete; cut | From step 11, with `null` | `ClearContents`; `Cut` |
-| Undo; redo | Only 13 and 14 | `Undo`; `Redo` |
+| Delete; cut | From step 10, with `null` | `ClearContents`; `Cut` |
+| Undo; redo | Only 12 and 13 | `Undo`; `Redo` |
 | `SetValue` and other app methods | None, and no events | |
 
 ## 🚦 Commit and validation
@@ -406,26 +413,77 @@ A read-only list gets no new elements. Without `Create` or a parameterless const
 - Saved: row and column counts, default sizes that differ from 24 and 100, culture name, frozen counts, heights, widths and headers set on rows and columns, rules in order, merges, `Label` values, and computations. With `includeValues`, all values.
 - Not saved: error marks, change marks, `InputText`, undo history, parameters of the view, and functions not in `SheetFunctions`, with the computations using them.
 - Functions are saved by name, and `FromDesign` takes them from the same `SheetFunctions`. Names are unique across all function kinds, and adding a name again replaces it.
+- Character sets are saved by `Name`. `FromDesign` finds the built-in ones by itself and takes others from `SheetFunctions` (`AddCharacterSet`).
 - A computation saves the name it reads, and the current address when different. A loaded sheet computes at once, and the read-only rule comes from the saved rules.
 - Loading throws `NotSupportedException` for an unknown `version`, `InvalidOperationException` for a function name without `SheetFunctions`, and `KeyNotFoundException` for a name not in it.
-- JSON: camelCase names, no `null` items, LF line breaks. Ranges use addresses, and `*` is the whole sheet. Enums use camelCase names, with flags joined by `, `. Limits are text (`0`, `2026-01-01`, `09:00:00`). Values have a type: `text`, `number`, `date`, `time` or `check`. The invariant culture is an empty name.
+- JSON: camelCase names, no `null` items, LF line breaks. Ranges use addresses, and `*` is the whole sheet. Enums use camelCase names. `characterRestriction` is a name. Limits are text (`0`, `2026-01-01`, `09:00:00`). Values have a type: `text`, `number`, `date`, `time` or `check`. The invariant culture is an empty name.
 
 > Note: Saving finds a name from the delegate, so attach the delegate returned by `SheetFunctions`. The JSON is not escaped for HTML.
 
 ## 🌐 Languages
 
+The code of the sheet knows no language. A language is data of one shape, registered in `Cultures`, and it reaches the browser only as data: a language has no script of its own. English and Japanese are built in and need no registration. Japanese is the model for another language: it uses only the public API, so an app adds a language the same way, in any assembly, and can also change or remove a built-in one.
+
 | Follows | What |
 |---|---|
-| `Sheet.Culture` | Shown and edit text, number separators, date field order, `DateFormat`, `FirstDayOfWeek`, `JapaneseDates`, calendar names |
+| `Sheet.Culture` | Shown and edit text, number and time separators, date field order, calendar names, and all of `SheetCulture` except `Texts` |
 | `CurrentUICulture` | `SheetTexts` messages and menu labels, `SheetMenuItem.Texts` |
 
-`Cultures` is searched item by item from the culture to its parents (`ja-JP`, `ja`, then the empty name). An item found nowhere comes from .NET, and `JapaneseDates` is `false`. Built in: the empty name has `SheetTexts.English`, and `ja` has `SheetTexts.Japanese` and `JapaneseDates`.
+`Cultures` is searched item by item from the culture to its parents (`ja-JP`, `ja`, then the empty name). An item not set or empty does not count, and an item found nowhere comes from .NET. Built in: the empty name has `SheetTexts.English`, and `ja` has `JapaneseLanguage.CreateCulture()` from `MusselSheet.Languages.Japanese`. Configure the options before the first sheet is shown.
 
-When a culture's group separator is a space, the plain, no-break and narrow no-break spaces are all accepted. Width normalization, `CharacterRestriction`, `CharacterConversions`, `Mask` and era symbols work in every culture.
+### What every language shares
+
+Only what Unicode and `CultureInfo` decide.
+
+| Item | Rule |
+|---|---|
+| Width | Full-width ASCII (U+FF01 to U+FF5E) and the ideographic space read as half-width, and `”’￥` are not among them. Half-width means ASCII and Unicode's half-width forms |
+| Minus | `−` reads as `-`, because many cultures show it |
+| Bidirectional marks | U+200E, U+200F and U+061C are not read, because many cultures show them around signs and separators |
+| Numbers | The culture's decimal and group separators. When the group separator is a space, the plain, no-break and narrow no-break spaces are all accepted. When both separators are the same, there is no grouping |
+| Times | `:` and the culture's separator |
+| Dates | The field order of the culture, and a space after `.` and a final `.` (`5. 11. 2025.`) |
+| Calendar | A value is always a Gregorian date, and a culture whose default calendar is another one is used with the Gregorian calendar |
+
+`Mask`, `MaxByteLength` and `CharacterRestriction` work in every culture.
+
+### What a language brings
+
+| `SheetCulture` | Use | Japanese |
+|---|---|---|
+| `Texts` | `SheetTexts`. `CharacterSets` holds the message of each character set by name | `JapaneseTexts.Default` |
+| `DateFormat`, `EditDateFormat` | The shown and edit formats of a date. The edit format must be one the language reads | Not set |
+| `FirstDayOfWeek` | The first day of the calendar | Not set |
+| `Eras` | `SheetEra`: `Name`, `ShortName`, `Initial`, `Start`, and `FirstYear`, the number of the start year (1 by default) | Meiji to Reiwa |
+| `EraFirstYear` | `SheetEraFirstYear`: the text for an era's first year, and the unit it stands before | `元`, `年` |
+| `DateForms` | The forms of dates it reads. See below | See below |
+| `Readings` | A `SheetCharacterMap` applied in step 2 | `ー ‐ ―` to `-` |
+| `DateReadings` | The same, for `Date` cells only | `・` to `/` |
+
+Calendars with the same months as the Gregorian one are era tables: Japanese eras, Minguo (`new SheetEra("民國", "民", "", new DateOnly(1912, 1, 1))`) and the Buddhist year (`new SheetEra("พ.ศ.", "พ.ศ.", "", new DateOnly(1, 1, 1)) { FirstYear = 544 }`). Calendars with other months, such as the Persian, Hijri and Hebrew ones, are not supported, and such a culture shows Gregorian dates.
+
+Character sets are cell settings, so they work in any culture. `new SheetCharacterSet(name, characters)` takes characters and ranges in one string (`"0-9A-Za-z"`), and `Message` is its message when `SheetTexts.CharacterSets` has none. Only the sets a sheet uses reach the browser. `new SheetCharacterMap(from, to)` pairs characters by position (`"๐-๙"` to `"0-9"`), and a single character in `to` takes every character of `from`.
+
+```csharp
+public static class KoreanLanguage
+{
+    public static SheetCharacterSet Hangul { get; } = new("hangul", "가-힣 ") { Message = "한글로 입력하세요." };
+
+    public static MusselSheetOptions AddKorean(this MusselSheetOptions options)
+    {
+        options.Cultures["ko"] = new SheetCulture
+        {
+            Texts = new SheetTexts { Required = "값을 입력하세요." },
+            DateForms = { "yyyy년 M월 d일", "M월 d일" }
+        };
+        return options;
+    }
+}
+```
 
 ## 📅 Dates
 
-Separators are `/`, `-` and `.`. The date must exist. The field order comes from the culture's short date pattern.
+A language's `DateForms` are read first. Then, in every language, separators are `/`, `-` and `.`. The date must exist. The field order comes from the culture's short date pattern.
 
 | Form | Year-month-day | Month-day-year | Day-month-year |
 |---|---|---|---|
@@ -436,27 +494,40 @@ Separators are `/`, `-` and `.`. The date must exist. The field order comes from
 
 A 2-digit year from `00` to `29` is 20xx, and from `30` to `99` is 19xx. A missing year is the browser's current year, also on Server. A date without a year keeps no `InputText`, so editing it again shows the full date. A day alone (`5`) is rejected.
 
-With `JapaneseDates`, these are also read:
+A form in `DateForms` uses the symbols of a date format. A form without a month and a day, with a field twice, or with an era the culture does not have is left out.
 
-| Form | Examples |
+| Symbol | Reads |
 |---|---|
-| `・` as a separator | `2025・11・5`, `11・5` |
-| Kanji | `11月5日`, `2025年11月5日`, `25年11月5日` |
-| Era name | `令和7年11月5日`, `令和元年5月1日`, `令和7/11/5`, `令和7.11.5` |
-| Era initial, in any case or width | `R7.11.5`, `r7/11/5`, `H31.4.30` |
+| `ggg`, `gg`, `g` | The era's name, short name, and initial in either case |
+| `e`, `ee`, `eee`, `eeee` | The era year, of up to 2, 2, 3 or 4 digits, or the first-year text. Without a `g`, the last era |
+| `yyyy`, `yy` | A year of 4 or 2 digits |
+| `M`, `d` | A month and a day of up to 2 digits |
+| `/` | Any of `/`, `.` and `-` |
+| A space | Any number of spaces, or none |
+| Quotes | Literal text |
+
+In a `ja` sheet, these are also read:
+
+| Form | In `DateForms` | Examples |
+|---|---|---|
+| `・` as a separator | From `DateReadings` | `2025・11・5`, `11・5` |
+| Kanji | `yyyy年M月d日`, `yy年M月d日`, `M月d日` | `2025年11月5日`, `25年11月5日`, `11月5日` |
+| Era name | `ggge年M月d日`, `ggge/M/d` | `令和7年11月5日`, `令和元年5月1日`, `令和7/11/5`, `令和7.11.5` |
+| Era short name | `gge年M月d日` | `令7年11月5日` |
+| Era initial, in any case or width | `ge/M/d` | `R7.11.5`, `r7/11/5`, `H31.4.30` |
 
 An era year past the era's end counts on (`H32.1.1` is 2020-01-01). A date before the era's first day (`令和1年4月30日`), `R071105` and `7.11.5` are rejected.
 
-A `Format` with an unquoted `g` or `e` is an era format, in any culture. For 2025-11-05:
+A `Format` with an unquoted `g` or `e` is an era format. It uses the eras of the sheet's culture, and a culture without eras shows the short date pattern. For 2025-11-05 in Japanese:
 
 | Symbol | Result |
 |---|---|
 | `ggg`, `gg`, `g` | `令和`, `令`, `R` |
-| `e`, `ee` | `7`, `07`. In era year 1, `e` before `年` gives `元` |
+| `e`, `ee` | `7`, `07`. In an era's first year, `e` before `EraFirstYear.Unit` gives `EraFirstYear.Text` (`令和元年`) |
 | `yyyy`, `yy`, `M` to `MMMM`, `d` to `dddd` | As in .NET |
 | Quotes, `\` | Literal text |
 
-`ggge年M月d日` gives `令和7年11月5日`, and `ge.M.d` gives `R7.11.5`. Dates before the first era use the short date pattern. `Eras` adds eras to the built-in Meiji to Reiwa (`M`, `T`, `S`, `H`, `R`).
+`ggge年M月d日` gives `令和7年11月5日`, and `ge.M.d` gives `R7.11.5`. Dates before the first era use the short date pattern. To add an era, add a row: `options.Cultures["ja"].Eras.Add(new SheetEra("Name", "N", "N", start))`.
 
 ## 🖥️ Display
 

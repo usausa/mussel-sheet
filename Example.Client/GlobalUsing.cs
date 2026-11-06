@@ -9,5 +9,6 @@ global using System.Threading;
 global using System.Threading.Tasks;
 
 global using MusselSheet;
+global using MusselSheet.Languages.Japanese;
 
 global using Example.Client.Components.Samples;

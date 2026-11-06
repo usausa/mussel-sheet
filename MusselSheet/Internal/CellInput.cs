@@ -1,5 +1,6 @@
 namespace MusselSheet.Internal;
 
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
@@ -8,68 +9,52 @@ using System.Text.RegularExpressions;
 // Must stay in step with normalizeText and checkInput in MusselSheet.js: change both together
 internal static partial class CellInput
 {
-    // Full-width counterparts, indexed by the half-width code point minus U+FF61
-    private const string FullwidthKana = "。「」、・ヲァィゥェォャュョッーアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン゛゜";
+    private const int StackLength = 256;
 
-    // Kana that become the next code point with a dakuten; the ha row is two ahead with a handakuten
-    private const string VoicedKana = "カキクケコサシスセソタチツテトハヒフヘホ";
-
-    private const string SemiVoicedKana = "ハヒフヘホ";
+    // What step 2 changes or drops: full-width ASCII, the ideographic space, the minus sign and bidirectional marks
+    private static readonly SearchValues<char> WidthCharacters = SearchValues.Create(
+        string.Concat(Enumerable.Range(0xFF01, 0xFF5E - 0xFF01 + 1).Select(static x => (char)x)) + "\u3000\u2212\u200E\u200F\u061C");
 
     private static readonly TimeSpan PatternTimeout = TimeSpan.FromMilliseconds(200);
 
     private static readonly ConcurrentDictionary<(string Decimal, string Group), Regex> NumberPatterns = new();
 
-    // Order: line breaks, full-width to half-width per kind, automatic conversions, then mask shaping.
+    // JavaScript's whitespace and .NET's together, so both sides trim the same
+    private static readonly char[] TrimCharacters =
+    [
+        '\t', '\n', '\v', '\f', '\r', ' ', '\u0085', '\u00A0', '\u1680', '\u2000', '\u2001', '\u2002', '\u2003', '\u2004', '\u2005',
+        '\u2006', '\u2007', '\u2008', '\u2009', '\u200A', '\u2028', '\u2029', '\u202F', '\u205F', '\u3000', '\uFEFF'
+    ];
+
+    // Order: line breaks, full-width to half-width per kind, then mask shaping.
     // Text that does not fit the mask is returned unshaped and left for validation to reject.
     public static string Normalize(string text, ResolvedCellSettings settings, ReadingRules reading)
     {
         text = NormalizeLines(text, settings.WrapText);
         var mask = ActiveMask(settings);
-        var normalized = mask is null ? Normalize(text, settings.Kind, reading) : NormalizeWidth(text);
-        normalized = ConvertCharacters(normalized, settings.CharacterConversions);
+        var normalized = mask is null ? Normalize(text, settings.Kind, reading) : NormalizeWidth(text, reading);
         return (mask is not null) && (FormatMask(normalized, mask) is { } formatted) ? formatted : normalized;
     }
 
-    public static string NormalizeLines(string text, bool multiline) =>
-        multiline ? LineBreak().Replace(text, "\n") : LineBreak().Replace(text, string.Empty);
+    public static string NormalizeLines(string text, bool multiline)
+    {
+        if (!text.AsSpan().ContainsAny('\r', '\n'))
+        {
+            return text;
+        }
 
-    // Full-width alphanumerics and symbols become half-width and the text is trimmed. The long-vowel mark and minus
-    // sign become '-' (typing '-5' under a Japanese IME yields 'ー5'). In Japanese reading, '・' in a date becomes
-    // '/', because typing '/' under a Japanese IME yields '・'.
+        return multiline ? LineBreak().Replace(text, "\n") : LineBreak().Replace(text, string.Empty);
+    }
+
+    // What every language shares: full-width ASCII and the ideographic space become half-width, the minus sign that
+    // many cultures show becomes '-', and bidirectional marks are not read. The language's own readings come next.
     public static string Normalize(string text, CellKind kind, ReadingRules reading) => kind switch
     {
-        CellKind.List => text.Trim(),
-        CellKind.Date when reading.Japanese => NormalizeWidth(text).Replace('・', '/'),
-        CellKind.Date => NormalizeWidth(text),
-        CellKind.Number or CellKind.Time or CellKind.Checkbox => NormalizeWidth(text),
+        CellKind.List => text.Trim(TrimCharacters),
+        CellKind.Date => reading.DateReadings?.Convert(NormalizeWidth(text, reading)) ?? NormalizeWidth(text, reading),
+        CellKind.Number or CellKind.Time or CellKind.Checkbox => NormalizeWidth(text, reading),
         _ => text
     };
-
-    public static string ConvertCharacters(string text, CellCharacterConversions conversions)
-    {
-        if ((conversions & CellCharacterConversions.FullwidthAsciiToHalfwidth) != 0)
-        {
-            text = ToHalfwidthAscii(text);
-        }
-
-        if ((conversions & CellCharacterConversions.HalfwidthKatakanaToFullwidth) != 0)
-        {
-            text = ToFullwidthKatakana(text);
-        }
-
-        if ((conversions & CellCharacterConversions.HiraganaToKatakana) != 0)
-        {
-            text = ShiftKana(text, 'ぁ', 'ゖ', 'ゝ', 0x60);
-        }
-
-        if ((conversions & CellCharacterConversions.KatakanaToHiragana) != 0)
-        {
-            text = ShiftKana(text, 'ァ', 'ヶ', 'ヽ', -0x60);
-        }
-
-        return text;
-    }
 
     public static string? ActiveMask(ResolvedCellSettings settings) =>
         (settings.Kind is CellKind.Text or CellKind.Mask) && !string.IsNullOrEmpty(settings.Mask) ? settings.Mask : null;
@@ -126,16 +111,11 @@ internal static partial class CellInput
         return builder.ToString();
     }
 
-    public static bool IsAllowed(string text, CellCharacterRestriction restriction)
+    public static bool IsAllowed(string text, SheetCharacterSet set)
     {
-        if (restriction == CellCharacterRestriction.None)
-        {
-            return true;
-        }
-
         foreach (var rune in text.EnumerateRunes())
         {
-            if (!IsAllowed(rune.Value, restriction))
+            if (!set.Contains(rune.Value))
             {
                 return false;
             }
@@ -143,6 +123,9 @@ internal static partial class CellInput
 
         return true;
     }
+
+    public static string CharacterMessage(SheetCharacterSet set, SheetTexts texts) =>
+        texts.CharacterSets.GetValueOrDefault(set.Name) ?? set.Message ?? texts.Characters;
 
     // A corrected string value is validated by the corrected text, not the typed one
     public static string? Check(string text, ResolvedCellSettings settings, InputContext context, out object? value, out bool converted, Func<object?, object?>? correct = null)
@@ -181,7 +164,7 @@ internal static partial class CellInput
             case CellKind.Date:
                 error = context.DateMessage;
                 return false;
-            case CellKind.Time when TryParseTime(text, out var time):
+            case CellKind.Time when TryParseTime(text, context.Reading, out var time):
                 value = time;
                 return true;
             case CellKind.Time:
@@ -201,7 +184,8 @@ internal static partial class CellInput
         }
     }
 
-    public static bool OmitsYear(string text, ReadingRules reading) => TrySplitDate(text, reading, out var year, out _, out _) && (year is null);
+    public static bool OmitsYear(string text, ReadingRules reading) =>
+        reading.Dates.OmitsYear(text) ?? (TrySplitDate(text, reading, out var year, out _, out _) && year.IsEmpty);
 
     public static string? Validate(object? value, string text, ResolvedCellSettings settings, InputContext context)
     {
@@ -214,7 +198,7 @@ internal static partial class CellInput
         return CheckRange(value, settings, context) ?? CheckLength(value, settings, texts) ?? CheckCharacters(value, settings, texts) ?? CheckPattern(text, settings.Pattern, texts);
     }
 
-    public static string? FormatBound(CellBound? bound, ResolvedCellSettings settings, CultureInfo culture, string dateFormat, IReadOnlyList<SheetJapaneseEra>? eras = null)
+    public static string? FormatBound(CellBound? bound, ResolvedCellSettings settings, CultureInfo culture, string dateFormat, DateRules? dates = null)
     {
         if (bound is not { } value)
         {
@@ -228,7 +212,7 @@ internal static partial class CellInput
 
         if (value.Date is { } date)
         {
-            return CellText.FormatDate(date, settings.Kind == CellKind.Date ? settings.Format ?? dateFormat : dateFormat, culture, eras);
+            return CellText.FormatDate(date, settings.Kind == CellKind.Date ? settings.Format ?? dateFormat : dateFormat, culture, dates);
         }
 
         return value.Time?.ToString(settings.Kind == CellKind.Time ? settings.Format ?? "HH:mm" : "HH:mm", culture);
@@ -250,7 +234,7 @@ internal static partial class CellInput
         var count = 0;
         foreach (var rune in text.EnumerateRunes())
         {
-            count += ((rune.Value <= 0x7F) || (rune.Value is >= 0xFF61 and <= 0xFF9F)) ? 1 : 2;
+            count += SheetCharacters.Halfwidth.Contains(rune.Value) ? 1 : 2;
         }
 
         return count;
@@ -268,9 +252,6 @@ internal static partial class CellInput
     [GeneratedRegex("^([0-9]{1,2})[/.-]([0-9]{1,2})$")]
     private static partial Regex YearlessDateText();
 
-    [GeneratedRegex("^(?:([0-9]{4}|[0-9]{2})年)?([0-9]{1,2})月([0-9]{1,2})日$")]
-    private static partial Regex KanjiDateText();
-
     [GeneratedRegex("^(?:[0-9]{4}|[0-9]{6}|[0-9]{8})$")]
     private static partial Regex DigitsDateText();
 
@@ -286,14 +267,21 @@ internal static partial class CellInput
     private static bool TryParseNumber(string text, ReadingRules reading, out decimal number)
     {
         number = 0;
-        if (!text.Any(char.IsAsciiDigit) || !NumberPattern(reading).IsMatch(text))
+        if (!text.AsSpan().ContainsAnyInRange('0', '9') || !NumberPattern(reading).IsMatch(text))
         {
             return false;
         }
 
-        var plain = IsBlankSeparator(reading.GroupSeparator)
-            ? text.Replace(" ", string.Empty, StringComparison.Ordinal).Replace("\u00A0", string.Empty, StringComparison.Ordinal).Replace("\u202F", string.Empty, StringComparison.Ordinal)
-            : text.Replace(reading.GroupSeparator, string.Empty, StringComparison.Ordinal);
+        var plain = text;
+        if (IsBlankSeparator(reading.GroupSeparator))
+        {
+            plain = text.Replace(" ", string.Empty, StringComparison.Ordinal).Replace("\u00A0", string.Empty, StringComparison.Ordinal).Replace("\u202F", string.Empty, StringComparison.Ordinal);
+        }
+        else if (reading.GroupSeparator.Length > 0)
+        {
+            plain = text.Replace(reading.GroupSeparator, string.Empty, StringComparison.Ordinal);
+        }
+
         plain = plain.Replace(reading.DecimalSeparator, ".", StringComparison.Ordinal);
         return decimal.TryParse(plain, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out number);
     }
@@ -301,21 +289,21 @@ internal static partial class CellInput
     private static Regex NumberPattern(ReadingRules reading) =>
         NumberPatterns.GetOrAdd((reading.DecimalSeparator, reading.GroupSeparator), static key =>
         {
-            var group = IsBlankSeparator(key.Group) ? "[ \u00A0\u202F]" : Regex.Escape(key.Group);
-            return new Regex($"^[+-]?(?:[0-9](?:[0-9]|{group})*)?(?:{Regex.Escape(key.Decimal)}[0-9]+)?$", RegexOptions.CultureInvariant, PatternTimeout);
+            var group = IsBlankSeparator(key.Group) ? "|[ \u00A0\u202F]" : key.Group.Length > 0 ? $"|{Regex.Escape(key.Group)}" : string.Empty;
+            return new Regex($"^[+-]?(?:[0-9](?:[0-9]{group})*)?(?:{Regex.Escape(key.Decimal)}[0-9]+)?$", RegexOptions.CultureInvariant, PatternTimeout);
         });
 
     private static bool IsBlankSeparator(string separator) => (separator.Length > 0) && char.IsWhiteSpace(separator[0]);
 
-    // Separators are '/', '-' and '.'; the field order follows the sheet culture, but a leading 4-digit year is read
-    // under any culture. A missing year uses today's year, and Japanese reading also accepts kanji forms and wareki.
+    // The language's forms come first. Then separators are '/', '-' and '.'; the field order follows the sheet culture,
+    // but a leading 4-digit year is read under any culture. A missing year uses today's year.
     // Same as matchDate in MusselSheet.js.
     private static bool TryParseDate(string text, InputContext context, out DateOnly date)
     {
         var (today, reading) = (context.Today, context.Reading);
-        if (reading.Japanese && JapaneseEraText.TryParse(text, context.Eras, out date))
+        if (reading.Dates.TryRead(text, today, out date) is { } read)
         {
-            return true;
+            return read;
         }
 
         date = default;
@@ -324,14 +312,14 @@ internal static partial class CellInput
             return false;
         }
 
-        var year = yearText is null ? today.Year : int.Parse(yearText, CultureInfo.InvariantCulture);
-        if (yearText?.Length == 2)
+        var year = yearText.IsEmpty ? today.Year : int.Parse(yearText, provider: CultureInfo.InvariantCulture);
+        if (yearText.Length == 2)
         {
             year = FullYear(year);
         }
 
-        var month = int.Parse(monthText, CultureInfo.InvariantCulture);
-        var day = int.Parse(dayText, CultureInfo.InvariantCulture);
+        var month = int.Parse(monthText, provider: CultureInfo.InvariantCulture);
+        var day = int.Parse(dayText, provider: CultureInfo.InvariantCulture);
         if ((year < 1) || month is < 1 or > 12 || (day < 1) || (day > DateTime.DaysInMonth(year, month)))
         {
             return false;
@@ -341,34 +329,36 @@ internal static partial class CellInput
         return true;
     }
 
-    private static bool TrySplitDate(string text, ReadingRules reading, out string? year, out string month, out string day)
+    private static bool TrySplitDate(string text, ReadingRules reading, out ReadOnlySpan<char> year, out ReadOnlySpan<char> month, out ReadOnlySpan<char> day)
     {
         var order = reading.DateOrder;
-        year = null;
-        month = day = string.Empty;
+        year = month = day = default;
+
+        // Some cultures write "5. 11. 2025." and "5.11.2025."
+        text = text.Replace(". ", ".", StringComparison.Ordinal).TrimEnd('.');
         if (YearFirstDateText().Match(text) is { Success: true } iso)
         {
-            (year, month, day) = (iso.Groups[1].Value, iso.Groups[2].Value, iso.Groups[3].Value);
+            year = iso.Groups[1].ValueSpan;
+            month = iso.Groups[2].ValueSpan;
+            day = iso.Groups[3].ValueSpan;
             return true;
         }
 
         var full = order == DateOrder.YearMonthDay ? ShortYearFirstDateText().Match(text) : YearLastDateText().Match(text);
         if (full.Success)
         {
-            var (a, b, c) = (full.Groups[1].Value, full.Groups[2].Value, full.Groups[3].Value);
-            (year, month, day) = order switch
-            {
-                DateOrder.YearMonthDay => (a, b, c),
-                DateOrder.MonthDayYear => (c, a, b),
-                _ => (c, b, a)
-            };
+            var (a, b, c) = (full.Groups[1], full.Groups[2], full.Groups[3]);
+            year = (order == DateOrder.YearMonthDay ? a : c).ValueSpan;
+            month = (order == DateOrder.MonthDayYear ? a : b).ValueSpan;
+            day = (order == DateOrder.YearMonthDay ? c : order == DateOrder.MonthDayYear ? b : a).ValueSpan;
             return true;
         }
 
         if (YearlessDateText().Match(text) is { Success: true } yearless)
         {
-            var (a, b) = (yearless.Groups[1].Value, yearless.Groups[2].Value);
-            (month, day) = order == DateOrder.DayMonthYear ? (b, a) : (a, b);
+            var dayFirst = order == DateOrder.DayMonthYear;
+            month = yearless.Groups[dayFirst ? 2 : 1].ValueSpan;
+            day = yearless.Groups[dayFirst ? 1 : 2].ValueSpan;
             return true;
         }
 
@@ -376,16 +366,13 @@ internal static partial class CellInput
         {
             // Digit-only forms by order: year-first yyyyMMdd, yyMMdd, MMdd; month-first MMddyyyy, MMddyy, MMdd;
             // day-first ddMMyyyy, ddMMyy, ddMM.
-            var (front, back) = order == DateOrder.YearMonthDay ? (text[..^4], text[^4..]) : (text[4..], text[..4]);
-            year = front.Length == 0 ? null : front;
-            (month, day) = order == DateOrder.DayMonthYear ? (back[2..], back[..2]) : (back[..2], back[2..]);
-            return true;
-        }
-
-        if (reading.Japanese && (KanjiDateText().Match(text) is { Success: true } kanji))
-        {
-            year = kanji.Groups[1].Success ? kanji.Groups[1].Value : null;
-            (month, day) = (kanji.Groups[2].Value, kanji.Groups[3].Value);
+            var digits = text.AsSpan();
+            var yearFirst = order == DateOrder.YearMonthDay;
+            var dayFirst = order == DateOrder.DayMonthYear;
+            year = yearFirst ? digits[..^4] : digits[4..];
+            var back = yearFirst ? digits[^4..] : digits[..4];
+            month = dayFirst ? back[2..] : back[..2];
+            day = dayFirst ? back[..2] : back[2..];
             return true;
         }
 
@@ -393,12 +380,13 @@ internal static partial class CellInput
     }
 
     // Same pivot as Excel: 00 to 29 are 20xx, 30 to 99 are 19xx
-    private static int FullYear(int year) => year < 30 ? 2000 + year : 1900 + year;
+    internal static int FullYear(int year) => year < 30 ? 2000 + year : 1900 + year;
 
-    private static bool TryParseTime(string text, out TimeOnly time)
+    // The culture's separator is read as well as ':'
+    private static bool TryParseTime(string text, ReadingRules reading, out TimeOnly time)
     {
         time = default;
-        var match = TimeText().Match(text);
+        var match = TimeText().Match(reading.TimeSeparator is "" or ":" ? text : text.Replace(reading.TimeSeparator, ":", StringComparison.Ordinal));
         if (!match.Success)
         {
             return false;
@@ -455,8 +443,8 @@ internal static partial class CellInput
             return null;
         }
 
-        var lowText = FormatBound(minimum, settings, context.Culture, context.DateFormat, context.Eras);
-        var highText = FormatBound(maximum, settings, context.Culture, context.DateFormat, context.Eras);
+        var lowText = FormatBound(minimum, settings, context.Culture, context.DateFormat, context.Dates);
+        var highText = FormatBound(maximum, settings, context.Culture, context.DateFormat, context.Dates);
         if ((lowText is not null) && (highText is not null))
         {
             return InputContext.Fill(context.Texts.Between, lowText, highText);
@@ -494,122 +482,60 @@ internal static partial class CellInput
 
         if (!IsAllowed(text, settings.CharacterRestriction))
         {
-            return RestrictionMessage(settings.CharacterRestriction, texts);
+            return CharacterMessage(settings.CharacterRestriction, texts);
         }
 
         return (ActiveMask(settings) is { } mask) && (FormatMask(text, mask) is null) ? InputContext.Fill(texts.Mask, MaskDisplay(mask)) : null;
     }
 
-    private static string RestrictionMessage(CellCharacterRestriction restriction, SheetTexts texts) => restriction switch
+    private static string NormalizeWidth(string text, ReadingRules reading)
     {
-        CellCharacterRestriction.Fullwidth => texts.Fullwidth,
-        CellCharacterRestriction.Halfwidth => texts.Halfwidth,
-        CellCharacterRestriction.Hiragana => texts.Hiragana,
-        CellCharacterRestriction.Katakana => texts.Katakana,
-        CellCharacterRestriction.HalfwidthKatakana => texts.HalfwidthKatakana,
-        CellCharacterRestriction.Alphanumeric => texts.Alphanumeric,
-        _ => texts.Digits
-    };
-
-    private static bool IsHalfwidth(int code) => (code <= 0x7F) || code is >= 0xFF61 and <= 0xFF9F;
-
-    private static bool IsAllowed(int code, CellCharacterRestriction restriction) => restriction switch
-    {
-        CellCharacterRestriction.Fullwidth => !IsHalfwidth(code),
-        CellCharacterRestriction.Halfwidth => IsHalfwidth(code),
-        CellCharacterRestriction.Hiragana => code is (>= 0x3041 and <= 0x3096) or 0x309D or 0x309E or 0x30FC or 0x20 or 0x3000,
-        CellCharacterRestriction.Katakana => code is (>= 0x30A1 and <= 0x30FE) or 0x20 or 0x3000,
-        CellCharacterRestriction.HalfwidthKatakana => code is (>= 0xFF65 and <= 0xFF9F) or 0x20,
-        CellCharacterRestriction.Alphanumeric => code is (>= '0' and <= '9') or (>= 'A' and <= 'Z') or (>= 'a' and <= 'z'),
-        CellCharacterRestriction.Digits => code is >= '0' and <= '9',
-        _ => true
-    };
-
-    private static string NormalizeWidth(string text)
-    {
-        var builder = new StringBuilder(text.Length);
-        foreach (var ch in text)
-        {
-            builder.Append(ch switch
-            {
-                >= '！' and <= '～' => (char)(ch - 0xFEE0),
-                '　' => ' ',
-                'ー' or '−' or '‐' or '―' => '-',
-                _ => ch
-            });
-        }
-
-        return builder.ToString().Trim();
+        var width = ToHalfwidth(text);
+        return (reading.Readings?.Convert(width) ?? width).Trim(TrimCharacters);
     }
 
-    private static string ToHalfwidthAscii(string text)
+    // Text with nothing to change is returned as it is. The result is never longer than the text.
+    private static string ToHalfwidth(string text)
     {
-        var builder = new StringBuilder(text.Length);
-        foreach (var ch in text)
+        var source = text.AsSpan();
+        var first = source.IndexOfAny(WidthCharacters);
+        if (first < 0)
         {
-            builder.Append(ch switch
-            {
-                >= '！' and <= '～' => (char)(ch - 0xFEE0),
-                '　' => ' ',
-                _ => ch
-            });
+            return text;
         }
 
-        return builder.ToString();
-    }
-
-    private static string ToFullwidthKatakana(string text)
-    {
-        var builder = new StringBuilder(text.Length);
-        for (var i = 0; i < text.Length; i++)
+        char[]? rented = null;
+        var buffer = text.Length <= StackLength ? stackalloc char[StackLength] : (rented = ArrayPool<char>.Shared.Rent(text.Length));
+        source[..first].CopyTo(buffer);
+        var length = first;
+        foreach (var ch in source[first..])
         {
-            var ch = text[i];
-            if (ch is < '｡' or > 'ﾟ')
+            switch (ch)
             {
-                builder.Append(ch);
-                continue;
-            }
-
-            var kana = FullwidthKana[ch - 0xFF61];
-            var next = i + 1 < text.Length ? text[i + 1] : '\0';
-            if ((next == 'ﾞ') && (Voice(kana) is { } voiced))
-            {
-                builder.Append(voiced);
-                i++;
-            }
-            else if ((next == 'ﾟ') && SemiVoicedKana.Contains(kana, StringComparison.Ordinal))
-            {
-                builder.Append((char)(kana + 2));
-                i++;
-            }
-            else
-            {
-                builder.Append(kana);
+                case >= '\uFF01' and <= '\uFF5E':
+                    buffer[length++] = (char)(ch - 0xFEE0);
+                    break;
+                case '\u3000':
+                    buffer[length++] = ' ';
+                    break;
+                case '\u2212':
+                    buffer[length++] = '-';
+                    break;
+                case '\u200E' or '\u200F' or '\u061C':
+                    break;
+                default:
+                    buffer[length++] = ch;
+                    break;
             }
         }
 
-        return builder.ToString();
-    }
-
-    private static char? Voice(char kana) => kana switch
-    {
-        'ウ' => 'ヴ',
-        'ワ' => 'ヷ',
-        'ヲ' => 'ヺ',
-        _ when VoicedKana.Contains(kana, StringComparison.Ordinal) => (char)(kana + 1),
-        _ => null
-    };
-
-    private static string ShiftKana(string text, char first, char last, char iteration, int shift)
-    {
-        var builder = new StringBuilder(text.Length);
-        foreach (var ch in text)
+        var result = new string(buffer[..length]);
+        if (rented is not null)
         {
-            var inRange = ((ch >= first) && (ch <= last)) || (ch == iteration) || (ch == iteration + 1);
-            builder.Append(inRange ? (char)(ch + shift) : ch);
+            ArrayPool<char>.Shared.Return(rented);
         }
 
-        return builder.ToString();
+        return result;
     }
 
     private static bool FitsMask(char token, char ch) => token switch

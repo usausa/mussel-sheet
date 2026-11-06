@@ -41,7 +41,7 @@ public sealed class SheetDesignTests
         Assert.Contains("\"pattern\": \"^[^<>]+$\"", json, StringComparison.Ordinal);
         Assert.Contains("\"kind\": \"number\"", json, StringComparison.Ordinal);
         Assert.Contains("\"frozenRows\": 2", json, StringComparison.Ordinal);
-        Assert.Contains("\"characterConversions\": \"fullwidthAsciiToHalfwidth, halfwidthKatakanaToFullwidth\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"characterRestriction\": \"halfwidth\"", json, StringComparison.Ordinal);
         Assert.Contains("\"style\": \"doubleLine\"", json, StringComparison.Ordinal);
         Assert.Contains("\"経費精算書\"", json, StringComparison.Ordinal);
         Assert.Contains("\"merges\": [", json, StringComparison.Ordinal);
@@ -167,7 +167,6 @@ public sealed class SheetDesignTests
         {
             c.MaxLength = 20;
             c.Pattern = "^[^<>]+$";
-            c.CharacterConversions = CellCharacterConversions.FullwidthAsciiToHalfwidth | CellCharacterConversions.HalfwidthKatakanaToFullwidth;
             c.InputMessage = "品名";
             c.MoveGroup = "明細";
         });
@@ -200,7 +199,7 @@ public sealed class SheetDesignTests
         sheet.Range("A6").Configure(c =>
         {
             c.Mask = "999-9999";
-            c.CharacterRestriction = CellCharacterRestriction.Halfwidth;
+            c.CharacterRestriction = SheetCharacters.Halfwidth;
             c.WrapText = false;
             c.Style.CssClass = "zip";
             c.Style.VerticalAlignment = VerticalAlignment.Top;

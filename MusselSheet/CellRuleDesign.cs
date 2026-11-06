@@ -38,8 +38,6 @@ public sealed class CellRuleDesign
 
     public string? CharacterRestriction { get; set; }
 
-    public string? CharacterConversions { get; set; }
-
     public string? Mask { get; set; }
 
     public string? CheckedText { get; set; }

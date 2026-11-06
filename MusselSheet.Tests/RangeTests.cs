@@ -58,7 +58,7 @@ public sealed class RangeTests : BunitContext
         var result = await Paste(cut, CellRange.Cell(0, 0), "x\ty\tz");
 
         Assert.Equal("x", sheet.GetValue(0, 0));
-        Assert.Equal(SheetTexts.Japanese.Number, sheet.GetError(0, 0));
+        Assert.Equal(JapaneseTexts.Default.Number, sheet.GetError(0, 0));
         Assert.Equal(2m, sheet.GetValue(0, 1));
         Assert.Equal(3m, sheet.GetValue(0, 2));
         Assert.Equal("1 セルは規則に合わないため、エラーの印を付けました。1 セルは規則に合わないため、貼り付けませんでした", result.Message);

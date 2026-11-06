@@ -6,6 +6,8 @@ global using System.Diagnostics.CodeAnalysis;
 global using System.Globalization;
 global using System.Linq;
 
+global using MusselSheet.Languages.Japanese;
+
 global using Bunit;
 
 global using Xunit;

@@ -1,0 +1,297 @@
+namespace MusselSheet.Internal;
+
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+
+// What a language says about dates: its eras and the forms it reads. This class holds no language.
+// Forms compile to regular expressions, and the browser runs the same ones: keep readForms and formatDate in
+// MusselSheet.js in step with this class.
+internal sealed partial class DateRules
+{
+    private static readonly TimeSpan PatternTimeout = TimeSpan.FromMilliseconds(200);
+
+    private readonly Regex[] forms;
+
+    public DateRules(IEnumerable<SheetEra> eras, SheetEraFirstYear? firstYear, IEnumerable<string> forms, string? editFormat)
+    {
+        Eras = [.. eras];
+        FirstYear = firstYear;
+        EditFormat = editFormat;
+        Patterns = [.. forms.Select(Pattern).OfType<string>()];
+        this.forms = [.. Patterns.Select(static x => new Regex(x, RegexOptions.CultureInvariant, PatternTimeout))];
+    }
+
+    public static DateRules None { get; } = new([], null, [], null);
+
+    public IReadOnlyList<SheetEra> Eras { get; }
+
+    public SheetEraFirstYear? FirstYear { get; }
+
+    public string? EditFormat { get; }
+
+    public IReadOnlyList<string> Patterns { get; }
+
+    public static bool IsEraFormat(string format)
+    {
+        var quote = '\0';
+        for (var i = 0; i < format.Length; i++)
+        {
+            var c = format[i];
+            if (quote != '\0')
+            {
+                quote = c == quote ? '\0' : quote;
+            }
+            else if (c is '\'' or '"')
+            {
+                quote = c;
+            }
+            else if (c == '\\')
+            {
+                i++;
+            }
+            else if (c is 'g' or 'e')
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // ggg is the era's name, gg its short name, g its initial, ee and e the era year with and without padding. In the
+    // era's first year, a single e directly before the language's year unit prints the first-year text.
+    // A date before the first era, or a culture without eras, uses the short date pattern.
+    public string Format(DateOnly date, string format, CultureInfo culture)
+    {
+        var era = EraOf(date);
+        if (era is null)
+        {
+            return date.ToString(culture.DateTimeFormat.ShortDatePattern, culture);
+        }
+
+        var names = culture.DateTimeFormat;
+        var eraYear = date.Year - era.Start.Year + era.FirstYear;
+        var builder = new StringBuilder();
+        var i = 0;
+        while (i < format.Length)
+        {
+            var c = format[i];
+            if (c is '\'' or '"')
+            {
+                var end = format.IndexOf(c, i + 1);
+                end = end < 0 ? format.Length : end;
+                builder.Append(format, i + 1, end - i - 1);
+                i = end + 1;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                if (i + 1 < format.Length)
+                {
+                    builder.Append(format[i + 1]);
+                }
+
+                i += 2;
+                continue;
+            }
+
+            var count = 1;
+            while ((i + count < format.Length) && (format[i + count] == c))
+            {
+                count++;
+            }
+
+            builder.Append(c switch
+            {
+                'g' => count >= 3 ? era.Name : count == 2 ? era.ShortName : era.Initial,
+                'e' when (count == 1) && (eraYear == era.FirstYear) && (FirstYear is { } first) && format.AsSpan(i + count).StartsWith(first.Unit, StringComparison.Ordinal) => first.Text,
+                'e' => eraYear.ToString(count >= 2 ? "00" : "0", CultureInfo.InvariantCulture),
+                'y' => count >= 3 ? date.Year.ToString("0000", CultureInfo.InvariantCulture) : (date.Year % 100).ToString("00", CultureInfo.InvariantCulture),
+                'M' => count >= 4 ? names.GetMonthName(date.Month) : count == 3 ? names.GetAbbreviatedMonthName(date.Month) : date.Month.ToString(count == 2 ? "00" : "0", CultureInfo.InvariantCulture),
+                'd' => count >= 4 ? names.GetDayName(date.DayOfWeek) : count == 3 ? names.GetAbbreviatedDayName(date.DayOfWeek) : date.Day.ToString(count == 2 ? "00" : "0", CultureInfo.InvariantCulture),
+                _ => new string(c, count)
+            });
+            i += count;
+        }
+
+        return builder.ToString();
+    }
+
+    // null: no form matched, so the common forms decide. false: a form matched but the date does not exist.
+    // An era year may run past the era's end, but a date before the era's first day is rejected.
+    public bool? TryRead(string text, DateOnly today, out DateOnly date)
+    {
+        date = default;
+        if (Match(text) is not { } match)
+        {
+            return null;
+        }
+
+        SheetEra? era = null;
+        int year;
+        if (match.Groups["eraYear"] is { Success: true } eraYearGroup)
+        {
+            era = FindEra(match);
+            var eraYear = eraYearGroup.ValueSpan.SequenceEqual(FirstYear?.Text) ? era.FirstYear : Number(eraYearGroup.ValueSpan);
+            if (eraYear < era.FirstYear)
+            {
+                return false;
+            }
+
+            year = era.Start.Year + eraYear - era.FirstYear;
+        }
+        else
+        {
+            var yearGroup = match.Groups["year"];
+            year = !yearGroup.Success ? today.Year : yearGroup.Length == 2 ? CellInput.FullYear(Number(yearGroup.ValueSpan)) : Number(yearGroup.ValueSpan);
+        }
+
+        var month = Number(match.Groups["month"].ValueSpan);
+        var day = Number(match.Groups["day"].ValueSpan);
+        if (year is < 1 or > 9999 || month is < 1 or > 12 || (day < 1) || (day > DateTime.DaysInMonth(year, month)))
+        {
+            return false;
+        }
+
+        date = new DateOnly(year, month, day);
+        return (era is null) || (date >= era.Start);
+    }
+
+    public bool? OmitsYear(string text) =>
+        Match(text) is { } match ? !match.Groups["year"].Success && !match.Groups["eraYear"].Success : null;
+
+    private static int Number(ReadOnlySpan<char> text) => int.Parse(text, provider: CultureInfo.InvariantCulture);
+
+    private static string Alternatives(IEnumerable<string> items) =>
+        string.Join('|', items.Where(static x => x.Length > 0).OrderByDescending(static x => x.Length).Select(Literal));
+
+    private static string EitherCase(string text) =>
+        string.Concat(text.Select(static c => char.IsAsciiLetter(c) ? $"[{char.ToUpperInvariant(c)}{char.ToLowerInvariant(c)}]" : Literal(c.ToString())));
+
+    private static string Literal(string text) => SpecialCharacter().Replace(text, static x => $"\\{x.Value}");
+
+    [GeneratedRegex(@"[.*+?^${}()|\[\]\\/-]")]
+    private static partial Regex SpecialCharacter();
+
+    private Match? Match(string text)
+    {
+        foreach (var form in forms)
+        {
+            var match = form.Match(text);
+            if (match.Success)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private SheetEra? EraOf(DateOnly date)
+    {
+        SheetEra? found = null;
+        foreach (var era in Eras)
+        {
+            if ((era.Start <= date) && ((found is null) || (era.Start > found.Start)))
+            {
+                found = era;
+            }
+        }
+
+        return found;
+    }
+
+    private SheetEra FindEra(Match match)
+    {
+        var (name, shortName, initial) = (match.Groups["era"], match.Groups["short"], match.Groups["initial"]);
+        foreach (var era in Eras)
+        {
+            if ((name.Success && name.ValueSpan.SequenceEqual(era.Name)) ||
+                (shortName.Success && shortName.ValueSpan.SequenceEqual(era.ShortName)) ||
+                (initial.Success && initial.ValueSpan.Equals(era.Initial, StringComparison.OrdinalIgnoreCase)))
+            {
+                return era;
+            }
+        }
+
+        return Eras[^1];
+    }
+
+    // A form uses the symbols of the display format: g gg ggg (era), e ee eee eeee (era year of up to 2, 2, 3 or 4
+    // digits, or the first-year text), yyyy yy (year), M and d. '/' takes any of / . -, a space may be left out, and
+    // quotes hold literal text. A form that cannot be read (no month, a field twice, no era to read) is left out.
+    private string? Pattern(string form)
+    {
+        var builder = new StringBuilder("^");
+        var fields = new HashSet<char>();
+        var i = 0;
+        while (i < form.Length)
+        {
+            var c = form[i];
+            if (c == '\'')
+            {
+                var end = form.IndexOf('\'', i + 1);
+                end = end < 0 ? form.Length : end;
+                builder.Append(Literal(form[(i + 1)..end]));
+                i = end + 1;
+                continue;
+            }
+
+            var count = 1;
+            while ((i + count < form.Length) && (form[i + count] == c))
+            {
+                count++;
+            }
+
+            i += count;
+            if (c is 'g' or 'e' or 'y' or 'M' or 'd' && !fields.Add(c))
+            {
+                return null;
+            }
+
+            var part = Part(c, count);
+            if (part.Length == 0)
+            {
+                return null;
+            }
+
+            builder.Append(part);
+        }
+
+        var hasDate = fields.Contains('M') && fields.Contains('d');
+        var hasYears = !fields.Contains('y') || !fields.Contains('e');
+        var hasEraYear = !fields.Contains('g') || fields.Contains('e');
+        return hasDate && hasYears && hasEraYear ? builder.Append('$').ToString() : null;
+    }
+
+    private string Part(char symbol, int count)
+    {
+        switch (symbol)
+        {
+            case 'g':
+                var eras = count >= 3
+                    ? Alternatives(Eras.Select(static x => x.Name))
+                    : count == 2
+                        ? Alternatives(Eras.Select(static x => x.ShortName))
+                        : string.Join('|', Eras.Where(static x => x.Initial.Length > 0).Select(static x => EitherCase(x.Initial)));
+                return eras.Length == 0 ? string.Empty : $"(?<{(count >= 3 ? "era" : count == 2 ? "short" : "initial")}>{eras})";
+            case 'e':
+                var firstYear = FirstYear is { } first ? $"{Literal(first.Text)}|" : string.Empty;
+                return Eras.Count == 0 ? string.Empty : $"(?<eraYear>{firstYear}[0-9]{{1,{Math.Max(count, 2)}}})";
+            case 'y':
+                return count == 2 ? "(?<year>[0-9]{2})" : "(?<year>[0-9]{4})";
+            case 'M':
+                return "(?<month>[0-9]{1,2})";
+            case 'd':
+                return "(?<day>[0-9]{1,2})";
+            case '/':
+                return string.Concat(Enumerable.Repeat("[/.-]", count));
+            case ' ':
+                return " *";
+            default:
+                return Literal(new string(symbol, count));
+        }
+    }
+}
