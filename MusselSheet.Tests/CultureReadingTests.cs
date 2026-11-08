@@ -15,11 +15,11 @@ public sealed class CultureReadingTests
     {
         var japanese = ReadingRules.From(CultureInfo.GetCultureInfo("ja-JP"));
         Assert.Equal(DateOrder.YearMonthDay, japanese.DateOrder);
-        Assert.Equal("yyyy/MM/dd", japanese.EditDateFormat);
+        Assert.Equal("yyyy'/'MM'/'dd", japanese.EditDateFormat);
 
         var english = ReadingRules.From(English);
         Assert.Equal(DateOrder.MonthDayYear, english.DateOrder);
-        Assert.Equal("M/d/yyyy", english.EditDateFormat);
+        Assert.Equal("M'/'d'/'yyyy", english.EditDateFormat);
 
         var german = ReadingRules.From(German);
         Assert.Equal(DateOrder.DayMonthYear, german.DateOrder);
@@ -75,6 +75,20 @@ public sealed class CultureReadingTests
         Assert.Equal("1,5", sheet.GetEditText(0, 1));
         Assert.True(CellInput.TryConvert(sheet.GetEditText(0, 1), Number, Context("de-DE"), out var number, out _));
         Assert.Equal(1.5m, number);
+    }
+
+    [Theory]
+    [InlineData("ja-JP")]
+    [InlineData("en-US")]
+    public void ALineBreakBeforeAFinalDotIsTrimmed(string name)
+    {
+        var context = Context(name);
+        var settings = new ResolvedCellSettings { Kind = CellKind.Date, WrapText = true };
+
+        var error = CellInput.Check(CellInput.Normalize("1105\n.", settings, context.Reading), settings, context, out var value, out _);
+
+        Assert.Null(error);
+        Assert.Equal(new DateOnly(2026, 11, 5), value);
     }
 
     private static ResolvedCellSettings Date => new() { Kind = CellKind.Date };

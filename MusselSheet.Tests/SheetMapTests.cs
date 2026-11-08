@@ -136,7 +136,7 @@ public sealed class SheetMapTests
 
         Assert.Equal("999-9999", rules[0].Mask);
         Assert.Equal("half", rules[0].Ime);
-        Assert.Equal("katakana", rules[1].Restriction);
+        Assert.Equal(JapaneseCharacters.Katakana.Ranges, rules[1].Restriction);
         Assert.Null(rules[1].Ime);
         Assert.True(rules[2].Suggest);
         Assert.Equal(2, rules[2].Items?.Count);

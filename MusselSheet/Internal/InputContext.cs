@@ -14,7 +14,7 @@ internal sealed record InputContext(CultureInfo Culture, DateOnly Today, SheetTe
 
     public DateRules Dates => Reading.Dates;
 
-    public string DateMessage => Fill(Texts.Date, DateFormat);
+    public string DateMessage => Fill(Texts.Date, DateRules.IsEraFormat(DateFormat) ? Dates.Format(Today, DateFormat, Culture) : DateFormat);
 
     public IReadOnlyDictionary<string, string> ForScript() => new Dictionary<string, string>
     {
@@ -31,7 +31,6 @@ internal sealed record InputContext(CultureInfo Culture, DateOnly Today, SheetTe
         ["maxByteLength"] = Texts.MaxByteLength,
         ["pattern"] = Texts.Pattern,
         ["mask"] = Texts.Mask,
-        ["notEditable"] = Texts.NotEditable,
         ["canceled"] = Texts.Canceled,
         ["menuCut"] = Texts.MenuCut,
         ["menuCopy"] = Texts.MenuCopy,

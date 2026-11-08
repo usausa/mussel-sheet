@@ -125,14 +125,62 @@ public sealed class AddedLanguageTests : BunitContext
     public void TheBrowserGetsOnlyWhatTheSheetUses()
     {
         var plain = SheetMapBuilder.Build(new Sheet(1, 1), 24, 40, SheetValidationMode.Stay);
-        Assert.Empty(plain.Reading.Sets);
+        Assert.Null(plain.Rules[0].Restriction);
 
         var sheet = new Sheet(1, 1);
         sheet.Range("A1").Configure(static c => c.CharacterRestriction = TestLanguages.Hangul);
         var map = SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay);
 
-        Assert.Equal(["hangul"], map.Reading.Sets.Keys);
+        Assert.Equal(TestLanguages.Hangul.Ranges, map.Rules[0].Restriction);
         Assert.Equal("한글로 입력하세요.", map.Rules[0].RestrictionMessage);
+    }
+
+    [Fact]
+    public void TheDateMessageOfAnEraFormatShowsADate()
+    {
+        var culture = ReadingRules.Gregorian(TestLanguages.Culture("th-TH"));
+        var reading = Options.ReadingFor(culture);
+        var context = new InputContext(culture, Today, SheetTexts.English, reading.DateFormat, reading);
+
+        Assert.Equal("Enter a date in the form 6/11/2569.", context.DateMessage);
+    }
+
+    [Fact]
+    public void TwoSetsWithOneNameKeepTheirOwnCharacters()
+    {
+        var digits = new SheetCharacterSet("code", "0-9");
+        var letters = new SheetCharacterSet("code", "A-Z");
+        var sheet = new Sheet(1, 2);
+        sheet.Range("A1").Configure(c => c.CharacterRestriction = digits);
+        sheet.Range("B1").Configure(c => c.CharacterRestriction = letters);
+
+        var map = SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay);
+        var pattern = map.Patterns[map.RowPatterns[0]];
+
+        Assert.Equal(digits.Ranges, map.Rules[pattern[0]].Restriction);
+        Assert.Equal(letters.Ranges, map.Rules[pattern[1]].Restriction);
+    }
+
+    [Fact]
+    public void ARegisteredSetComesBeforeABuiltInOneWithItsName()
+    {
+        var mine = new SheetCharacterSet("digits", "0-9-");
+        var functions = new SheetFunctions();
+        functions.AddCharacterSet(mine);
+        var sheet = new Sheet(1, 1);
+        sheet.Range("A1").Configure(c => c.CharacterRestriction = mine);
+        var design = sheet.ToDesign(functions);
+
+        Assert.Same(mine, Sheet.FromDesign(design, functions).GetSettings(0, 0).CharacterRestriction);
+        Assert.Same(SheetCharacters.Digits, Sheet.FromDesign(design).GetSettings(0, 0).CharacterRestriction);
+    }
+
+    [Fact]
+    public void AReversedRangeIsAnError()
+    {
+        Assert.Throws<ArgumentException>(() => new SheetCharacterSet("code", "A-Z0-9_-."));
+        Assert.Throws<ArgumentException>(() => new SheetCharacterMap("z-a", "-"));
+        Assert.True(new SheetCharacterSet("code", "A-Z0-9_.-").Contains('-'));
     }
 
     [Fact]
@@ -162,12 +210,16 @@ public sealed class AddedLanguageTests : BunitContext
         foreach (var name in new[] { "ja-JP", "zh-TW", "th-TH", "ko-KR", "ar-SA" })
         {
             var culture = ReadingRules.Gregorian(TestLanguages.Culture(name));
-            var info = Options.ReadingFor(culture).ForScript() with
-            {
-                Sets = sets.ToDictionary(static x => x.Name, static x => x.Ranges, StringComparer.Ordinal)
-            };
-            root[name] = JsonSerializer.SerializeToNode(info, SheetScriptJsonContext.Default.ReadingInfo);
+            root[name] = JsonSerializer.SerializeToNode(Options.ReadingFor(culture).ForScript(), SheetScriptJsonContext.Default.ReadingInfo);
         }
+
+        var setNodes = new JsonObject();
+        foreach (var set in sets)
+        {
+            setNodes[set.Name] = new JsonArray([.. set.Ranges.Select(static x => (JsonNode?)JsonValue.Create(x))]);
+        }
+
+        root["sets"] = setNodes;
 
         var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
         var path = Path.Combine(TestPaths.Root, "MusselSheet.Tests", "js", "languages.json");

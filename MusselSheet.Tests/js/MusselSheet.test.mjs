@@ -44,6 +44,7 @@ import {
 // What C# produces for each language: AddedLanguageTests checks that this file is up to date
 const LANGUAGES = JSON.parse(readFileSync(new URL('./languages.json', import.meta.url), 'utf8'));
 
+const SETS = LANGUAGES.sets;
 const JA = compileReading(LANGUAGES['ja-JP']);
 const TW = compileReading(LANGUAGES['zh-TW']);
 const TH = compileReading(LANGUAGES['th-TH']);
@@ -175,28 +176,28 @@ test('チェックと選択リスト', () => {
 });
 
 test('文字種の制限', () => {
-    assert.equal(isAllowed('ヤマダ　タロウ・ー', 'katakana', JA), true);
-    assert.equal(isAllowed('ヤマダ太郎', 'katakana', JA), false);
-    assert.equal(isAllowed('やまだ ー', 'hiragana', JA), true);
-    assert.equal(isAllowed('ﾔﾏﾀﾞ', 'halfwidthKatakana', JA), true);
-    assert.equal(isAllowed('ＡＢＣあ', 'fullwidth', JA), true);
-    assert.equal(isAllowed('ABCあ', 'fullwidth', JA), false);
-    assert.equal(isAllowed('ABC ﾔ', 'halfwidth', JA), true);
-    assert.equal(isAllowed('A1b2', 'alphanumeric', JA), true);
-    assert.equal(isAllowed('A1-2', 'alphanumeric', JA), false);
-    assert.equal(isAllowed('0123', 'digits', JA), true);
-    assert.equal(isAllowed('12a', 'digits', JA), false);
+    assert.equal(isAllowed('ヤマダ　タロウ・ー', SETS.katakana), true);
+    assert.equal(isAllowed('ヤマダ太郎', SETS.katakana), false);
+    assert.equal(isAllowed('やまだ ー', SETS.hiragana), true);
+    assert.equal(isAllowed('ﾔﾏﾀﾞ', SETS.halfwidthKatakana), true);
+    assert.equal(isAllowed('ＡＢＣあ', SETS.fullwidth), true);
+    assert.equal(isAllowed('ABCあ', SETS.fullwidth), false);
+    assert.equal(isAllowed('ABC ﾔ', SETS.halfwidth), true);
+    assert.equal(isAllowed('A1b2', SETS.alphanumeric), true);
+    assert.equal(isAllowed('A1-2', SETS.alphanumeric), false);
+    assert.equal(isAllowed('0123', SETS.digits), true);
+    assert.equal(isAllowed('12a', SETS.digits), false);
     assert.equal(isAllowed('何でも', null), true);
 });
 
 test('文字種の制限は文字で入力する種類だけに効く', () => {
-    const kana = rule('text', { restriction: 'katakana', restrictionMessage: 'カタカナで' });
+    const kana = rule('text', { restriction: SETS.katakana, restrictionMessage: 'カタカナで' });
     assert.equal(error(kana, 'ヤマダ タロウ', JA), null);
     assert.equal(checkInput(kana, 'やまだ ﾀﾛｳ', messages, JA).text, 'やまだ ﾀﾛｳ');
     assert.equal(error(kana, 'やまだ', JA), 'カタカナで');
     assert.equal(error(kana, '山田', JA), 'カタカナで');
-    assert.equal(error(rule('text', { restriction: 'digits', restrictionMessage: '数字で' }), '12a', JA), '数字で');
-    assert.equal(error(rule('number', { restriction: 'katakana', restrictionMessage: 'カタカナで' }), '12', JA), null);
+    assert.equal(error(rule('text', { restriction: SETS.digits, restrictionMessage: '数字で' }), '12a', JA), '数字で');
+    assert.equal(error(rule('number', { restriction: SETS.katakana, restrictionMessage: 'カタカナで' }), '12', JA), null);
 });
 
 test('マスク: 区切りは省いても別の区切りで打ってもよく、確定の前にマスクの形に整える', () => {
@@ -612,9 +613,11 @@ test('カレンダーの週の始まりと年月の書き方は、カルチャ�
     assert.deepEqual(monthGrid(2026, 11, 1)[0], { y: 2026, m: 10, d: 26 });
     assert.deepEqual(monthGrid(2026, 11)[0], { y: 2026, m: 11, d: 1 });
     const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    assert.equal(formatYearMonth('yyyy年M月', 2026, 11, names), '2026年11月');
-    assert.equal(formatYearMonth('MMMM yyyy', 2026, 11, names), 'November 2026');
-    assert.equal(formatYearMonth("yyyy'/'MM", 2026, 3, names), '2026/03');
+    const calendar = { monthNames: names, abbreviatedMonthNames: names.map(x => x.slice(0, 3)), era: 'A.D.' };
+    assert.equal(formatYearMonth('yyyy年M月', 2026, 11, calendar), '2026年11月');
+    assert.equal(formatYearMonth('MMMM yyyy', 2026, 11, calendar), 'November 2026');
+    assert.equal(formatYearMonth("yyyy'/'MM", 2026, 3, calendar), '2026/03');
+    assert.equal(formatYearMonth('MMM yyyy g', 2026, 11, calendar), 'Nov 2026 A.D.');
 });
 
 test('数値の小数点・桁区切りと日付の並びは、シートのカルチャに合わせる', () => {
@@ -751,9 +754,9 @@ test('半角は ASCII と Unicode の半角形', () => {
     assert.equal(countBytes('ﾡￂ'), 2);
     assert.equal(countBytes('￨'), 1);
     assert.equal(countBytes('￠'), 2);
-    assert.equal(isAllowed('ﾡￂ', 'halfwidth', JA), true);
-    assert.equal(isAllowed('ﾡￂ', 'fullwidth', JA), false);
-    assert.equal(isAllowed('é', 'fullwidth', JA), true);
+    assert.equal(isAllowed('ﾡￂ', SETS.halfwidth), true);
+    assert.equal(isAllowed('ﾡￂ', SETS.fullwidth), false);
+    assert.equal(isAllowed('é', SETS.fullwidth), true);
 });
 
 test('フィルハンドルをドラッグした先までの範囲', () => {
@@ -773,4 +776,32 @@ test('補正の関数があるセルは型だけを確かめる', () => {
     assert.equal(error(limited, 'abc'), messages.number);
     assert.equal(error(rule('number', { maximum: '1000' }), '2000') !== null, true);
     assert.equal(error(rule('list', { items: items(['A']), corrects: true }), 'a-1'), null);
+});
+
+test('長い空白や点の並びも線形の時間で読む', () => {
+    const spaces = `1${' '.repeat(200000)}2`;
+    const dots = `1${'.'.repeat(200000)}2`;
+    const start = performance.now();
+    assert.equal(normalizeText(` ${spaces} `, 'number'), spaces);
+    assert.equal(matchDate(dots, { y: 2026, m: 11, d: 8 }), null);
+    assert.equal(performance.now() - start < 1000, true);
+    assert.deepEqual(matchDate('1105\n.', { y: 2026, m: 11, d: 8 }, JA), { y: 2026, m: 11, d: 5 });
+});
+
+test('どの文字体系の数字も読み、一覧は幅の違いを問わない', () => {
+    assert.equal(normalizeText('۱۲۳', 'number'), '123');
+    assert.equal(normalizeText('१२३', 'number'), '123');
+    assert.equal(normalizeText('Ｓａｌｅｓ', 'list'), 'Ｓａｌｅｓ');
+    const list = { kind: 'list', items: [{ value: 'Sales', text: 'Sales' }, { value: 'Ｂ２', text: 'Ｂ２' }] };
+    assert.equal(checkInput(list, 'Ｓａｌｅｓ', messages).error, null);
+    assert.equal(checkInput(list, 'b2', messages).error, null);
+    assert.equal(checkInput(list, 'Support', messages).error, messages.list);
+});
+
+test('編集の書式は二重引用符と円記号も文字として扱う', () => {
+    const date = { y: 2025, m: 11, d: 5 };
+    assert.equal(formatDate(date, compileReading({ editDate: 'yyyy"年"M"月"d"日"' })), '2025年11月5日');
+    assert.equal(formatDate(date, compileReading({ editDate: 'yyyy\\/MM\\/dd' })), '2025/11/05');
+    assert.equal(formatDate(date, compileReading({ editDate: "yyyy'/'MM'/'dd" })), '2025/11/05');
+    assert.equal(formatDate(date, compileReading({ ...LANGUAGES['ja-JP'], editDate: 'ggge"年"M"月"d"日"' })), '令和7年11月5日');
 });

@@ -12,6 +12,32 @@ public sealed class CellCallbackTests : BunitContext
     }
 
     [Fact]
+    public async Task TheValidatorAndCommittingGetTheCorrectedText()
+    {
+        string? validated = null;
+        string? committing = null;
+        var sheet = new Sheet(1, 1);
+        sheet.Range("A1").Configure(c =>
+        {
+            c.Corrector = static x => x.Value is string text ? text.ToUpperInvariant() : x.Value;
+            c.Validator = x =>
+            {
+                validated = x.Text;
+                return null;
+            };
+        });
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.CellCommitting, e => committing = e.Text));
+
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 0, "abc", false));
+
+        Assert.Equal("ABC", sheet.GetValue(0, 0));
+        Assert.Equal("ABC", validated);
+        Assert.Equal("ABC", committing);
+    }
+
+    [Fact]
     public async Task CorrectorRunsBeforeTheRules()
     {
         var sheet = new Sheet(3, 1);

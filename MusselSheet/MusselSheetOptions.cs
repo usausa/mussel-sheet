@@ -35,7 +35,7 @@ public sealed class MusselSheetOptions
     {
         for (var current = culture; ; current = current.Parent)
         {
-            if (Cultures.TryGetValue(current.Name, out var settings) && (pick(settings) is { } value))
+            if (Cultures.TryGetValue(current.Name, out var settings) && (pick(settings) is { } value) && (value is not string { Length: 0 }))
             {
                 return value;
             }
@@ -82,7 +82,8 @@ public sealed class MusselSheetOptions
             reading = ReadingRules.From(culture) with
             {
                 Dates = DatesFor(culture),
-                EditDateFormat = Find(culture, static x => x.EditDateFormat) ?? ReadingRules.EditFormat(culture),
+                EditDateFormat = ReadingRules.LiteralSeparators(Find(culture, static x => x.EditDateFormat) ?? ReadingRules.EditFormat(culture)),
+                DateFormat = DateFormatFor(culture),
                 Readings = Find(culture, static x => x.Readings),
                 DateReadings = Find(culture, static x => x.DateReadings)
             };
@@ -95,8 +96,7 @@ public sealed class MusselSheetOptions
     private DateRules AddDates(CultureInfo culture) => dates.GetOrAdd(culture.Name, _ => new DateRules(
         FindList(culture, static x => x.Eras),
         Find(culture, static x => x.EraFirstYear),
-        FindList(culture, static x => x.DateForms),
-        Find(culture, static x => x.EditDateFormat)));
+        FindList(culture, static x => x.DateForms)));
 
     private IList<T> FindList<T>(CultureInfo culture, Func<SheetCulture, IList<T>> pick) =>
         Find(culture, x => pick(x) is { Count: > 0 } list ? list : null) ?? [];

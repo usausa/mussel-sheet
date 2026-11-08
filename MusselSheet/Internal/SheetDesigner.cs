@@ -233,7 +233,7 @@ internal static class SheetDesigner
             InputMessage = rule.InputMessage,
             ValidationMode = Parse<SheetValidationMode>(rule.ValidationMode),
             ImeMode = Parse<ImeMode>(rule.ImeMode),
-            CharacterRestriction = rule.CharacterRestriction is { } set ? BuiltInLanguages.FindSet(set) ?? Table(functions, set).CharacterSet(set) : null,
+            CharacterRestriction = rule.CharacterRestriction is { } set ? functions?.FindCharacterSet(set) ?? BuiltInLanguages.FindSet(set) ?? Table(functions, set).CharacterSet(set) : null,
             Mask = rule.Mask,
             CheckedText = rule.CheckedText,
             UncheckedText = rule.UncheckedText,

@@ -8,8 +8,6 @@ using MusselSheet.Internal;
 // "a-z" to "A-Z". A single character in to takes every character of from.
 public sealed class SheetCharacterMap
 {
-    private const int StackLength = 256;
-
     private readonly Dictionary<string, string> characters = new(StringComparer.Ordinal);
 
     private readonly Dictionary<string, string>.AlternateLookup<ReadOnlySpan<char>> lookup;
@@ -45,7 +43,7 @@ public sealed class SheetCharacterMap
             return text;
         }
 
-        var buffer = new TextBuffer(stackalloc char[StackLength], text.Length * 2);
+        var buffer = new TextBuffer(stackalloc char[TextBuffer.StackLength], text.Length * 2);
         while (true)
         {
             var at = rest.IndexOfAny(firstCharacters);

@@ -2,9 +2,11 @@ namespace MusselSheet.Internal;
 
 using System.Buffers;
 
-// Text built on the stack when it fits, and in a rented array when it does not
+// Text of at most the given capacity, built on the stack when it fits and in a rented array when it does not
 internal ref struct TextBuffer
 {
+    public const int StackLength = 256;
+
     private char[]? rented;
 
     private Span<char> chars;
@@ -24,13 +26,10 @@ internal ref struct TextBuffer
         }
     }
 
+    public void Append(char c) => chars[length++] = c;
+
     public void Append(scoped ReadOnlySpan<char> text)
     {
-        if (length + text.Length > chars.Length)
-        {
-            Grow(text.Length);
-        }
-
         text.CopyTo(chars[length..]);
         length += text.Length;
     }
@@ -45,18 +44,5 @@ internal ref struct TextBuffer
         }
 
         return text;
-    }
-
-    private void Grow(int more)
-    {
-        var next = ArrayPool<char>.Shared.Rent(Math.Max(chars.Length * 2, length + more));
-        chars[..length].CopyTo(next);
-        if (rented is not null)
-        {
-            ArrayPool<char>.Shared.Return(rented);
-        }
-
-        rented = next;
-        chars = next;
     }
 }

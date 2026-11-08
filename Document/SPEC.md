@@ -32,11 +32,11 @@ Cells in one column can differ in kind, rules and style. By default rows are 24 
 |---|---|
 | `Text` | The value formatted by kind and `Format`, then by `Formatter` |
 | `EditText` | `InputText` if there is one, otherwise the edit form of the value |
-| `InputText` | The committed text after normalization. Empty text, a date without a year and a corrected value keep none. `SetValue` removes it |
+| `InputText` | The committed text after normalization. Empty text, a date without a year and a corrected value keep none. `SetValue`, `Sheet.Culture` and `Sheet.Options` remove it |
 
 Edit form by kind: `Number` uses format `G`, without group separators. `Date` uses `SheetCulture.EditDateFormat` if set, otherwise the culture's short date pattern with a 4-digit year, or `yyyy/MM/dd`, `MM/dd/yyyy` or `dd/MM/yyyy` by field order when the pattern has other characters than `y M d / . -`. `Time` uses `HH:mm`, or `HH:mm:ss` when seconds are not 0. `Checkbox` uses `true` or `false`, and nothing without a value. `List` and `AutoComplete` use the item's display text.
 
-> Note: A sheet and its view follow `Sheet.Options`. If it is not set, the view sets the registered options when it shows the sheet, so `Text` and `EditText` are then what the view shows; until then the sheet uses the built-in languages. To read text with no view, pass the registered options: `new Sheet(rows, columns) { Options = options }`.
+> Note: A sheet and its view follow `Sheet.Options`, and a view takes `Defaults` once, from the first sheet it shows. If it is not set, the sheet uses the registered options once a view shows it, so `Text` and `EditText` are then what the view shows; until then the sheet uses the built-in languages. To read text with no view, pass the registered options: `new Sheet(rows, columns) { Options = options }`.
 
 ### Rows and columns
 
@@ -75,7 +75,7 @@ Values are never inherited. Deleting shrinks rules and drops empty ones. These m
 | `Date` | `DateOnly` | See [Dates](#-dates) | `Format`, or `SheetCulture.DateFormat`, or the short date pattern |
 | `Time` | `TimeOnly` | `H:mm` or `H:mm:ss` | `Format`, or `HH:mm` |
 | `Checkbox` | `bool` | Space, or a click on the box. `true` or `false` in any case from a paste or fill | A box, or `CheckedText` and `UncheckedText` |
-| `List` | The item's `Value` | An item's value or display text, in any case. Any text without `Items` | The item's display text |
+| `List` | The item's `Value` | An item's value or display text, in any case and width. Any text without `Items` | The item's display text |
 | `Mask` | `string` | Text that fits `Mask` | The text |
 | `AutoComplete` | `string` | Any text | The text, or the display text of the item with that value |
 | `Custom` | Any | See [Custom cells](#-custom-cells) | `CustomDisplay`, or the value as text, with `Format` if formattable |
@@ -94,17 +94,17 @@ Values are never inherited. Deleting shrinks rules and drops empty ones. These m
 | `MaxByteLength` | Strings | ASCII and Unicode's half-width forms count 1, others 2 |
 | `CharacterRestriction` | `Text`, `Mask`, `AutoComplete` | Every character must be in the `SheetCharacterSet`. `SheetCharacters.Fullwidth` excludes ASCII and Unicode's half-width forms, `Halfwidth` allows only those, `Alphanumeric` and `Digits` are ASCII, and `None` lifts a restriction of an earlier rule. `JapaneseCharacters.Hiragana` and `Katakana` also allow `ー` and spaces, `Katakana` also `・`, and `HalfwidthKatakana` also the ASCII space |
 | `Mask` | `Text`, `Mask` | `9` is a digit, `A` an ASCII letter, `X` either, and `\c` the literal `c`. Other characters are separators the input may omit or replace with an ASCII symbol: for `999-9999`, `1234567` and `123 4567` store `123-4567`. An empty editor shows the mask |
-| `Pattern` | All | A regular expression over the whole text. An invalid pattern is ignored, and a match over 200 ms fails |
+| `Pattern` | All | A regular expression over the whole text, read by the rules of JavaScript on both sides, so `\d` and `\w` are ASCII. A pattern those rules cannot read is ignored, and a match over 200 ms fails |
 
 ## 🔁 From text to value
 
 | # | Step | Detail |
 |---|---|---|
 | 1 | Line breaks | LF with `WrapText`, otherwise removed |
-| 2 | Width | `Number`, `Date`, `Time`, `Checkbox` and masked cells: full-width ASCII becomes half-width, the ideographic space a space, `−` becomes `-`, bidirectional marks are dropped, the language's `Readings` apply, and the text is trimmed. `Date`: `DateReadings` also apply. `List`: trimmed only |
+| 2 | Width | `Number`, `Date`, `Time`, `Checkbox` and masked cells: full-width ASCII becomes half-width, the ideographic space a space, the digits of every script `0` to `9`, `−` becomes `-`, bidirectional marks are dropped, the language's `Readings` apply, and the text is trimmed. `Date`: `DateReadings` also apply. `List`: trimmed only |
 | 3 | Mask | Text that fits takes the mask's form. Other text fails at step 6 |
 | 4 | Conversion | To the kind's value type. Empty text becomes `null`. A failure skips to step 7 |
-| 5 | `Corrector` | Runs also for `null`, and returns the value to use. A corrected string is the text for step 6 |
+| 5 | `Corrector` | Runs also for `null`, and returns the value to use. A corrected string is the text for step 6, and the edit text of a corrected value is the `Text` of steps 8 and 10 |
 | 6 | Rules | The first failure wins: `Required`, `Minimum` and `Maximum`, `MaxLength`, `MaxByteLength`, `CharacterRestriction`, `Mask`, `Pattern` |
 | 7 | `ErrorMessage` | Replaces the message of steps 4 and 6 |
 | 8 | `Validator` | Runs when there is no error. Its message stays as it is |
@@ -260,11 +260,11 @@ Copy works in ready and uses the edit text. Read-only cells can be copied, and c
 
 In the table, `Text`, `Mask`, `AutoComplete` and `List` cells carry `mso-number-format:"\@"`, and line breaks become `<br>`.
 
-> Note: `mso-number-format` makes Excel keep leading zeros. Copying undrawn cells uses the asynchronous clipboard, and if the browser refuses, nothing is copied.
+> Note: `mso-number-format` makes Excel keep leading zeros and a leading `=` as text. Copying undrawn cells uses the asynchronous clipboard, and if the browser refuses, nothing is copied.
 
 > Note: The edit text of a typed cell is the committed text: a cell committed as `1,234` copies as `1,234`.
 
-> Note: Copy does not escape a leading `=`, so Excel may read such text as a formula.
+> Note: Copy does not escape a leading `=`, so without the table Excel may read such text as a formula.
 
 Cut copies and clears at once, without rules. Input-disabled cells are copied but not cleared.
 
@@ -413,7 +413,7 @@ A read-only list gets no new elements. Without `Create` or a parameterless const
 - Saved: row and column counts, default sizes that differ from 24 and 100, culture name, frozen counts, heights, widths and headers set on rows and columns, rules in order, merges, `Label` values, and computations. With `includeValues`, all values.
 - Not saved: error marks, change marks, `InputText`, undo history, parameters of the view, and functions not in `SheetFunctions`, with the computations using them.
 - Functions are saved by name, and `FromDesign` takes them from the same `SheetFunctions`. Names are unique across all function kinds, and adding a name again replaces it.
-- Character sets are saved by `Name`. `FromDesign` finds the built-in ones by itself and takes others from `SheetFunctions` (`AddCharacterSet`).
+- Character sets are saved by `Name`. `FromDesign` takes them from `SheetFunctions` (`AddCharacterSet`) first, then from the built-in ones.
 - A computation saves the name it reads, and the current address when different. A loaded sheet computes at once, and the read-only rule comes from the saved rules.
 - Loading throws `NotSupportedException` for an unknown `version`, `InvalidOperationException` for a function name without `SheetFunctions`, and `KeyNotFoundException` for a name not in it.
 - JSON: camelCase names, no `null` items, LF line breaks. Ranges use addresses, and `*` is the whole sheet. Enums use camelCase names. `characterRestriction` is a name. Limits are text (`0`, `2026-01-01`, `09:00:00`). Values have a type: `text`, `number`, `date`, `time` or `check`. The invariant culture is an empty name.
@@ -438,6 +438,7 @@ Only what Unicode and `CultureInfo` decide.
 | Item | Rule |
 |---|---|
 | Width | Full-width ASCII (U+FF01 to U+FF5E) and the ideographic space read as half-width, and `”’￥` are not among them. Half-width means ASCII and Unicode's half-width forms |
+| Digits | The decimal digits of every script (`۱۲۳`, `๑๒๓`) read as `0` to `9` |
 | Minus | `−` reads as `-`, because many cultures show it |
 | Bidirectional marks | U+200E, U+200F and U+061C are not read, because many cultures show them around signs and separators |
 | Numbers | The culture's decimal and group separators. When the group separator is a space, the plain, no-break and narrow no-break spaces are all accepted. When both separators are the same, there is no grouping |
@@ -462,7 +463,7 @@ Only what Unicode and `CultureInfo` decide.
 
 Calendars with the same months as the Gregorian one are era tables: Japanese eras, Minguo (`new SheetEra("民國", "民", "", new DateOnly(1912, 1, 1))`) and the Buddhist year (`new SheetEra("พ.ศ.", "พ.ศ.", "", new DateOnly(1, 1, 1)) { FirstYear = 544 }`). Calendars with other months, such as the Persian, Hijri and Hebrew ones, are not supported, and such a culture shows Gregorian dates.
 
-Character sets are cell settings, so they work in any culture. `new SheetCharacterSet(name, characters)` takes characters and ranges in one string (`"0-9A-Za-z"`), and `Message` is its message when `SheetTexts.CharacterSets` has none. Only the sets a sheet uses reach the browser. `new SheetCharacterMap(from, to)` pairs characters by position (`"๐-๙"` to `"0-9"`), and a single character in `to` takes every character of `from`.
+Character sets are cell settings, so they work in any culture. `new SheetCharacterSet(name, characters)` takes characters and ranges in one string (`"0-9A-Za-z"`), a reversed range is an error, and `Message` is its message when `SheetTexts.CharacterSets` has none. Only the sets a sheet uses reach the browser. `new SheetCharacterMap(from, to)` pairs characters by position (`"ёЁ"` to `"еЕ"`), and a single character in `to` takes every character of `from`.
 
 ```csharp
 public static class KoreanLanguage

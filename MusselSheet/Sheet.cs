@@ -16,7 +16,7 @@ public sealed partial class Sheet
 
     private bool pendingReset;
 
-    private MusselSheetOptions? options;
+    private MusselSheetOptions? registeredOptions;
 
     public Sheet(int rows, int columns)
     {
@@ -95,10 +95,11 @@ public sealed partial class Sheet
     // Not set, the sheet uses the built-in languages until a view shows it with registered options
     public MusselSheetOptions? Options
     {
-        get => options;
+        get;
         set
         {
-            options = value;
+            field = value;
+            ClearInputTexts();
             Raise(new SheetChangedEventArgs(SheetChangeKind.Reset));
         }
     }
@@ -109,13 +110,14 @@ public sealed partial class Sheet
         set
         {
             field = ReadingRules.Gregorian(value);
+            ClearInputTexts();
             Raise(new SheetChangedEventArgs(SheetChangeKind.Reset));
         }
     }
 
     public SheetRange Cells => new(this, CellRange.All);
 
-    internal MusselSheetOptions EffectiveOptions => options ?? MusselSheetOptions.Default;
+    internal MusselSheetOptions EffectiveOptions => Options ?? registeredOptions ?? MusselSheetOptions.Default;
 
     internal IReadOnlyList<SettingsRule> Rules => settings.Rules;
 
@@ -160,7 +162,7 @@ public sealed partial class Sheet
     internal void NotifyLayout() => Raise(new SheetChangedEventArgs(SheetChangeKind.Layout));
 
     // Not a change of the sheet: a view calls this before it first shows the sheet
-    internal void UseRegisteredOptions(MusselSheetOptions? registered) => options ??= registered;
+    internal void UseRegisteredOptions(MusselSheetOptions? registered) => registeredOptions ??= registered;
 
     private static CultureInfo DefaultCulture() => CultureInfo.CurrentCulture;
 

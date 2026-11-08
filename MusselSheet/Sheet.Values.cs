@@ -52,12 +52,12 @@ public sealed partial class Sheet
     {
         var resolved = GetSettings(row, column);
         var value = GetValue(row, column);
-        var text = CellText.Display(value, resolved, Culture, EffectiveOptions.DateFormatFor(Culture), EffectiveOptions.DatesFor(Culture));
+        var text = CellText.Display(value, resolved, Culture, EffectiveOptions.ReadingFor(Culture));
         return resolved.Formatter?.Invoke(new CellFormatContext(this, new CellAddress(row, column), value, text)) ?? text;
     }
 
     public string GetEditText(int row, int column) =>
-        GetInputText(row, column) ?? CellText.Edit(GetValue(row, column), GetSettings(row, column), Culture, EffectiveOptions.DatesFor(Culture));
+        GetInputText(row, column) ?? CellText.Edit(GetValue(row, column), GetSettings(row, column), Culture, EffectiveOptions.ReadingFor(Culture));
 
     public object?[][] GetValues(CellRange range)
     {
@@ -205,6 +205,28 @@ public sealed partial class Sheet
 
         Store(row, column, value, input, error);
         Raise(new SheetChangedEventArgs(SheetChangeKind.Values, CellRange.Cell(row, column)));
+    }
+
+    private void ClearInputTexts()
+    {
+        foreach (var sheetRow in rowList)
+        {
+            var cells = sheetRow.Cells;
+            for (var c = 0; c < cells.Length; c++)
+            {
+                if (cells[c] is not { Input: not null } data)
+                {
+                    continue;
+                }
+
+                data.Input = null;
+                sheetRow.ContentVersion++;
+                if (data.IsEmpty)
+                {
+                    cells[c] = null;
+                }
+            }
+        }
     }
 
     // The change mark is cleared as soon as the value equals the original, including when the app set it

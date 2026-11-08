@@ -12,7 +12,7 @@
     --mussel-sheet-popup-bg: var(--mussel-tooltip-background, #fff);
     --mussel-sheet-popup-border: var(--mussel-tooltip-border, #d0d7de);
     --mussel-sheet-popup-color: var(--mussel-tooltip-text, #1f2328);
-    --mussel-sheet-font: 13px/1.2 var(--mussel-font-family, "Segoe UI", "Yu Gothic UI", Meiryo, system-ui, sans-serif);
+    --mussel-sheet-font: 13px/1.2 var(--mussel-font-family, "Segoe UI", system-ui, sans-serif);
 
     /* Sheet only */
     --mussel-sheet-cell-bg: #fff;

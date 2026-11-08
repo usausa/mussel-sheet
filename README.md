@@ -63,7 +63,7 @@ builder.Services.AddMusselSheet(static options => options.Cultures["ko"] = new S
 });
 ```
 
-Full-width input is read in number, date and time cells in every language. To convert the text of a text cell, use a `Corrector`, for example with `Usa.Smart.Text.Japanese`.  
+Full-width input and the digits of every script are read in number, date and time cells in every language. To convert the text of a text cell, use a `Corrector`, for example with `Usa.Smart.Text.Japanese`.  
 
 See Languages in the [specification](Document/SPEC.md).  
 

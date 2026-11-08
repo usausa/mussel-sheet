@@ -9,15 +9,17 @@ using System.Text.RegularExpressions;
 // Must stay in step with normalizeText and checkInput in MusselSheet.js: change both together
 internal static partial class CellInput
 {
-    private const int StackLength = 256;
-
-    // What step 2 changes or drops: full-width ASCII, the ideographic space, the minus sign and bidirectional marks
+    // What step 2 changes or drops: full-width ASCII, the ideographic space, the minus sign, bidirectional marks and
+    // the decimal digits of other scripts
     private static readonly SearchValues<char> WidthCharacters = SearchValues.Create(
-        string.Concat(Enumerable.Range(0xFF01, 0xFF5E - 0xFF01 + 1).Select(static x => (char)x)) + "\u3000\u2212\u200E\u200F\u061C");
+        string.Concat(Enumerable.Range(0xFF01, 0xFF5E - 0xFF01 + 1).Select(static x => (char)x)) + "\u3000\u2212\u200E\u200F\u061C" +
+        string.Concat(Enumerable.Range(0x80, 0xFF01 - 0x80).Select(static x => (char)x).Where(char.IsDigit)));
 
-    private static readonly TimeSpan PatternTimeout = TimeSpan.FromMilliseconds(200);
+    internal static readonly TimeSpan PatternTimeout = TimeSpan.FromMilliseconds(200);
 
     private static readonly ConcurrentDictionary<(string Decimal, string Group), Regex> NumberPatterns = new();
+
+    private static readonly ConcurrentDictionary<string, Regex?> Patterns = new(StringComparer.Ordinal);
 
     // JavaScript's whitespace and .NET's together, so both sides trim the same
     private static readonly char[] TrimCharacters =
@@ -113,6 +115,11 @@ internal static partial class CellInput
 
     public static bool IsAllowed(string text, SheetCharacterSet set)
     {
+        if (set == SheetCharacters.None)
+        {
+            return true;
+        }
+
         foreach (var rune in text.EnumerateRunes())
         {
             if (!set.Contains(rune.Value))
@@ -198,7 +205,7 @@ internal static partial class CellInput
         return CheckRange(value, settings, context) ?? CheckLength(value, settings, texts) ?? CheckCharacters(value, settings, texts) ?? CheckPattern(text, settings.Pattern, texts);
     }
 
-    public static string? FormatBound(CellBound? bound, ResolvedCellSettings settings, CultureInfo culture, string dateFormat, DateRules? dates = null)
+    public static string? FormatBound(CellBound? bound, ResolvedCellSettings settings, CultureInfo culture, string dateFormat, DateRules dates)
     {
         if (bound is not { } value)
         {
@@ -207,7 +214,7 @@ internal static partial class CellInput
 
         if (value.Number is { } number)
         {
-            return number.ToString(settings.Kind == CellKind.Number ? settings.Format ?? "G" : "G", culture);
+            return CellText.Format(number, settings.Kind == CellKind.Number ? settings.Format ?? "G" : "G", culture);
         }
 
         if (value.Date is { } date)
@@ -215,7 +222,47 @@ internal static partial class CellInput
             return CellText.FormatDate(date, settings.Kind == CellKind.Date ? settings.Format ?? dateFormat : dateFormat, culture, dates);
         }
 
-        return value.Time?.ToString(settings.Kind == CellKind.Time ? settings.Format ?? "HH:mm" : "HH:mm", culture);
+        return value.Time is { } time ? CellText.Format(time, settings.Kind == CellKind.Time ? settings.Format ?? "HH:mm" : "HH:mm", culture) : null;
+    }
+
+    public static string? ScriptPattern(string? pattern) => string.IsNullOrEmpty(pattern) || (PatternOf(pattern) is null) ? null : pattern;
+
+    private static Regex? PatternOf(string pattern) =>
+        Patterns.GetOrAdd(pattern, static key =>
+        {
+            if (HasCategory(key))
+            {
+                return null;
+            }
+
+            try
+            {
+                return new Regex($"^(?:{key})$(?![\\s\\S])", RegexOptions.ECMAScript, PatternTimeout);
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
+        });
+
+    private static bool HasCategory(string pattern)
+    {
+        for (var i = 0; i + 1 < pattern.Length; i++)
+        {
+            if (pattern[i] != '\\')
+            {
+                continue;
+            }
+
+            if (pattern[i + 1] is 'p' or 'P')
+            {
+                return true;
+            }
+
+            i++;
+        }
+
+        return false;
     }
 
     public static int CountCharacters(string text)
@@ -318,9 +365,13 @@ internal static partial class CellInput
             year = FullYear(year);
         }
 
-        var month = int.Parse(monthText, provider: CultureInfo.InvariantCulture);
-        var day = int.Parse(dayText, provider: CultureInfo.InvariantCulture);
-        if ((year < 1) || month is < 1 or > 12 || (day < 1) || (day > DateTime.DaysInMonth(year, month)))
+        return TryCreateDate(year, int.Parse(monthText, provider: CultureInfo.InvariantCulture), int.Parse(dayText, provider: CultureInfo.InvariantCulture), out date);
+    }
+
+    internal static bool TryCreateDate(int year, int month, int day, out DateOnly date)
+    {
+        date = default;
+        if (year is < 1 or > 9999 || month is < 1 or > 12 || (day < 1) || (day > DateTime.DaysInMonth(year, month)))
         {
             return false;
         }
@@ -335,7 +386,7 @@ internal static partial class CellInput
         year = month = day = default;
 
         // Some cultures write "5. 11. 2025." and "5.11.2025."
-        text = text.Replace(". ", ".", StringComparison.Ordinal).TrimEnd('.');
+        text = text.Replace(". ", ".", StringComparison.Ordinal).TrimEnd('.').Trim(TrimCharacters);
         if (YearFirstDateText().Match(text) is { Success: true } iso)
         {
             year = iso.Groups[1].ValueSpan;
@@ -347,10 +398,15 @@ internal static partial class CellInput
         var full = order == DateOrder.YearMonthDay ? ShortYearFirstDateText().Match(text) : YearLastDateText().Match(text);
         if (full.Success)
         {
-            var (a, b, c) = (full.Groups[1], full.Groups[2], full.Groups[3]);
-            year = (order == DateOrder.YearMonthDay ? a : c).ValueSpan;
-            month = (order == DateOrder.MonthDayYear ? a : b).ValueSpan;
-            day = (order == DateOrder.YearMonthDay ? c : order == DateOrder.MonthDayYear ? b : a).ValueSpan;
+            var (y, m, d) = order switch
+            {
+                DateOrder.YearMonthDay => (full.Groups[1], full.Groups[2], full.Groups[3]),
+                DateOrder.MonthDayYear => (full.Groups[3], full.Groups[1], full.Groups[2]),
+                _ => (full.Groups[3], full.Groups[2], full.Groups[1])
+            };
+            year = y.ValueSpan;
+            month = m.ValueSpan;
+            day = d.ValueSpan;
             return true;
         }
 
@@ -414,9 +470,11 @@ internal static partial class CellInput
             return true;
         }
 
+        var halfwidth = ToHalfwidth(text);
         foreach (var item in items)
         {
-            if (string.Equals(item.Value, text, StringComparison.OrdinalIgnoreCase) || string.Equals(item.DisplayText, text, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(ToHalfwidth(item.Value), halfwidth, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(ToHalfwidth(item.DisplayText), halfwidth, StringComparison.OrdinalIgnoreCase))
             {
                 value = item.Value;
                 return true;
@@ -504,38 +562,33 @@ internal static partial class CellInput
             return text;
         }
 
-        char[]? rented = null;
-        var buffer = text.Length <= StackLength ? stackalloc char[StackLength] : (rented = ArrayPool<char>.Shared.Rent(text.Length));
-        source[..first].CopyTo(buffer);
-        var length = first;
+        var buffer = new TextBuffer(stackalloc char[TextBuffer.StackLength], text.Length);
+        buffer.Append(source[..first]);
         foreach (var ch in source[first..])
         {
             switch (ch)
             {
                 case >= '\uFF01' and <= '\uFF5E':
-                    buffer[length++] = (char)(ch - 0xFEE0);
+                    buffer.Append((char)(ch - 0xFEE0));
                     break;
                 case '\u3000':
-                    buffer[length++] = ' ';
+                    buffer.Append(' ');
                     break;
                 case '\u2212':
-                    buffer[length++] = '-';
+                    buffer.Append('-');
                     break;
                 case '\u200E' or '\u200F' or '\u061C':
                     break;
+                case > '\u007F' when char.IsDigit(ch):
+                    buffer.Append((char)('0' + CharUnicodeInfo.GetDecimalDigitValue(ch)));
+                    break;
                 default:
-                    buffer[length++] = ch;
+                    buffer.Append(ch);
                     break;
             }
         }
 
-        var result = new string(buffer[..length]);
-        if (rented is not null)
-        {
-            ArrayPool<char>.Shared.Return(rented);
-        }
-
-        return result;
+        return buffer.ToStringAndClear();
     }
 
     private static bool FitsMask(char token, char ch) => token switch
@@ -557,15 +610,11 @@ internal static partial class CellInput
 
         try
         {
-            return Regex.IsMatch(text, $"^(?:{pattern})$", RegexOptions.None, PatternTimeout) ? null : texts.Pattern;
+            return PatternOf(pattern) is not { } regex || regex.IsMatch(text) ? null : texts.Pattern;
         }
         catch (RegexMatchTimeoutException)
         {
             return texts.Pattern;
-        }
-        catch (ArgumentException)
-        {
-            return null;
         }
     }
 }

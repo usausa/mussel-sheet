@@ -9,26 +9,21 @@ using System.Text.RegularExpressions;
 // MusselSheet.js in step with this class.
 internal sealed partial class DateRules
 {
-    private static readonly TimeSpan PatternTimeout = TimeSpan.FromMilliseconds(200);
-
     private readonly Regex[] forms;
 
-    public DateRules(IEnumerable<SheetEra> eras, SheetEraFirstYear? firstYear, IEnumerable<string> forms, string? editFormat)
+    public DateRules(IEnumerable<SheetEra> eras, SheetEraFirstYear? firstYear, IEnumerable<string> forms)
     {
         Eras = [.. eras];
         FirstYear = firstYear;
-        EditFormat = editFormat;
         Patterns = [.. forms.Select(Pattern).OfType<string>()];
-        this.forms = [.. Patterns.Select(static x => new Regex(x, RegexOptions.CultureInvariant, PatternTimeout))];
+        this.forms = [.. Patterns.Select(static x => new Regex(x, RegexOptions.CultureInvariant, CellInput.PatternTimeout))];
     }
 
-    public static DateRules None { get; } = new([], null, [], null);
+    public static DateRules None { get; } = new([], null, []);
 
     public IReadOnlyList<SheetEra> Eras { get; }
 
     public SheetEraFirstYear? FirstYear { get; }
-
-    public string? EditFormat { get; }
 
     public IReadOnlyList<string> Patterns { get; }
 
@@ -61,13 +56,13 @@ internal sealed partial class DateRules
 
     // ggg is the era's name, gg its short name, g its initial, ee and e the era year with and without padding. In the
     // era's first year, a single e directly before the language's year unit prints the first-year text.
-    // A date before the first era, or a culture without eras, uses the short date pattern.
-    public string Format(DateOnly date, string format, CultureInfo culture)
+    // A date before the first era, or a culture without eras, uses beforeEras or the short date pattern.
+    public string Format(DateOnly date, string format, CultureInfo culture, string? beforeEras = null)
     {
         var era = EraOf(date);
         if (era is null)
         {
-            return date.ToString(culture.DateTimeFormat.ShortDatePattern, culture);
+            return date.ToString(beforeEras ?? culture.DateTimeFormat.ShortDatePattern, culture);
         }
 
         var names = culture.DateTimeFormat;
@@ -148,15 +143,7 @@ internal sealed partial class DateRules
             year = !yearGroup.Success ? today.Year : yearGroup.Length == 2 ? CellInput.FullYear(Number(yearGroup.ValueSpan)) : Number(yearGroup.ValueSpan);
         }
 
-        var month = Number(match.Groups["month"].ValueSpan);
-        var day = Number(match.Groups["day"].ValueSpan);
-        if (year is < 1 or > 9999 || month is < 1 or > 12 || (day < 1) || (day > DateTime.DaysInMonth(year, month)))
-        {
-            return false;
-        }
-
-        date = new DateOnly(year, month, day);
-        return (era is null) || (date >= era.Start);
+        return CellInput.TryCreateDate(year, Number(match.Groups["month"].ValueSpan), Number(match.Groups["day"].ValueSpan), out date) && ((era is null) || (date >= era.Start));
     }
 
     public bool? OmitsYear(string text) =>
@@ -220,8 +207,9 @@ internal sealed partial class DateRules
     }
 
     // A form uses the symbols of the display format: g gg ggg (era), e ee eee eeee (era year of up to 2, 2, 3 or 4
-    // digits, or the first-year text), yyyy yy (year), M and d. '/' takes any of / . -, a space may be left out, and
-    // quotes hold literal text. A form that cannot be read (no month, a field twice, no era to read) is left out.
+    // digits, or the first-year text), yyyy yy (year), M MM and d dd. '/' takes any of / . -, a space may be left out,
+    // and quotes and a backslash hold literal text. A form that cannot be read (no month, a field twice, no era to read,
+    // a month or day name) is left out.
     private string? Pattern(string form)
     {
         var builder = new StringBuilder("^");
@@ -230,12 +218,19 @@ internal sealed partial class DateRules
         while (i < form.Length)
         {
             var c = form[i];
-            if (c == '\'')
+            if (c is '\'' or '"')
             {
-                var end = form.IndexOf('\'', i + 1);
+                var end = form.IndexOf(c, i + 1);
                 end = end < 0 ? form.Length : end;
                 builder.Append(Literal(form[(i + 1)..end]));
                 i = end + 1;
+                continue;
+            }
+
+            if ((c == '\\') && (i + 1 < form.Length))
+            {
+                builder.Append(Literal(form[(i + 1)..(i + 2)]));
+                i += 2;
                 continue;
             }
 
@@ -283,9 +278,9 @@ internal sealed partial class DateRules
             case 'y':
                 return count == 2 ? "(?<year>[0-9]{2})" : "(?<year>[0-9]{4})";
             case 'M':
-                return "(?<month>[0-9]{1,2})";
+                return count >= 3 ? string.Empty : "(?<month>[0-9]{1,2})";
             case 'd':
-                return "(?<day>[0-9]{1,2})";
+                return count >= 3 ? string.Empty : "(?<day>[0-9]{1,2})";
             case '/':
                 return string.Concat(Enumerable.Repeat("[/.-]", count));
             case ' ':

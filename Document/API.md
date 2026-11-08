@@ -66,8 +66,8 @@ The model of the sheet. Rows and columns are numbered from 0; addresses use the 
 | `RowCount`, `ColumnCount`, `Rows`, `Columns` | Size, and `SheetRow` / `SheetColumn` with `Height` / `Width` and `Header` |
 | `DefaultRowHeight`, `DefaultColumnWidth` | Default sizes in pixels |
 | `FrozenRows`, `FrozenColumns` | Rows from the top and columns from the left that stay visible |
-| `Culture` | How text is shown and read; the current culture by default |
-| `Options` | The `MusselSheetOptions` the sheet and its view follow. If not set, a view showing the sheet sets the registered ones; until then the built-in languages apply |
+| `Culture` | How text is shown and read; the current culture by default. Taken as a read-only copy, so a change to the culture needs it set again |
+| `Options` | The `MusselSheetOptions` the sheet and its view follow. If not set, the registered ones once a view shows the sheet, and the built-in languages until then |
 | `this[row, column]`, `this[address]` | A `Cell` with `Value`, `Text`, `EditText`, `InputText`, `Error`, `Settings` and `GetValue<T>()` |
 | `Range(address)`, `Cells` | A `SheetRange`, or all cells |
 | `Configure(range, settings)`, `GetSettings(row, column)` | Adds cell settings; later settings win item by item |
@@ -182,7 +182,7 @@ var copy = Sheet.FromDesign(SheetDesignJson.Read(json), functions);
 | Name | Description |
 |---|---|
 | `Cultures` | `SheetCulture` by culture name: `Texts`, `DateFormat`, `EditDateFormat`, `FirstDayOfWeek`, `Eras`, `EraFirstYear`, `DateForms`, `Readings` and `DateReadings`. The empty name and `ja` are built in; change their texts with `with` |
-| `Defaults` | `MusselSheetDefaults`: default values of the parameters of the view, under the same names |
+| `Defaults` | `MusselSheetDefaults`: default values of the parameters of the view, under the same names. A view takes them once, from the first sheet it shows |
 | `ReadyKeys`, `EditingKeys` | A key such as `Ctrl+K` to a `SheetCommands` value. `null` leaves the key to the browser, and unlisted keys keep their action |
 | `Menu` | `Hidden` commands and additional `Items` (`SheetMenuItem`) of the context menu |
 

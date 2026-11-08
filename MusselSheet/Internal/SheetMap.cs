@@ -32,19 +32,28 @@ internal sealed record ReadingInfo(
     IReadOnlyDictionary<string, string>? DateReadings,
     IReadOnlyList<EraInfo> Eras,
     string? EraFirstYear,
-    string? EraFirstYearUnit)
-{
-    public IReadOnlyDictionary<string, IReadOnlyList<int>> Sets { get; init; } = new Dictionary<string, IReadOnlyList<int>>();
-}
+    string? EraFirstYearUnit);
 
 internal sealed record EraInfo(string Name, string ShortName, string Initial, string Start, int FirstYear);
 
-internal sealed record CalendarInfo(IReadOnlyList<string> DayNames, int FirstDay, string YearMonth, IReadOnlyList<string> MonthNames)
+internal sealed record CalendarInfo(
+    IReadOnlyList<string> DayNames,
+    int FirstDay,
+    string YearMonth,
+    IReadOnlyList<string> MonthNames,
+    IReadOnlyList<string> AbbreviatedMonthNames,
+    string Era)
 {
     public static CalendarInfo From(CultureInfo culture, DayOfWeek firstDay)
     {
         var format = culture.DateTimeFormat;
-        return new CalendarInfo([.. format.AbbreviatedDayNames], (int)firstDay, format.YearMonthPattern, [.. format.MonthGenitiveNames.Take(12)]);
+        return new CalendarInfo(
+            [.. format.AbbreviatedDayNames],
+            (int)firstDay,
+            format.YearMonthPattern,
+            [.. format.MonthNames.Take(12)],
+            [.. format.AbbreviatedMonthNames.Take(12)],
+            format.GetEraName(1));
     }
 }
 
@@ -64,7 +73,7 @@ internal sealed record InputRule(
     string? Message,
     string? Ime,
     string? Mask,
-    string? Restriction,
+    IReadOnlyList<int>? Restriction,
     string? RestrictionMessage,
     bool Suggest,
     bool Multiline,
@@ -84,7 +93,6 @@ internal static class SheetMapBuilder
         context ??= new InputContext(sheet.Culture, DateOnly.FromDateTime(DateTime.Today), SheetTexts.English, sheet.Culture.DateTimeFormat.ShortDatePattern, ReadingRules.From(sheet.Culture));
         calendar ??= CalendarInfo.From(sheet.Culture, sheet.Culture.DateTimeFormat.FirstDayOfWeek);
         var rules = new List<InputRule>();
-        var sets = new Dictionary<string, IReadOnlyList<int>>(StringComparer.Ordinal);
         var ruleIndex = new Dictionary<ResolvedCellSettings, int>(ReferenceEqualityComparer.Instance);
         var patterns = new List<IReadOnlyList<int>>();
         var patternIndex = new Dictionary<int[], int>(PatternComparer.Instance);
@@ -105,10 +113,6 @@ internal static class SheetMapBuilder
                     index = rules.Count;
                     rules.Add(CreateRule(settings, defaultPolicy, context));
                     ruleIndex.Add(settings, index);
-                    if (settings.CharacterRestriction != SheetCharacters.None)
-                    {
-                        sets[settings.CharacterRestriction.Name] = settings.CharacterRestriction.Ranges;
-                    }
                 }
 
                 pattern[c] = index;
@@ -148,7 +152,7 @@ internal static class SheetMapBuilder
             context.ForScript(),
             [.. sheet.MergeAreas.SelectMany(x => new[] { x.Top, x.Left, x.Bottom, x.Right })],
             calendar,
-            context.Reading.ForScript() with { Sets = sets });
+            context.Reading.ForScript());
     }
 
     internal static List<int> RowBounds(Sheet sheet)
@@ -197,12 +201,12 @@ internal static class SheetMapBuilder
         CellInput.FormatBound(settings.Maximum, settings, context.Culture, context.DateFormat, context.Dates),
         settings.MaxLength,
         settings.MaxByteLength,
-        settings.Pattern,
+        CellInput.ScriptPattern(settings.Pattern),
         (settings.Kind is CellKind.List or CellKind.AutoComplete) && (settings.Items.Count > 0) ? [.. settings.Items.Select(x => new ScriptItem(x.Value, x.DisplayText))] : null,
         settings.ErrorMessage,
         settings.ImeMode == ImeMode.Off ? "half" : null,
         CellInput.ActiveMask(settings),
-        settings.CharacterRestriction == SheetCharacters.None ? null : settings.CharacterRestriction.Name,
+        settings.CharacterRestriction == SheetCharacters.None ? null : settings.CharacterRestriction.Ranges,
         settings.CharacterRestriction == SheetCharacters.None ? null : CellInput.CharacterMessage(settings.CharacterRestriction, context.Texts),
         (settings.Kind == CellKind.AutoComplete) && (settings.SuggestionProvider is not null),
         settings.WrapText,

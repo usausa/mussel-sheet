@@ -9,9 +9,6 @@ using MusselSheet.Internal;
 
 public sealed partial class MusselSheetView
 {
-    private static string OptionsSignature(ScriptOptionsData options) =>
-        string.Join('|', options.EnterDirection, options.ReadyEnter, options.TabReturn, options.RowEnd, options.SkipReadOnly, options.LastRowEnter, options.CommitMode, options.Autosize, options.CustomEditor, options.AllowInsertRows, options.AllowDeleteRows, options.AllowInsertColumns, options.AllowDeleteColumns, options.AllowFill, options.FrozenRows, options.FrozenColumns);
-
     private string MapSignature() =>
         string.Create(CultureInfo.InvariantCulture, $"{RuntimeHelpers.GetHashCode(Sheet)}|{Sheet.StructureVersion}|{HeaderHeight}|{HeaderWidth}|{ValidationMode}");
 
@@ -85,11 +82,11 @@ public sealed partial class MusselSheetView
     {
         module ??= await Runtime.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(true);
         self ??= DotNetObjectReference.Create(new SheetScriptBridge(this));
-        var options = ScriptOptions();
+        var options = SheetScriptJson.ToElement(ScriptOptions());
         sentMap = MapSignature();
-        sentOptions = OptionsSignature(options);
+        sentOptions = options.GetRawText();
         sentThresholds = null;
-        controller = await module.InvokeAsync<IJSObjectReference>("attach", root, self, SheetScriptJson.ToElement(options), SheetScriptJson.ToElement(BuildMap())).ConfigureAwait(true);
+        controller = await module.InvokeAsync<IJSObjectReference>("attach", root, self, options, SheetScriptJson.ToElement(BuildMap())).ConfigureAwait(true);
         clientOffset = await controller.InvokeAsync<int>("timezoneOffset").ConfigureAwait(true);
     }
 

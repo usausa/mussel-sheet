@@ -2,11 +2,13 @@ namespace MusselSheet;
 
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.RegularExpressions;
 
 using MusselSheet.Internal;
 
 // The engine knows no language: only the data under Languages does, and an app's language is the same kind of data
-public sealed class LanguageNeutralityTests
+public sealed partial class LanguageNeutralityTests
 {
     [Fact]
     public void OnlyTheLanguagesFolderHoldsALanguage()
@@ -23,12 +25,59 @@ public sealed class LanguageNeutralityTests
 
             if (Path.GetExtension(file) is ".cs" or ".razor" or ".js" or ".css" or ".csproj")
             {
-                var text = File.ReadAllText(file);
-                found.AddRange(text.EnumerateRunes().Where(static x => IsLanguageLetter(x.Value)).Select(x => $"{relative}: {x}"));
+                var text = Escape().Replace(File.ReadAllText(file), static x => ((char)Convert.ToInt32(x.Groups[1].Value, 16)).ToString());
+                found.AddRange(text.EnumerateRunes().Where(static x => IsLanguageLetter(x)).Select(x => $"{relative}: {x} U+{x.Value:X4}"));
             }
         }
 
         Assert.Empty(found);
+    }
+
+    [Fact]
+    public void TheScriptKnowsTheDigitsDotNetKnows()
+    {
+        var script = File.ReadAllText(Path.Combine(TestPaths.Root, "MusselSheet", "wwwroot", "MusselSheet.js"));
+        var list = DigitZeros().Match(script).Groups[1].Value;
+        var zeros = list.Split(',', StringSplitOptions.TrimEntries).Select(static x => Convert.ToInt32(x, 16));
+        var expected = Enumerable.Range(0x80, 0xFF01 - 0x80).Where(static x => char.IsDigit((char)x) && (CharUnicodeInfo.GetDecimalDigitValue((char)x) == 0));
+
+        Assert.Equal(expected, zeros);
+    }
+
+    [Theory]
+    [InlineData("en-US", CellKind.Number, "۱۲۳", "123")]
+    [InlineData("fa-IR", CellKind.Number, "۱۲۳", "123")]
+    [InlineData("hi-IN", CellKind.Number, "१२३", "123")]
+    [InlineData("en-US", CellKind.Date, "٢٠٢٥/١١/٠٥", "2025-11-05")]
+    [InlineData("th-TH", CellKind.Time, "๑๒:๓๐", "12:30")]
+    public void TheDigitsOfEveryScriptAreRead(string name, CellKind kind, string text, string expected)
+    {
+        var culture = ReadingRules.Gregorian(CultureInfo.GetCultureInfo(name));
+        var reading = new MusselSheetOptions().ReadingFor(culture);
+        var context = new InputContext(culture, new DateOnly(2026, 11, 8), SheetTexts.English, reading.DateFormat, reading);
+        var settings = new ResolvedCellSettings { Kind = kind };
+
+        Assert.Null(CellInput.Check(CellInput.Normalize(text, settings, reading), settings, context, out var value, out _));
+        Assert.Equal(expected, value switch
+        {
+            DateOnly date => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            TimeOnly time => time.ToString("HH:mm", CultureInfo.InvariantCulture),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture)
+        });
+    }
+
+    [Fact]
+    public void AListMatchesItsItemsWhateverTheWidth()
+    {
+        var culture = CultureInfo.GetCultureInfo("ja-JP");
+        var reading = new MusselSheetOptions().ReadingFor(culture);
+        var context = new InputContext(culture, new DateOnly(2026, 11, 8), SheetTexts.English, reading.DateFormat, reading);
+        var settings = new ResolvedCellSettings { Kind = CellKind.List, Items = [new CellListItem("Sales", "Sales"), new CellListItem("Ｂ２", "Ｂ２")] };
+
+        Assert.Null(CellInput.Check("Ｓａｌｅｓ", settings, context, out var sales, out _));
+        Assert.Null(CellInput.Check("b2", settings, context, out var b2, out _));
+        Assert.Equal("Sales", sales);
+        Assert.Equal("Ｂ２", b2);
     }
 
     [Fact]
@@ -96,13 +145,20 @@ public sealed class LanguageNeutralityTests
         Assert.False(CellInput.TryConvert(CellInput.Normalize(text, CellKind.Date, reading), new ResolvedCellSettings { Kind = CellKind.Date }, context, out _, out _));
     }
 
-    private static bool IsLanguageLetter(int code) => code switch
+    private static bool IsLanguageLetter(Rune rune) => rune.Value switch
     {
+        0x3000 or (>= 0xFF00 and <= 0xFFEF) => false,
         >= 0x0E00 and <= 0x0E7F => true,
         >= 0x3000 and <= 0x30FF => true,
         >= 0x3400 and <= 0x9FFF => true,
         >= 0xAC00 and <= 0xD7A3 => true,
-        >= 0xFF00 and <= 0xFFEF => true,
+        > 0x7F => Rune.IsLetter(rune),
         _ => false
     };
+
+    [GeneratedRegex(@"\\u([0-9A-Fa-f]{4})")]
+    private static partial Regex Escape();
+
+    [GeneratedRegex(@"NATIVE_DIGIT_ZEROS = \[([^\]]*)\]")]
+    private static partial Regex DigitZeros();
 }

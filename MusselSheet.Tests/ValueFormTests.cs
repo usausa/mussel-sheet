@@ -29,6 +29,43 @@ public sealed class ValueFormTests
         Assert.Equal("Not a time", sheet.GetText(3, 1));
     }
 
+    [Theory]
+    [InlineData(CellKind.Date, "yyyy/MM/dd HH:mm", "2025/11/05 09:30")]
+    [InlineData(CellKind.Date, "G", "2025/11/05 9:30:00")]
+    [InlineData(CellKind.Time, "yyyy HH:mm", "9:30")]
+    [InlineData(CellKind.Number, "Q9999999999", "1.5")]
+    public void AFormatTheValueCannotTakeFallsBackToItsGeneralForm(CellKind kind, string format, string expected)
+    {
+        var sheet = new Sheet(1, 1) { Culture = CultureInfo.GetCultureInfo("ja-JP") };
+        sheet.Range("A1").Configure(c =>
+        {
+            c.Kind = kind;
+            c.Format = format;
+            if (kind == CellKind.Number)
+            {
+                c.Minimum = 0m;
+            }
+        });
+        sheet.SetValue(0, 0, kind == CellKind.Number ? 1.5m : new DateTime(2025, 11, 5, 9, 30, 0, DateTimeKind.Unspecified));
+
+        Assert.Equal(expected, sheet.GetText(0, 0));
+        Assert.NotNull(SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay));
+    }
+
+    [Fact]
+    public void ADateOnlyWithATimeFormatShowsItsShortDate()
+    {
+        var sheet = new Sheet(1, 1) { Culture = CultureInfo.GetCultureInfo("ja-JP") };
+        sheet.Range("A1").Configure(static c =>
+        {
+            c.Kind = CellKind.Date;
+            c.Format = "yyyy/MM/dd HH:mm";
+        });
+        sheet.SetValue(0, 0, new DateOnly(2025, 11, 5));
+
+        Assert.Equal("2025/11/05", sheet.GetText(0, 0));
+    }
+
     [Fact]
     public void ValuesAreConvertedBetweenDateAndTimeTypes()
     {

@@ -1,6 +1,7 @@
 namespace MusselSheet.Internal;
 
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 internal enum DateOrder
@@ -20,12 +21,57 @@ internal sealed partial record ReadingRules(string DecimalSeparator, string Grou
 
     public SheetCharacterMap? DateReadings { get; init; }
 
+    public string DateFormat { get; init; } = string.Empty;
+
     // A culture whose two number separators are the same has no grouping that could be told from the decimal point
     public static ReadingRules From(CultureInfo culture)
     {
         var numbers = culture.NumberFormat;
         var group = numbers.NumberGroupSeparator == numbers.NumberDecimalSeparator ? string.Empty : numbers.NumberGroupSeparator;
-        return new(numbers.NumberDecimalSeparator, group, culture.DateTimeFormat.TimeSeparator, OrderOf(culture), EditFormat(culture));
+        return new(numbers.NumberDecimalSeparator, group, culture.DateTimeFormat.TimeSeparator, OrderOf(culture), LiteralSeparators(EditFormat(culture)))
+        {
+            DateFormat = culture.DateTimeFormat.ShortDatePattern
+        };
+    }
+
+    // The edit text is read back, so its '/' stays '/' even where the culture's date separator is something else
+    public static string LiteralSeparators(string format)
+    {
+        if (!format.Contains('/', StringComparison.Ordinal))
+        {
+            return format;
+        }
+
+        var builder = new StringBuilder(format.Length + 8);
+        var quote = '\0';
+        for (var i = 0; i < format.Length; i++)
+        {
+            var c = format[i];
+            if (quote != '\0')
+            {
+                quote = c == quote ? '\0' : quote;
+                builder.Append(c);
+            }
+            else if (c is '\'' or '"')
+            {
+                quote = c;
+                builder.Append(c);
+            }
+            else if ((c == '\\') && (i + 1 < format.Length))
+            {
+                builder.Append(c).Append(format[++i]);
+            }
+            else if (c == '/')
+            {
+                builder.Append("'/'");
+            }
+            else
+            {
+                builder.Append(c);
+            }
+        }
+
+        return builder.ToString();
     }
 
     // A value is always a Gregorian date, whatever calendar the culture has by default
@@ -33,13 +79,36 @@ internal sealed partial record ReadingRules(string DecimalSeparator, string Grou
     {
         if (culture.DateTimeFormat.Calendar is GregorianCalendar)
         {
-            return culture;
+            return CultureInfo.ReadOnly(culture);
         }
 
+        var own = culture.DateTimeFormat;
+        var reference = (CultureInfo)CultureInfo.GetCultureInfo(culture.Name).Clone();
+        reference.DateTimeFormat.Calendar = own.Calendar;
+        var standard = reference.DateTimeFormat;
         var clone = (CultureInfo)culture.Clone();
-        clone.DateTimeFormat.Calendar = new GregorianCalendar();
-        return clone;
+        var format = clone.DateTimeFormat;
+        format.Calendar = new GregorianCalendar();
+        format.ShortDatePattern = Kept(own.ShortDatePattern, standard.ShortDatePattern, format.ShortDatePattern);
+        format.LongDatePattern = Kept(own.LongDatePattern, standard.LongDatePattern, format.LongDatePattern);
+        format.YearMonthPattern = Kept(own.YearMonthPattern, standard.YearMonthPattern, format.YearMonthPattern);
+        format.MonthDayPattern = Kept(own.MonthDayPattern, standard.MonthDayPattern, format.MonthDayPattern);
+        format.DateSeparator = Kept(own.DateSeparator, standard.DateSeparator, format.DateSeparator);
+        format.DayNames = Kept(own.DayNames, standard.DayNames, format.DayNames);
+        format.AbbreviatedDayNames = Kept(own.AbbreviatedDayNames, standard.AbbreviatedDayNames, format.AbbreviatedDayNames);
+        format.ShortestDayNames = Kept(own.ShortestDayNames, standard.ShortestDayNames, format.ShortestDayNames);
+        format.MonthNames = Kept(own.MonthNames, standard.MonthNames, format.MonthNames);
+        format.AbbreviatedMonthNames = Kept(own.AbbreviatedMonthNames, standard.AbbreviatedMonthNames, format.AbbreviatedMonthNames);
+        format.MonthGenitiveNames = Kept(own.MonthGenitiveNames, standard.MonthGenitiveNames, format.MonthGenitiveNames);
+        format.AbbreviatedMonthGenitiveNames = Kept(own.AbbreviatedMonthGenitiveNames, standard.AbbreviatedMonthGenitiveNames, format.AbbreviatedMonthGenitiveNames);
+        return CultureInfo.ReadOnly(clone);
     }
+
+    private static string Kept(string own, string standard, string pinned) =>
+        string.Equals(own, standard, StringComparison.Ordinal) ? pinned : own;
+
+    private static string[] Kept(string[] own, string[] standard, string[] pinned) =>
+        own.AsSpan().SequenceEqual(standard) ? pinned : own;
 
     public static DateOrder OrderOf(CultureInfo culture)
     {

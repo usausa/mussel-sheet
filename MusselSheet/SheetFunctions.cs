@@ -39,6 +39,8 @@ public sealed class SheetFunctions
     public SheetCharacterSet CharacterSet(string name) =>
         characterSets.TryGetValue(name, out var set) ? set : throw new KeyNotFoundException($"The character set '{name}' is not registered.");
 
+    internal SheetCharacterSet? FindCharacterSet(string name) => characterSets.GetValueOrDefault(name);
+
     internal string? NameOf(Delegate? function) => (function is not null) && names.TryGetValue(function, out var name) ? name : null;
 
     internal T Get<T>(string name)

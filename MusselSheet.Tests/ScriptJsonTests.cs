@@ -27,10 +27,10 @@ public sealed class ScriptJsonTests
         Assert.Equal("Sales", rule.GetProperty("items")[0].GetProperty("text").GetString());
         Assert.True(rule.GetProperty("font").GetProperty("bold").GetBoolean());
 
-        string[] reading = ["decimal", "group", "time", "order", "editDate", "forms", "readings", "dateReadings", "eras", "eraFirstYear", "eraFirstYearUnit", "sets"];
+        string[] reading = ["decimal", "group", "time", "order", "editDate", "forms", "readings", "dateReadings", "eras", "eraFirstYear", "eraFirstYearUnit"];
         Assert.Equal(reading, map.GetProperty("reading").EnumerateObject().Select(static x => x.Name));
 
-        string[] calendar = ["dayNames", "firstDay", "yearMonth", "monthNames"];
+        string[] calendar = ["dayNames", "firstDay", "yearMonth", "monthNames", "abbreviatedMonthNames", "era"];
         Assert.Equal(calendar, map.GetProperty("calendar").EnumerateObject().Select(static x => x.Name));
     }
 
@@ -49,8 +49,7 @@ public sealed class ScriptJsonTests
 
         var map = SheetScriptJson.ToElement(SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay));
 
-        Assert.Contains(map.GetProperty("rules").EnumerateArray(), x => x.GetProperty("restriction").GetString() == name);
-        Assert.True(map.GetProperty("reading").GetProperty("sets").GetProperty(name).GetArrayLength() >= 2);
+        Assert.Contains(map.GetProperty("rules").EnumerateArray(), x => (x.GetProperty("restriction").ValueKind == JsonValueKind.Array) && (x.GetProperty("restriction").GetArrayLength() >= 2));
     }
 
     [Fact]

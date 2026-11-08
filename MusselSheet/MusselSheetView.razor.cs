@@ -248,11 +248,9 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     internal SheetTexts Texts => Options.TextsFor(CultureInfo.CurrentUICulture);
 
-    internal string DateFormat => Options.DateFormatFor(Sheet.Culture);
+    internal ReadingRules Reading => Options.ReadingFor(Sheet.Culture);
 
-    internal InputContext InputContext => new(Sheet.Culture, Today, Texts, DateFormat, Options.ReadingFor(Sheet.Culture));
-
-    internal DateRules Dates => Options.DatesFor(Sheet.Culture);
+    internal InputContext InputContext => new(Sheet.Culture, Today, Texts, Reading.DateFormat, Reading);
 
     private CommitResult Rejected => new(false, Texts.NotEditable, false);
 
@@ -456,12 +454,12 @@ public sealed partial class MusselSheetView : IAsyncDisposable
             }
 
             await SyncMapAsync().ConfigureAwait(true);
-            var options = ScriptOptions();
-            var optionsText = OptionsSignature(options);
+            var options = SheetScriptJson.ToElement(ScriptOptions());
+            var optionsText = options.GetRawText();
             if (!string.Equals(sentOptions, optionsText, StringComparison.Ordinal))
             {
                 sentOptions = optionsText;
-                await controller.InvokeVoidAsync("setOptions", SheetScriptJson.ToElement(options)).ConfigureAwait(true);
+                await controller.InvokeVoidAsync("setOptions", options).ConfigureAwait(true);
             }
 
             var thresholds = Thresholds();

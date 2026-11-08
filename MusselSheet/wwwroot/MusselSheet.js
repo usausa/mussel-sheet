@@ -82,6 +82,8 @@ const DEFAULT_CALENDAR = {
     firstDay: 0,
     yearMonth: 'MMMM yyyy',
     monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    abbreviatedMonthNames: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    era: 'A.D.',
 };
 
 let noteSequence = 0;
@@ -120,7 +122,6 @@ export function compileReading(info = {}) {
         eras: [],
         eraFirstYear: null,
         eraFirstYearUnit: null,
-        sets: {},
         ...info,
     };
     reading.compiledForms = reading.forms.map(x => new RegExp(x));
@@ -172,7 +173,30 @@ export function normalizeLines(text, multiline) {
 
 // JavaScript's whitespace and .NET's together, the same as CellInput.TrimCharacters in C#
 function trimText(text) {
-    return text.replace(/^[\s\x85]+|[\s\x85]+$/g, '');
+    let start = 0;
+    let end = text.length;
+    while (start < end && isTrimmed(text[start])) {
+        start++;
+    }
+
+    while (end > start && isTrimmed(text[end - 1])) {
+        end--;
+    }
+
+    return start === 0 && end === text.length ? text : text.slice(start, end);
+}
+
+function isTrimmed(ch) {
+    return ch === '\x85' || /\s/.test(ch);
+}
+
+function trimDots(text) {
+    let end = text.length;
+    while (end > 0 && text[end - 1] === '.') {
+        end--;
+    }
+
+    return text.slice(0, end);
 }
 
 // What every language shares: full-width ASCII and the ideographic space become half-width, the minus sign that
@@ -180,6 +204,10 @@ function trimText(text) {
 function normalizeWidth(text, reading) {
     return trimText(convertText(toHalfwidth(text), reading.readingTable));
 }
+
+const NATIVE_DIGIT_ZEROS = [0x0660, 0x06F0, 0x07C0, 0x0966, 0x09E6, 0x0A66, 0x0AE6, 0x0B66, 0x0BE6, 0x0C66, 0x0CE6, 0x0D66, 0x0DE6, 0x0E50, 0x0ED0, 0x0F20, 0x1040, 0x1090, 0x17E0, 0x1810, 0x1946, 0x19D0, 0x1A80, 0x1A90, 0x1B50, 0x1BB0, 0x1C40, 0x1C50, 0xA620, 0xA8D0, 0xA900, 0xA9D0, 0xA9F0, 0xAA50, 0xABF0];
+
+const NATIVE_DIGITS = new Map(NATIVE_DIGIT_ZEROS.flatMap(zero => Array.from({ length: 10 }, (_, digit) => [zero + digit, String(digit)])));
 
 function toHalfwidth(text) {
     let out = '';
@@ -195,6 +223,8 @@ function toHalfwidth(text) {
             value = '-';
         } else if (code === 0x200E || code === 0x200F || code === 0x061C) {
             value = '';
+        } else if (NATIVE_DIGITS.has(code)) {
+            value = NATIVE_DIGITS.get(code);
         }
 
         if (value !== null) {
@@ -279,8 +309,7 @@ function isSeparator(ch) {
     return ch.charCodeAt(0) <= 0x7F && !isAsciiAlnum(ch);
 }
 
-export function isAllowed(text, restriction, reading = DEFAULT_READING) {
-    const ranges = restriction ? reading.sets[restriction] : null;
+export function isAllowed(text, ranges) {
     if (!ranges) {
         return true;
     }
@@ -349,11 +378,13 @@ function findError(rule, text, messages, reading) {
         }
         case 'check':
             return /^(true|false)$/i.test(text) ? null : messages.check;
-        case 'list':
-            if (!rule.corrects && rule.items?.length && !rule.items.some(x => sameText(x.value, text) || sameText(x.text, text))) {
+        case 'list': {
+            const halfwidth = toHalfwidth(text);
+            if (!rule.corrects && rule.items?.length && !rule.items.some(x => sameText(toHalfwidth(x.value), halfwidth) || sameText(toHalfwidth(x.text), halfwidth))) {
                 return messages.list;
             }
             break;
+        }
         default:
             break;
     }
@@ -364,7 +395,7 @@ function findError(rule, text, messages, reading) {
 
     return checkRange(rule, value, messages)
         ?? checkLength(rule, text, messages)
-        ?? checkCharacters(rule, text, messages, reading)
+        ?? checkCharacters(rule, text, messages)
         ?? checkPattern(rule, text, messages);
 }
 
@@ -417,12 +448,12 @@ function checkLength(rule, text, messages) {
     return null;
 }
 
-function checkCharacters(rule, text, messages, reading) {
+function checkCharacters(rule, text, messages) {
     if (!STRING_KINDS.has(rule.kind)) {
         return null;
     }
 
-    if (!isAllowed(text, rule.restriction, reading)) {
+    if (!isAllowed(text, rule.restriction)) {
         return rule.restrictionMessage;
     }
 
@@ -545,7 +576,7 @@ export function matchDate(text, base, reading = DEFAULT_READING) {
     }
 
     // Some cultures write "5. 11. 2025." and "5.11.2025."
-    const parts = splitDate(text.replace(/\. /g, '.').replace(/\.+$/, ''), reading);
+    const parts = splitDate(trimText(trimDots(text.replace(/\. /g, '.'))), reading);
     if (!parts) {
         return null;
     }
@@ -651,11 +682,14 @@ function fullYear(year) {
 // The symbols of C# DateRules.Format that a date can be read back from
 export function formatDate(date, reading = DEFAULT_READING) {
     const era = eraOf(date, reading);
-    const format = era || !/[ge]/.test(reading.editDate.replace(/'[^']*'/g, '')) ? reading.editDate : 'yyyy/MM/dd';
-    return format.replace(/'[^']*'|g+|e+|y+|M+|d+/g, (token, at) => {
+    const format = era || !/[ge]/.test(reading.editDate.replace(/'[^']*'|"[^"]*"|\\./g, '')) ? reading.editDate : 'yyyy/MM/dd';
+    return format.replace(/'[^']*'|"[^"]*"|\\.|g+|e+|y+|M+|d+/g, (token, at) => {
         switch (token[0]) {
             case "'":
+            case '"':
                 return token.slice(1, -1);
+            case '\\':
+                return token[1];
             case 'g':
                 return token.length >= 3 ? era.name : token.length === 2 ? era.shortName : era.initial;
             case 'e': {
@@ -701,23 +735,23 @@ export function monthGrid(y, m, firstDay = 0) {
     return Array.from({ length: 42 }, (_, i) => addDays(start, i));
 }
 
-export function formatYearMonth(pattern, y, m, monthNames) {
-    return pattern.replace(/'([^']*)'|yyyy|yy|MMMM|MMM|MM|M/g, (token, quoted) => {
+export function formatYearMonth(pattern, y, m, calendar) {
+    return pattern.replace(/'([^']*)'|yyyy|yy|MMMM|MMM|MM|M|g+/g, (token, quoted) => {
         switch (token) {
             case 'yyyy':
                 return String(y);
             case 'yy':
                 return pad2(y % 100);
             case 'MMMM':
-                return monthNames[m - 1] ?? String(m);
+                return calendar.monthNames?.[m - 1] ?? String(m);
             case 'MMM':
-                return (monthNames[m - 1] ?? String(m)).slice(0, 3);
+                return calendar.abbreviatedMonthNames?.[m - 1] ?? String(m);
             case 'MM':
                 return pad2(m);
             case 'M':
                 return String(m);
             default:
-                return quoted;
+                return token[0] === 'g' ? calendar.era ?? '' : quoted;
         }
     });
 }
@@ -3392,7 +3426,7 @@ class SheetController {
         const title = createElement('span', 'mussel-sheet-cal-title');
         const info = this.map.calendar;
         const messages = this.map.messages;
-        title.textContent = formatYearMonth(info.yearMonth, y, m, info.monthNames);
+        title.textContent = formatYearMonth(info.yearMonth, y, m, info);
         head.append(createButton('mussel-sheet-cal-prev', '‹', messages.calendarPrevious), title, createButton('mussel-sheet-cal-next', '›', messages.calendarNext));
 
         const grid = createElement('div', 'mussel-sheet-cal-grid');

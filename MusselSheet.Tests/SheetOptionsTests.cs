@@ -1,5 +1,7 @@
 namespace MusselSheet;
 
+using System.Text.Json;
+
 using Microsoft.Extensions.DependencyInjection;
 
 using MusselSheet.Internal;
@@ -73,7 +75,8 @@ public sealed class SheetOptionsTests : BunitContext
 
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
 
-        Assert.Same(Services.GetRequiredService<MusselSheetOptions>(), sheet.Options);
+        Assert.Null(sheet.Options);
+        Assert.Same(Services.GetRequiredService<MusselSheetOptions>(), sheet.EffectiveOptions);
         Assert.Equal(PlainText, sheet.GetText(0, 0));
         Assert.Equal(PlainText, Shown(cut));
         Assert.Equal(0, changes);
@@ -88,7 +91,7 @@ public sealed class SheetOptionsTests : BunitContext
 
         cut.Render(p => p.Add(x => x.Sheet, next));
 
-        Assert.Same(Services.GetRequiredService<MusselSheetOptions>(), next.Options);
+        Assert.Same(Services.GetRequiredService<MusselSheetOptions>(), next.EffectiveOptions);
         Assert.Equal(PlainText, Shown(cut));
     }
 
@@ -146,7 +149,8 @@ public sealed class SheetOptionsTests : BunitContext
     {
         var sheet = EraSheet();
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
-        Assert.NotEmpty(SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay, cut.Instance.InputContext).Reading.Eras);
+        var attached = (JsonElement)JSInterop.Invocations["attach"].Single().Arguments[3]!;
+        Assert.NotEqual(0, attached.GetProperty("reading").GetProperty("eras").GetArrayLength());
         var kinds = new List<SheetChangeKind>();
         sheet.Changed += (_, e) => kinds.Add(e.Kind);
 
@@ -154,8 +158,72 @@ public sealed class SheetOptionsTests : BunitContext
 
         Assert.Equal([SheetChangeKind.Reset], kinds);
         await cut.WaitForAssertionAsync(() => Assert.Equal(PlainText, Shown(cut)));
-        Assert.Empty(SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay, cut.Instance.InputContext).Reading.Eras);
+        var sent = (JsonElement)JSInterop.Invocations["setMap"][^1].Arguments[0]!;
+        Assert.Equal(0, sent.GetProperty("reading").GetProperty("eras").GetArrayLength());
         Assert.Equal(Rejection, (await Commit(cut, EraText)).Error);
+    }
+
+    [Fact]
+    public void ASheetWhoseOptionsAreClearedGoesBackToTheRegisteredOnes()
+    {
+        Services.AddMusselSheet(static o => o.Cultures.Remove("ja"));
+        var sheet = EraSheet();
+        sheet.Options = new MusselSheetOptions();
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        Assert.Equal(EraText, Shown(cut));
+
+        sheet.Options = null;
+
+        Assert.Equal(PlainText, sheet.GetText(0, 0));
+    }
+
+    [Fact]
+    public void NewOptionsSendTheirKeysAndMenuToTheBrowser()
+    {
+        var sheet = EraSheet();
+        Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var sent = JSInterop.Invocations["setOptions"].Count;
+        var options = new MusselSheetOptions { ReadyKeys = { ["Ctrl+K"] = SheetCommands.Edit } };
+        options.Menu.Items.Add(new SheetMenuItem { Name = "note", Text = "Note" });
+
+        sheet.Options = options;
+
+        Assert.Equal(sent + 1, JSInterop.Invocations["setOptions"].Count);
+        var sentOptions = (JsonElement)JSInterop.Invocations["setOptions"][^1].Arguments[0]!;
+        Assert.Contains("Ctrl+K", sentOptions.GetProperty("readyKeys").EnumerateObject().Select(static x => x.Name));
+        Assert.Contains("note", sentOptions.GetProperty("menuItems").EnumerateArray().Select(static x => x.GetProperty("value").GetString()));
+    }
+
+    [Fact]
+    public async Task ChangingTheCultureForgetsTheTypedText()
+    {
+        var sheet = new Sheet(1, 1) { Culture = TestLanguages.Culture("en-GB") };
+        sheet.Range("A1").Configure(static c => c.Kind = CellKind.Date);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 0, "5/11/2025", false));
+        Assert.Equal("5/11/2025", sheet.GetInputText(0, 0));
+
+        sheet.Culture = TestLanguages.Culture("en-US");
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 0, sheet.GetEditText(0, 0), false));
+
+        Assert.Null(sheet.GetInputText(0, 0));
+        Assert.Equal(Date, sheet.GetValue(0, 0));
+    }
+
+    [Fact]
+    public async Task ChangingTheOptionsForgetsTheTypedText()
+    {
+        var sheet = EraSheet();
+        sheet.Options = new MusselSheetOptions();
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 0, "令和6年11月5日", false));
+        Assert.Equal("令和6年11月5日", sheet.GetInputText(0, 0));
+
+        await cut.InvokeAsync(() => sheet.Options = WithoutJapanese());
+
+        Assert.Null(sheet.GetInputText(0, 0));
+        Assert.Equal("2024/11/05", sheet.GetEditText(0, 0));
+        Assert.Null((await Commit(cut, sheet.GetEditText(0, 0))).Error);
     }
 
     private static Sheet EraSheet()

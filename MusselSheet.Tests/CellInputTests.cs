@@ -262,4 +262,20 @@ public sealed class CellInputTests
     }
 
     private static ResolvedCellSettings Settings(CellKind kind) => ResolvedCellSettings.Default with { Kind = kind };
+
+    [Theory]
+    [InlineData(@"\w+", "abc_1", true)]
+    [InlineData(@"\w+", "あいう", false)]
+    [InlineData(@"\d+", "123", true)]
+    [InlineData(@"\d+", "๑๒๓", false)]
+    [InlineData(@"\d+", "１２３", false)]
+    [InlineData("abc", "abc\n", false)]
+    [InlineData(@"\p{IsHiragana}+", "abc", true)]
+    public void APatternIsReadAsTheBrowserReadsIt(string pattern, string text, bool allowed)
+    {
+        var settings = Settings(CellKind.Text) with { Pattern = pattern };
+
+        Assert.Equal(allowed, CellInput.Validate(text, text, settings, Context) is null);
+        Assert.Equal(pattern == @"\p{IsHiragana}+" ? null : pattern, CellInput.ScriptPattern(pattern));
+    }
 }

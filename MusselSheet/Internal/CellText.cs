@@ -10,7 +10,9 @@ internal static class CellText
 
     private const string DefaultTimeFormat = "HH:mm";
 
-    public static string Display(object? value, ResolvedCellSettings settings, CultureInfo culture, string? dateFormat = null, DateRules? dates = null)
+    private const string EditFormatBeforeEras = "yyyy'/'MM'/'dd";
+
+    public static string Display(object? value, ResolvedCellSettings settings, CultureInfo culture, ReadingRules reading)
     {
         if (settings.Kind == CellKind.Checkbox)
         {
@@ -25,15 +27,15 @@ internal static class CellText
         return settings.Kind switch
         {
             CellKind.Number => FormatNumber(value, settings.Format ?? "G", culture),
-            CellKind.Date => FormatDate(value, settings.Format ?? dateFormat ?? culture.DateTimeFormat.ShortDatePattern, culture, dates),
+            CellKind.Date => FormatDate(value, settings.Format ?? reading.DateFormat, culture, reading.Dates),
             CellKind.Time => FormatTime(value, settings.Format ?? DefaultTimeFormat, culture),
             CellKind.List or CellKind.AutoComplete => ListText(value, settings.Items, culture),
-            CellKind.Custom when (settings.Format is { } format) && (value is IFormattable formattable) => formattable.ToString(format, culture),
+            CellKind.Custom when (settings.Format is { } format) && (value is IFormattable formattable) => Format(formattable, format, culture),
             _ => Convert.ToString(value, culture) ?? string.Empty
         };
     }
 
-    public static string Edit(object? value, ResolvedCellSettings settings, CultureInfo culture, DateRules? dates = null)
+    public static string Edit(object? value, ResolvedCellSettings settings, CultureInfo culture, ReadingRules reading)
     {
         if (value is null)
         {
@@ -43,7 +45,7 @@ internal static class CellText
         return settings.Kind switch
         {
             CellKind.Number => FormatNumber(value, "G", culture),
-            CellKind.Date => FormatDate(value, LiteralSeparators(dates?.EditFormat ?? ReadingRules.EditFormat(culture)), culture, dates),
+            CellKind.Date => FormatDate(value, reading.EditDateFormat, culture, reading.Dates, EditFormatBeforeEras),
             CellKind.Time => FormatTime(value, HasSeconds(value) ? "HH:mm:ss" : DefaultTimeFormat, culture),
             CellKind.Checkbox => IsTrue(value) ? "true" : "false",
             CellKind.List or CellKind.AutoComplete => ListText(value, settings.Items, culture),
@@ -110,32 +112,40 @@ internal static class CellText
         }
     }
 
+    public static string Format(IFormattable value, string format, CultureInfo culture)
+    {
+        try
+        {
+            return value.ToString(format, culture);
+        }
+        catch (FormatException)
+        {
+            return value.ToString(null, culture);
+        }
+    }
+
     private static string FormatNumber(object value, string format, CultureInfo culture) => value switch
     {
-        decimal or double or float or int or long or short or byte or uint or ulong or ushort or sbyte => ((IFormattable)value).ToString(format, culture),
+        decimal or double or float or int or long or short or byte or uint or ulong or ushort or sbyte => Format((IFormattable)value, format, culture),
         _ => Convert.ToString(value, culture) ?? string.Empty
     };
 
-    public static string FormatDate(DateOnly date, string format, CultureInfo culture, DateRules? dates) =>
-        DateRules.IsEraFormat(format) ? (dates ?? DateRules.None).Format(date, format, culture) : date.ToString(format, culture);
+    public static string FormatDate(DateOnly date, string format, CultureInfo culture, DateRules dates, string? beforeEras = null) =>
+        DateRules.IsEraFormat(format) ? dates.Format(date, format, culture, beforeEras) : Format(date, format, culture);
 
-    // The edit text is read back, so its '/' stays '/' even where the culture's date separator is something else
-    private static string LiteralSeparators(string format) =>
-        format.Contains('\'', StringComparison.Ordinal) ? format : format.Replace("/", "'/'", StringComparison.Ordinal);
-
-    private static string FormatDate(object value, string format, CultureInfo culture, DateRules? dates) => value switch
+    private static string FormatDate(object value, string format, CultureInfo culture, DateRules dates, string? beforeEras = null) => value switch
     {
-        DateOnly date => FormatDate(date, format, culture, dates),
-        DateTime dateTime => FormatDate(DateOnly.FromDateTime(dateTime), format, culture, dates),
-        DateTimeOffset offset => FormatDate(DateOnly.FromDateTime(offset.Date), format, culture, dates),
+        DateOnly date => FormatDate(date, format, culture, dates, beforeEras),
+        DateTime dateTime => DateRules.IsEraFormat(format) ? FormatDate(DateOnly.FromDateTime(dateTime), format, culture, dates, beforeEras) : Format(dateTime, format, culture),
+        DateTimeOffset offset => DateRules.IsEraFormat(format) ? FormatDate(DateOnly.FromDateTime(offset.DateTime), format, culture, dates, beforeEras) : Format(offset.DateTime, format, culture),
         _ => Convert.ToString(value, culture) ?? string.Empty
     };
 
     private static string FormatTime(object value, string format, CultureInfo culture) => value switch
     {
-        TimeOnly time => time.ToString(format, culture),
-        TimeSpan span when (span >= TimeSpan.Zero) && (span < TimeSpan.FromDays(1)) => TimeOnly.FromTimeSpan(span).ToString(format, culture),
-        DateTime dateTime => TimeOnly.FromDateTime(dateTime).ToString(format, culture),
+        TimeOnly time => Format(time, format, culture),
+        TimeSpan span when (span >= TimeSpan.Zero) && (span < TimeSpan.FromDays(1)) => Format(TimeOnly.FromTimeSpan(span), format, culture),
+        DateTime dateTime => Format(TimeOnly.FromDateTime(dateTime), format, culture),
         _ => Convert.ToString(value, culture) ?? string.Empty
     };
 

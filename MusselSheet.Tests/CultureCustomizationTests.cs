@@ -62,6 +62,71 @@ public sealed class CultureCustomizationTests : BunitContext
         }
     }
 
+    [Theory]
+    [InlineData(@"yyyy\/MM\/dd")]
+    [InlineData("yyyy\"/\"MM\"/\"dd")]
+    [InlineData("yyyy'/'MM'/'dd")]
+    [InlineData("yyyy/MM/dd")]
+    public void AnEditFormatCanQuoteOrEscapeItsSlash(string format)
+    {
+        var options = new MusselSheetOptions { Cultures = { ["ja"] = new SheetCulture { EditDateFormat = format } } };
+        var sheet = new Sheet(1, 1) { Culture = Japanese, Options = options };
+        sheet.Range("A1").Configure(static c => c.Kind = CellKind.Date);
+        sheet.SetValue(0, 0, new DateOnly(2025, 11, 5));
+
+        Assert.Equal("2025/11/05", sheet.GetEditText(0, 0));
+    }
+
+    [Theory]
+    [InlineData("yyyy\"년\" M\"월\" d\"일\"", "2025년 11월 5일")]
+    [InlineData(@"yyyy\yM\md\d", "2025y11m5d")]
+    public void AFormCanQuoteWithDoubleQuotesOrABackslash(string form, string text)
+    {
+        var options = new MusselSheetOptions { Cultures = { ["ko"] = new SheetCulture { DateForms = { form } } } };
+        var dates = options.DatesFor(CultureInfo.GetCultureInfo("ko-KR"));
+
+        Assert.True(dates.TryRead(text, new DateOnly(2026, 11, 8), out var date));
+        Assert.Equal(new DateOnly(2025, 11, 5), date);
+    }
+
+    [Fact]
+    public void AFormWithAMonthOrDayNameIsLeftOut()
+    {
+        var options = new MusselSheetOptions { Cultures = { ["en"] = new SheetCulture { DateForms = { "d MMM yyyy", "dddd d/M/yyyy", "d MM yyyy" } } } };
+
+        Assert.Single(options.DatesFor(English).Patterns);
+    }
+
+    [Fact]
+    public void AnEmptyItemDoesNotCount()
+    {
+        var options = new MusselSheetOptions { Cultures = { ["ja-JP"] = new SheetCulture { DateFormat = string.Empty, EditDateFormat = string.Empty } } };
+
+        Assert.Equal("yyyy/MM/dd", options.ReadingFor(Japanese).DateFormat);
+        Assert.Equal("yyyy'/'MM'/'dd", options.ReadingFor(Japanese).EditDateFormat);
+    }
+
+    [Fact]
+    public void TheEditTextOfADateBeforeTheFirstEraIsOneEveryCultureReads()
+    {
+        var bulgarian = CultureInfo.GetCultureInfo("bg-BG");
+        var options = new MusselSheetOptions
+        {
+            Cultures = { ["bg"] = new SheetCulture { Eras = { new SheetEra("N", "N", "N", new DateOnly(1900, 1, 1)) }, EditDateFormat = "ge/M/d", DateForms = { "ge/M/d" } } }
+        };
+        var sheet = new Sheet(1, 1) { Culture = bulgarian, Options = options };
+        sheet.Range("A1").Configure(static c => c.Kind = CellKind.Date);
+        sheet.SetValue(0, 0, new DateOnly(1850, 3, 4));
+        var reading = options.ReadingFor(sheet.Culture);
+        var context = new InputContext(sheet.Culture, new DateOnly(2026, 11, 8), SheetTexts.English, reading.DateFormat, reading);
+        var settings = sheet.GetSettings(0, 0);
+        var text = sheet.GetEditText(0, 0);
+
+        Assert.Equal("1850/03/04", text);
+        Assert.Null(CellInput.Check(CellInput.Normalize(text, settings, reading), settings, context, out var value, out _));
+        Assert.Equal(new DateOnly(1850, 3, 4), value);
+    }
+
     [Fact]
     public void DateDisplayAndCalendarFollowTheSheetCulture()
     {

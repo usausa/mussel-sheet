@@ -35,7 +35,7 @@ public sealed partial class MusselSheetView
 
         var settings = Sheet.GetSettings(row, column);
         var value = Sheet.GetValue(row, column);
-        var text = CellText.Display(value, settings, Sheet.Culture, DateFormat, Dates);
+        var text = CellText.Display(value, settings, Sheet.Culture, Reading);
 
         var format = (settings.Formatter is not null) || (settings.StyleProvider is not null) ? new CellFormatContext(Sheet, new CellAddress(row, column), value, text) : null;
         var patch = format is null ? null : settings.StyleProvider?.Invoke(format);
@@ -118,8 +118,7 @@ public sealed partial class MusselSheetView
     {
         var settings = Sheet.GetSettings(row, column);
         var value = Sheet.GetValue(row, column);
-        var text = CellText.Display(value, settings, Sheet.Culture, DateFormat, Dates);
-        text = settings.Formatter?.Invoke(new CellFormatContext(Sheet, new CellAddress(row, column), value, text)) ?? text;
+        var text = Sheet.GetText(row, column);
         var context = new CellDisplayContext(Sheet, new CellAddress(row, column), settings.Editor, value, text);
         return CustomDisplay is { } display ? display(context) : builder => builder.AddContent(0, context.Text);
     }
