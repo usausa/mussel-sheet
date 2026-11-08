@@ -23,7 +23,6 @@ Create a `Sheet` and show it in an interactive component.
 
 ```razor
 @page "/"
-@rendermode InteractiveServer
 @using MusselSheet
 
 <MusselSheetView Sheet="sheet" CellCommitted="OnCommitted" />
