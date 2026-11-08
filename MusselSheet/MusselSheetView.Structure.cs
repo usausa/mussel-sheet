@@ -153,8 +153,7 @@ public sealed partial class MusselSheetView
         };
     }
 
-    // Does nothing if the rows are already in or the row above them has been removed; otherwise returns target
-    // shifted to where they were put.
+    // Null if the rows are already in or the row above is gone; otherwise target shifted to where they went
     private CellRange? PutBack(RowsEdited entry, CellRange target)
     {
         if (entry.Present || ((entry.Above is { } above) && !IsAttached(above)) || entry.Rows.Any(IsAttached))
@@ -172,7 +171,7 @@ public sealed partial class MusselSheetView
         return Shift(target, Axis.Row, index - entry.Index);
     }
 
-    // Does nothing if the rows are not in the sheet, or the app removed some of them or inserted rows between them
+    // Null if the rows are not in the sheet, or the app removed some or inserted rows between them
     private CellRange? TakeAway(RowsEdited entry, CellRange target)
     {
         if (!entry.Present || !IsRun(entry.Rows))
@@ -224,9 +223,7 @@ public sealed partial class MusselSheetView
         return Shift(target, Axis.Column, index - entry.Index);
     }
 
-    // If the rules are unchanged since the removal, restore the earlier ones as they were. If the app only appended
-    // rules since then, shift those and add them after. Otherwise inherit from the neighboring row or column
-    // (the next one when inserting above or to the left).
+    // The earlier rules if unchanged, plus shifted ones the app appended; otherwise inherited from the neighbor
     private List<SettingsRule> RulesToPut(StructureEdited entry, Axis axis, int index, int count, int total)
     {
         var current = Sheet.Rules;
@@ -260,8 +257,7 @@ public sealed partial class MusselSheetView
         return RangeTransform.Remove(current, axis, index, count);
     }
 
-    // If the merges are unchanged since the removal, restore the earlier ones exactly, which also brings back merges
-    // the deletion dropped; otherwise shift the current merges to match the insertion.
+    // The earlier merges if unchanged, which brings back dropped ones; otherwise the current ones shifted
     private (IReadOnlyList<CellRange> Next, IReadOnlyList<CellRange> Before) MergesToPut(StructureEdited entry, Axis axis, int index, int count)
     {
         var before = Sheet.MergeAreas.ToArray();

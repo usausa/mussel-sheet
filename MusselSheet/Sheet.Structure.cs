@@ -133,8 +133,7 @@ public sealed partial class Sheet
         return removed;
     }
 
-    // Index to inherit from, counted after the insertion: the row above, or the old first row (now shifted by
-    // count) when inserting at the top.
+    // Counted after the insertion: the row above, or the shifted old first row when inserting at the top
     private static int? InheritSource(int index, int count, bool inherit)
     {
         if (!inherit)

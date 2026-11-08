@@ -25,8 +25,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private readonly Dictionary<SheetRow, TItem> items = [];
 
-    // The element shown in each row, so undoing a row deletion brings back the same element.
-    //  Weak, so entries go away when the row object leaves the undo history.
+    // Weak, so undo brings back the same element until the row leaves the undo history
     private readonly ConditionalWeakTable<SheetRow, TItem> remembered = [];
 
     private IList<TItem>? list;
@@ -136,7 +135,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
     }
 
-    // Rows inserted directly below a detail row (also below the last) or directly above the first join the detail as empty rows.
+    // Rows inserted inside the detail or right next to it join it as empty rows
     void IRowsBinding.OnRowsInserted(int index, int count)
     {
         var sheet = sync.Sheet;

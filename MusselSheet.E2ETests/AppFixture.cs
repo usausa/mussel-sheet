@@ -4,8 +4,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 
-// Starts the Example app on a free port and opens it in an installed Edge or Chrome;
-// Playwright's own browsers are not downloaded, and tests are skipped when neither is installed
+// Uses an installed Edge or Chrome, never Playwright's own browsers, and skips the tests when neither is installed
 public sealed class AppFixture : IAsyncLifetime
 {
 #if DEBUG

@@ -76,7 +76,7 @@ public sealed class SheetDesignTests
     public void FunctionsAreSavedByName()
     {
         var functions = new SheetFunctions();
-        functions.AddValidator("偶数", x => x.Value is decimal d && (d % 2 != 0) ? "偶数を入力してください" : null);
+        functions.AddValidator("偶数", x => (x.Value is decimal d) && (d % 2 != 0) ? "偶数を入力してください" : null);
         functions.AddFormatter("円", x => x.Value is null ? null : $"{x.Text} 円");
         functions.AddComputation("金額", x => x.Get<decimal?>("B") * x.Get<decimal?>("C") * x.Get<decimal>("D1"));
         functions.AddComputation("合計", x => x.Values("D2:D4").OfType<decimal>().Sum());

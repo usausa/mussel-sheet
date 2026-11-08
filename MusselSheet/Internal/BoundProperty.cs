@@ -14,7 +14,7 @@ internal sealed class BoundProperty
     {
         info = property;
         var setter = property.SetMethod;
-        CanWrite = setter is { IsPublic: true } && !Array.Exists(setter.ReturnParameter.GetRequiredCustomModifiers(), x => x == typeof(IsExternalInit));
+        CanWrite = (setter is { IsPublic: true }) && !Array.Exists(setter.ReturnParameter.GetRequiredCustomModifiers(), x => x == typeof(IsExternalInit));
         var underlying = Nullable.GetUnderlyingType(property.PropertyType);
         ValueType = underlying ?? property.PropertyType;
         this.emptyValue = emptyValue;

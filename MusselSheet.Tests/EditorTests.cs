@@ -32,8 +32,7 @@ public sealed class EditorTests : BunitContext
         Assert.Contains("mussel-sheet-cb", box.ClassList);
         Assert.Contains("mussel-sheet-on", box.ClassList);
 
-        // The text inside the checkbox is for screen readers (hidden by CSS);
-        // what gets copied is the edit text in data-edit
+        // The checkbox text is for screen readers (hidden by CSS); copying uses the edit text in data-edit
         Assert.Equal("☑", cells[0].TextContent);
         Assert.Equal("true", cells[0].GetAttribute("data-edit"));
         Assert.NotNull(text);

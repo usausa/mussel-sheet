@@ -121,8 +121,7 @@ public sealed partial class Sheet
 
     internal IReadOnlyList<SettingsRule> Rules => settings.Rules;
 
-    // Bumped by changes to settings, rows, columns and layout, but not by value changes, which are tracked per row
-    // by SheetRow.ContentVersion.
+    // Not bumped by value changes, which SheetRow.ContentVersion tracks per row
     internal int StructureVersion { get; private set; }
 
     public Cell this[int row, int column] => new(this, row, column);

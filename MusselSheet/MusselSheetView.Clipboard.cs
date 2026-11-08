@@ -105,8 +105,7 @@ public sealed partial class MusselSheetView
         return new PasteResult(range.Top, range.Left, range.Bottom, range.Right, PasteMessage(marked, rejected, cutRows, cutColumns));
     }
 
-    // Each cell goes through the normal commit path with optimistic set, so invalid input is stored with an error
-    // mark; in Revert mode the cell is rejected and left unchanged instead.
+    // Each cell is an optimistic commit: invalid input gets an error mark, or is rejected in Revert mode
     private async Task<(int Marked, int Rejected)> InputCellsAsync(CellRange range, Func<int, int, string?> textAt, CellChangeReason reason, CellRange? area = null)
     {
         var batch = new List<CellChange>();

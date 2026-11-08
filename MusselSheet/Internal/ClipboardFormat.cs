@@ -5,14 +5,12 @@ using System.Text;
 // Must stay in step with parseClipboard, toTsv and toHtml in MusselSheet.js: change both together
 internal static class ClipboardFormat
 {
-    // Written as a <style> class like Excel's own copy: with style attributes alone Excel dropped leading zeros.
-    // istext marks text cells, and mso-data-placement keeps <br> inside the same cell.
+    // A <style> class like Excel's own copy keeps leading zeros; mso-data-placement keeps <br> in the cell
     private const string ExcelStyle = "<style>.istext{mso-number-format:\"\\@\";}br{mso-data-placement:same-cell;}</style>";
 
     private const string TextCell = "<td class=\"istext\" style='mso-number-format:\"\\@\"'>";
 
-    // Excel ends the last row with a line break too, so exactly one trailing line break is dropped. Quoted cells
-    // may hold tabs, line breaks and quotes; without a closing quote and delimiter the cell is read unquoted.
+    // Drops one trailing line break, as Excel writes one; a cell without a closing quote is read unquoted
     public static List<string[]> Parse(string? text)
     {
         var rows = new List<string[]>();
@@ -133,7 +131,7 @@ internal static class ClipboardFormat
         return null;
     }
 
-    // Escapes the same five characters as escapeHtml in MusselSheet.js (ampersand, angle brackets, both quotes)
+    // The same five characters as escapeHtml in MusselSheet.js
     private static string Escape(string text) =>
         text.Replace("&", "&amp;", StringComparison.Ordinal)
             .Replace("<", "&lt;", StringComparison.Ordinal)

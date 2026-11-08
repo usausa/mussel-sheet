@@ -58,17 +58,13 @@ internal abstract record EditEntry;
 
 internal sealed record CellsEdited(IReadOnlyList<CellChange> Changes, EditArea? Area = null) : EditEntry;
 
-// Corner rows and columns are held as objects, so the range still points at the same cells after
-// rows or columns are inserted or deleted.
+// Corners are held as objects, so the area follows inserted and deleted rows and columns
 internal sealed record EditArea(SheetRow Top, SheetColumn Left, SheetRow Bottom, SheetColumn Right);
 
-// Holds the inserted or deleted row/column objects themselves, so undo and redo move the same objects and the
-// history entries that point at their cells stay valid. Before and After are the selections to restore; they are
-// shifted if rows or columns moved in the meantime.
+// Holds the row and column objects themselves, so entries that point at their cells stay valid
 internal abstract record StructureEdited(bool Inserted, int Index, bool InheritFromNext, CellRange Before, CellRange After) : EditEntry
 {
-    // Whether the rows are in the sheet now (after an insert, or after undoing a delete). Rows the app removed first
-    // are not put back by redo either.
+    // Whether the rows are in the sheet now; rows the app removed are not put back by redo
     public bool Present { get; set; }
 
     public IReadOnlyList<SettingsRule>? RulesWith { get; set; }

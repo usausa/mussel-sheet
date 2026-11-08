@@ -40,7 +40,7 @@
     --mussel-sheet-changed-color: #1a73e8;
 }
 
-/* No dark theme yet: inside .mussel-dark of MusselChart the sheet keeps its light colors, not light text on white cells */
+/* No dark theme yet: inside MusselChart's .mussel-dark the sheet keeps its light colors */
 :where(.mussel-dark) :where(.mussel-sheet) {
     --mussel-primary-text: initial;
     --mussel-secondary-text: initial;
@@ -90,7 +90,7 @@
     display: grid;
 }
 
-/* Cell height follows the row, so tall content (thick borders, etc.) cannot spill out of the row or overlap the row below a frozen row. */
+/* Cell height follows the row, so tall content cannot spill into the row below */
 .mussel-sheet-row,
 .mussel-sheet-rest {
     grid-template-rows: 100%;
@@ -132,14 +132,14 @@
     content-visibility: visible;
 }
 
-/* Off-screen rows skip rendering, but only for these non-frozen cells. Row headers and frozen-column cells stay outside so they can stack above the active frame; on the whole row, containment would close the stacking order inside the row. */
+/* Off-screen rows skip rendering only here, so row headers and frozen columns can stack above the frame */
 .mussel-sheet-rest {
     content-visibility: auto;
 }
 
 /* ---- Frozen panes ---- */
 
-/* Zero-size sticky containers for JS-owned elements over frozen panes; children use sheet coordinates. Stacking: frames (1) < row header, frozen columns (2) < frozen-column frames (3) < column header, frozen rows (4) < frozen-row sink (5, 6). */
+/* z-index: frames 1, row header and frozen columns 2, their frames 3, column header and frozen rows 4, frozen-row sink 5-6 */
 .mussel-sheet-pane {
     position: sticky;
     width: 0;
@@ -285,7 +285,7 @@
 
 /* ---- Checkbox ---- */
 
-/* Only a click on this element toggles. Its vertical position comes from the row height, because vertical-align: middle follows the font baseline and drifts down with some fonts. */
+/* Only a click on it toggles; placed by the row height, as vertical-align: middle drifts with some fonts */
 .mussel-sheet-cb,
 .mussel-sheet-ct {
     display: inline-block;
@@ -351,7 +351,7 @@
 
 /* ---- Borders ---- */
 
-/* Neighboring cells share one border line, so it is normally drawn by the right and bottom sides. Colors are set by generated CSS (e.g. brc0). */
+/* A shared border is drawn by the right and bottom sides; colors come from generated classes such as brc0 */
 .mussel-sheet-br-thin { border-right: 1px solid var(--mussel-sheet-border-color); }
 .mussel-sheet-br-medium { border-right: 2px solid var(--mussel-sheet-border-color); }
 .mussel-sheet-br-thick { border-right: 3px solid var(--mussel-sheet-border-color); }
@@ -543,7 +543,7 @@
 
 /* ---- Popups ---- */
 
-/* Placed by JS in viewport coordinates and shown in the top layer (popover) where supported, hence the inset, margin and overflow resets that cancel the popover defaults. */
+/* Placed by JS in viewport coordinates, in the top layer where supported; the resets cancel the popover defaults */
 .mussel-sheet-popup,
 .mussel-sheet-menu,
 .mussel-sheet-custom {

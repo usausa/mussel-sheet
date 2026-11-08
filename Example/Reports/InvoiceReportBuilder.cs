@@ -4,7 +4,7 @@ using Example.Client.Models;
 
 using OysterReport;
 
-// Fills the Excel template with OysterReport. It runs on the server, where the fonts are, in both render modes
+// Runs on the server, where the fonts are, in both render modes
 public static class InvoiceReportBuilder
 {
     private static readonly string TemplatePath = Path.Combine(AppContext.BaseDirectory, "Assets", "Reports", "Invoice.xlsx");

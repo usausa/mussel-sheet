@@ -1,5 +1,5 @@
 @* Cells are plain elements, not components, to keep rendering of a large sheet cheap *@
-@* Row header and frozen-column cells sit directly under the row; the rest go in .mussel-sheet-rest, so frozen columns can be layered above the active cell frame and similar elements. *@
+@* Row header and frozen-column cells sit outside .mussel-sheet-rest, so they can stack above the active cell frame *@
 @{ Remember(); }
 <div class="mussel-sheet-row" style="@RowStyle" data-r="@Row.Index" role="row" aria-rowindex="@Owner.AriaRowIndex(Row.Index)">
     @if (Owner.ShowRowHeaders)

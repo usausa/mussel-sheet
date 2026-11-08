@@ -79,8 +79,7 @@ public sealed partial class MusselSheetView
         return [r, c];
     }
 
-    // Copies the source cell's edit text, so each target converts and validates it with its own rules.
-    // With one row (column) selected the source is the row above (column to the left), otherwise the first one.
+    // Copies the edit text of the previous row or column (one selected) or the first one, through each target's rules
     private async Task<PasteResult> FillFromEdgeAsync(CellRange selection, bool down)
     {
         if ((Sheet.RowCount == 0) || (Sheet.ColumnCount == 0))
@@ -184,8 +183,7 @@ public sealed partial class MusselSheetView
         return whole.Left < source.Left ? new CellRange(source.Top, whole.Left, source.Bottom, source.Left - 1) : null;
     }
 
-    // Mirrors Excel: follows the adjacent column (left, else right) while it has data, and stops before a row whose
-    // target cells already hold a value, so nothing is overwritten.
+    // As in Excel: follows the column to the left (else right) and stops before a row that already has values
     private int FillEnd(CellRange source)
     {
         var below = source.Bottom + 1;

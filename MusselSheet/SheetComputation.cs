@@ -68,8 +68,7 @@ public sealed class SheetComputation : IDisposable
         sheet.Uncompute(this);
     }
 
-    // Changes made while this computation is running (its own results and their dependents) are ignored, which
-    // also stops computation loops.
+    // Ignores changes made while it runs, which also stops computation loops
     internal void OnSheetChanged(SheetChangedEventArgs e)
     {
         if (disposed || running)
@@ -128,8 +127,7 @@ public sealed class SheetComputation : IDisposable
 
     private void MarkChanged(CellRange range)
     {
-        // A change in a range observation, or in a cell a per-row computation reads besides its own row (for example a
-        // rate in the header), recomputes every row.
+        // A change outside a row's own cells (a range, or a rate in the header) recomputes every row
         if (Observations.Any(x => !x.IsSameRow && x.Intersects(sheet, range)))
         {
             MarkAll();

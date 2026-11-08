@@ -1,7 +1,6 @@
 namespace MusselSheet.Internal;
 
-// Held as row and column objects, so an observation follows inserts and deletes. Name stays the address given
-// at registration, which is what the compute function reads by.
+// Follows inserts and deletes; Name stays the registered address, which the compute function reads by
 internal sealed class Observation
 {
     private readonly TrackedRows? rows;
@@ -75,7 +74,7 @@ internal sealed class Observation
 
     public IEnumerable<CellAddress> Cells(Sheet sheet, SheetRow? row)
     {
-        var lines = rows is null ? (row is not null && sheet.Contains(row) ? [row] : []) : rows.Current(sheet);
+        var lines = rows is null ? ((row is not null) && sheet.Contains(row) ? [row] : []) : rows.Current(sheet);
         foreach (var line in lines)
         {
             foreach (var column in CurrentColumns(sheet))

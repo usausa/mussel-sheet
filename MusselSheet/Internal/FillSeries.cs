@@ -4,8 +4,7 @@ using System.Globalization;
 
 internal static class FillSeries
 {
-    // Position 0 is the first source value; downward and rightward positions continue from the value count,
-    // upward and leftward ones start at -1. A null function means plain copy, and a null result skips that cell.
+    // Position 0 is the first value, forward follows the values, backward starts at -1; null copies, a null result skips
     public static Func<int, object?>? Create(IReadOnlyList<object?> values, bool toggle)
     {
         if (values.Count == 0)
@@ -41,8 +40,7 @@ internal static class FillSeries
             return position => Line(numbers[0], 1m, position);
         }
 
-        // Equal spacing steps by that interval and keeps the source's digits; otherwise a least-squares line with
-        // trailing zeros dropped.
+        // Equal spacing keeps its step and digits; otherwise a least-squares line without trailing zeros
         if (Step(numbers) is { } even)
         {
             return position => Line(numbers[0], even, position);

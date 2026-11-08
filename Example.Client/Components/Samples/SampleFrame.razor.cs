@@ -2,7 +2,6 @@ namespace Example.Client.Components.Samples;
 
 using Microsoft.AspNetCore.Components;
 
-// What every page shows around its sheet: the description, the state of the sheet, the events and the source
 public sealed partial class SampleFrame
 {
     [Parameter]

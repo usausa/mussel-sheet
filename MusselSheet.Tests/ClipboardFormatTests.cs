@@ -50,8 +50,7 @@ public sealed class ClipboardFormatTests
 
         var html = ClipboardFormat.ToHtml(rows, (_, c) => c == 1);
 
-        // Excel's text format is also written as a <style> class, as Excel does itself;
-        // a style attribute alone lost the leading zeros
+        // The text format is also a <style> class, as Excel writes it; a style attribute alone lost leading zeros
         Assert.Equal("<style>.istext{mso-number-format:\"\\@\";}br{mso-data-placement:same-cell;}</style><table><tr><td>&lt;a&gt;&amp;&#39;&quot;</td><td class=\"istext\" style='mso-number-format:\"\\@\"'>0123</td></tr></table>", html);
     }
 

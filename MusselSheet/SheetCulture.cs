@@ -1,7 +1,6 @@
 namespace MusselSheet;
 
-// Everything a language brings. Each item is searched from the culture to its parents, and an item that is not set
-// or is empty does not count.
+// Each item is searched from the culture to its parents; an unset or empty item does not count
 public sealed class SheetCulture
 {
     public SheetTexts? Texts { get; set; }

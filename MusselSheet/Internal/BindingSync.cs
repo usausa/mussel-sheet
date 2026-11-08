@@ -51,9 +51,7 @@ internal sealed class BindingSync
         }
     }
 
-    // Skips values that cannot become the property type (set by the app, or accepted with an error mark).
-    // A setter exception becomes the cell's error mark. The property value is shown back afterwards,
-    // because the setter may have normalized it or an empty cell may have produced a default.
+    // Skips values the property type cannot take; a setter exception becomes the error mark; the property is shown back
     public void Write(object target, BoundProperty property, int row, int column)
     {
         if (!property.CanWrite || !property.TryConvert(Sheet.GetValue(row, column), out var value))

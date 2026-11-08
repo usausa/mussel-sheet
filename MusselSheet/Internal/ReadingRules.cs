@@ -11,8 +11,7 @@ internal enum DateOrder
     DayMonthYear
 }
 
-// Separators and date order come from the sheet's CultureInfo (pass a custom one to Sheet.Culture to
-// change them), so display, edit text and reading cannot diverge. The JS validation receives the same values.
+// From the sheet's CultureInfo, so display, edit text, reading and the JS check cannot diverge
 internal sealed partial record ReadingRules(string DecimalSeparator, string GroupSeparator, string TimeSeparator, DateOrder DateOrder, string EditDateFormat)
 {
     public DateRules Dates { get; init; } = DateRules.None;
@@ -122,8 +121,7 @@ internal sealed partial record ReadingRules(string DecimalSeparator, string Grou
         return (d >= 0) && (m >= 0) && (d < m) ? DateOrder.DayMonthYear : DateOrder.MonthDayYear;
     }
 
-    // Edit format for dates that can be read back: the short date pattern with a 4-digit year if it is only
-    // digits and / . - separators, otherwise one built from the field order and '/'.
+    // The short date pattern with a 4-digit year if only digits and / . -, otherwise the field order with '/'
     public static string EditFormat(CultureInfo culture)
     {
         var pattern = culture.DateTimeFormat.ShortDatePattern;

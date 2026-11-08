@@ -2,8 +2,7 @@ namespace MusselSheet.Internal;
 
 using System.Globalization;
 
-// Covers the whole sheet, including cells that virtualization does not render, so JS never has to ask C# on a
-// move or keystroke. Identical rules are stored once (Rules), and so are identical per-row sequences (Patterns).
+// Covers the whole sheet, rendered or not, so JS never asks C# on a move; equal rules and rows are stored once
 internal sealed record SheetMap(
     int Rows,
     int Columns,
@@ -20,7 +19,7 @@ internal sealed record SheetMap(
 // What depends on the culture, the options and the UI culture, sent apart from the map and only when it changes
 internal sealed record ScriptLanguage(IReadOnlyDictionary<string, string> Messages, CalendarInfo Calendar, ReadingInfo Reading);
 
-// A language reaches the browser only as this data. Sets holds what the sheet's rules use.
+// A language reaches the browser only as this data
 internal sealed record ReadingInfo(
     string Decimal,
     string Group,
@@ -99,8 +98,7 @@ internal static class SheetMapBuilder
         var patternIndex = new Dictionary<int[], int>(PatternComparer.Instance);
         var rowPatterns = new int[sheet.RowCount];
 
-        // Rules are rectangles, so the rules for a row only change at a rule's top and bottom edges; the rows between
-        // share one sequence. Resolving only the first row of each run keeps 10,000 rows proportional to the rule count.
+        // Rules change only at their top and bottom edges, so only the first row of each run is resolved
         var bounds = RowBounds(sheet);
         for (var i = 0; i + 1 < bounds.Count; i++)
         {

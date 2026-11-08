@@ -1,4 +1,4 @@
-// Posts JSON and saves the response as a file. Returns an error message, or null
+// Returns an error message, or null
 window.exampleDownload = async (url, json, fileName) => {
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json });
     if (!response.ok) {

@@ -38,8 +38,7 @@
     [CascadingParameter]
     public HttpContext HttpContext { get; set; } = default!;
 
-    // The whole app runs in one render mode, chosen by the switch in the top bar.
-    // Pages with [ExcludeFromInteractiveRouting] (error, not found) stay static
+    // One render mode for the whole app, from the top bar switch; [ExcludeFromInteractiveRouting] pages stay static
     private IComponentRenderMode? PageRenderMode =>
         !HttpContext.AcceptsInteractiveRouting()
             ? null

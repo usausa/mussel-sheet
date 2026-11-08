@@ -1,7 +1,6 @@
 namespace MusselSheet.Internal;
 
-// Mirrors comboOf in MusselSheet.js: Ctrl, Alt, Shift in that order joined with '+', then the key.
-// A single character is upper-cased, a space is Space, others use the KeyboardEvent.key name (case-insensitive).
+// Same notation as comboOf in MusselSheet.js: Ctrl+Alt+Shift+key, a character upper-cased, a space as Space
 internal static class KeyCombo
 {
     private static readonly string[] Names =
@@ -17,7 +16,7 @@ internal static class KeyCombo
     public static string Normalize(string combo)
     {
         var parts = combo.Split('+', StringSplitOptions.TrimEntries);
-        var key = parts[^1].Length == 0 && (parts.Length > 1) ? "+" : parts[^1];
+        var key = (parts[^1].Length == 0) && (parts.Length > 1) ? "+" : parts[^1];
         var modifiers = parts[..^1].Select(x => x.ToUpperInvariant()).ToHashSet();
         var name = key.Length == 1 ? key.ToUpperInvariant() : Names.FirstOrDefault(x => x.Equals(key, StringComparison.OrdinalIgnoreCase)) ?? key;
         return (modifiers.Contains("CTRL") ? "Ctrl+" : string.Empty)

@@ -25,8 +25,7 @@ public sealed partial class MusselSheetView
 
     internal CellView GetCellView(int row, int column)
     {
-        // A merged range is drawn by its top-left cell at the size of the range; the other cells draw nothing.
-        // The right and bottom lines come from the range's top-right and bottom-left cells (its outer edges).
+        // A merge is drawn by its top-left cell, with right and bottom lines from its top-right and bottom-left cells
         var merged = Sheet.GetMergeArea(row, column);
         if ((merged is { } covered) && ((covered.Top != row) || (covered.Left != column)))
         {
@@ -68,8 +67,7 @@ public sealed partial class MusselSheetView
             css += " mussel-sheet-changed";
         }
 
-        // The box is drawn with CSS and also holds a visually hidden ☑ / ☐ so screen readers announce the state.
-        // Only a click on this element toggles.
+        // A CSS box holding a hidden ☑ / ☐ for screen readers; only a click on it toggles
         string? check = null;
         if (settings.Kind == CellKind.Checkbox)
         {
@@ -84,8 +82,7 @@ public sealed partial class MusselSheetView
             }
         }
 
-        // Edit text is emitted only when it differs from the display text. A custom display is drawn by the app's
-        // template, so its edit text is always emitted.
+        // Edit text only when it differs from the display text, and always for a custom display
         var custom = (settings.Kind == CellKind.Custom) && (CustomDisplay is not null);
         var editText = Sheet.GetEditText(row, column);
         var edit = custom || !string.Equals(editText, text, StringComparison.Ordinal) ? editText : null;
@@ -100,8 +97,8 @@ public sealed partial class MusselSheetView
             error,
             check,
             custom,
-            merged is { } span && (span.Bottom > span.Top) ? span.Bottom - span.Top + 1 : null,
-            merged is { } wide && (wide.Right > wide.Left) ? wide.Right - wide.Left + 1 : null,
+            (merged is { } span) && (span.Bottom > span.Top) ? span.Bottom - span.Top + 1 : null,
+            (merged is { } wide) && (wide.Right > wide.Left) ? wide.Right - wide.Left + 1 : null,
             Style: patch is null ? null : SheetStyles.GetValueStyle(settings, patch));
     }
 
@@ -187,8 +184,7 @@ public sealed partial class MusselSheetView
         return true;
     }
 
-    // Extends the start of the drawn range back to the top-left cell of any overlapping merge, because a merge
-    // is drawn by its top-left cell. A top-left cell in the frozen part is always drawn, so it needs no extension.
+    // Moves the start back to the top-left cell of an overlapping merge, which draws it; frozen ones are always drawn
     private int IncludeMergeStarts(int first, int last, int frozen, Func<CellRange, (int Start, int End)> span)
     {
         var changed = true;
@@ -239,9 +235,7 @@ public sealed partial class MusselSheetView
             : DefaultViewportHeight;
     }
 
-    // Scroll positions at which JS must report back so the drawn rows or columns can change. They sit half the
-    // overscan inside the drawn range, so the report comes before its edge is reached. The upper/left bound is
-    // measured past the frozen part, and a direction that is not virtualized never triggers.
+    // Where JS reports a scroll: half the overscan inside the drawn range, so it comes before the edge is reached
     private (int Top, int Bottom, int Left, int Right) Thresholds()
     {
         var (top, bottom) = (int.MinValue, int.MaxValue);

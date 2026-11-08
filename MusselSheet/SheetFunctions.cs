@@ -1,7 +1,6 @@
 namespace MusselSheet;
 
-// Functions are saved by name: attach delegates taken from this table, because saving looks the name up from the attached delegate.
-// Names share one namespace across all kinds, so keep them unique.
+// Saved by name: attach delegates from this table, and keep names unique across all kinds
 public sealed class SheetFunctions
 {
     private readonly Dictionary<string, Delegate> functions = new(StringComparer.Ordinal);

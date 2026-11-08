@@ -2,8 +2,7 @@ namespace MusselSheet;
 
 using MusselSheet.Languages;
 
-// Languages that exist only in the tests. They use the same public API as the built-in Japanese and nothing was added
-// to the library for them, which is what the tests show.
+// Test-only languages, built with the public API like the built-in Japanese, with nothing added to the library
 internal static class TestLanguages
 {
     public static SheetCharacterSet Hangul { get; } = new("hangul", "가-힣 ") { Message = "한글로 입력하세요." };

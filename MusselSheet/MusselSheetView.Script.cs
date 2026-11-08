@@ -20,8 +20,7 @@ public sealed partial class MusselSheetView
     private ScriptLanguage BuildLanguage() =>
         SheetMapBuilder.Language(InputContext, CalendarInfo.From(Sheet.Culture, Options.FirstDayOfWeekFor(Sheet.Culture)));
 
-    // Resend the sheet map only when the shape or settings changed. After a user-driven row change,
-    // send it without waiting for the render to finish, so it arrives before JS moves to that row.
+    // Sends the map only when it changed; after a user's row change, without waiting for the render
     private async Task SyncMapAsync()
     {
         if (controller is null)

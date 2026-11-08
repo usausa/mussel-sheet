@@ -1,5 +1,4 @@
-// Key, IME and focus handling lives here; C# decides value conversion, validation, applying and undo.
-// Calls into C# are per intent (commit, clear, toggle, undo, active-cell move), never per keystroke.
+// Keys, IME and focus live here; C# converts, validates, applies and undoes, called per intent, never per key
 
 const READY = 'ready';
 const INPUT = 'input';
@@ -26,8 +25,7 @@ const DEFAULT_OPTIONS = {
     frozenColumns: 0,
 };
 
-// Safari can deliver the Enter that confirms a composition with isComposing=false,
-// so an Enter right after compositionend is ignored.
+// Safari can send the Enter that ends a composition with isComposing=false, so one right after it is ignored
 const COMPOSITION_ENTER_GUARD_MS = 30;
 
 const ACTIVE_NOTIFY_DELAY_MS = 50;
@@ -73,8 +71,7 @@ const AUTO_SCROLL_MS = 50;
 // Makes Excel paste the cell as text so leading zeros survive; must match C# ClipboardFormat
 const TEXT_CELL = '<td class="istext" style=\'mso-number-format:"\\@"\'>';
 
-// Must match C# ClipboardFormat. Uses <style> classes like Excel's own copy;
-// mso-data-placement makes <br> a line break inside the same cell.
+// Must match C# ClipboardFormat; mso-data-placement keeps <br> inside the cell
 const EXCEL_STYLE = '<style>.istext{mso-number-format:"\\@";}br{mso-data-placement:same-cell;}</style>';
 
 const DEFAULT_CALENDAR = {
@@ -107,8 +104,7 @@ const TIME_TEXT = /^([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?$/;
 const BOUND_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const BOUND_TIME = /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/;
 
-// No language is written in this file: a language reaches it only as data, made ready here.
-// C# compiles the date forms, so both sides run the same regular expressions.
+// No language is written here: it arrives as data, with the date forms compiled by C#
 export function compileLanguage(language = {}) {
     return {
         messages: language.messages ?? {},
@@ -207,8 +203,7 @@ function trimDots(text) {
     return text.slice(0, end);
 }
 
-// What every language shares: full-width ASCII and the ideographic space become half-width, the minus sign that
-// many cultures show becomes '-', and bidirectional marks are not read. The language's own readings come next.
+// The width step every language shares, then the language's own readings
 function normalizeWidth(text, reading) {
     return trimText(convertText(toHalfwidth(text), reading.readingTable));
 }
@@ -244,8 +239,7 @@ function toHalfwidth(text) {
     return copied === 0 ? text : out + text.slice(copied);
 }
 
-// Only a character some key starts with is looked up, the same as SheetCharacterMap.Convert in C#.
-// Text with none of them is returned as it is.
+// Same as SheetCharacterMap.Convert in C#: only a character some key starts with is looked up
 function convertText(text, map) {
     if (!map) {
         return text;
@@ -352,8 +346,7 @@ export function checkInput(rule, text, messages, reading = DEFAULT_READING) {
         : { ok: false, text: normalized, error: rule.message ?? error };
 }
 
-// A cell with a correction function (rule.corrects) is only type-checked here;
-// the other rules run in C# against the corrected value.
+// A cell with a corrector (rule.corrects) is only type-checked here; C# checks the rest on the corrected value
 function findError(rule, text, messages, reading) {
     if (text === '') {
         return rule.required && !rule.corrects ? messages.required : null;
@@ -540,8 +533,7 @@ export function filterItems(items, text) {
     return head.concat(rest);
 }
 
-// Same rules as C# CellInput.TryParseNumber.
-// When the group separator is whitespace (French, etc.), a plain space is accepted too.
+// Same as C# CellInput.TryParseNumber; a plain space also counts where the group separator is a space
 export function parseNumber(text, reading = DEFAULT_READING) {
     const pattern = numberPattern(reading);
     if (!/[0-9]/.test(text) || !pattern.full.test(text)) {
@@ -575,8 +567,7 @@ export function parseDate(text, reading = DEFAULT_READING) {
     return matchDate(normalizeText(text, 'date', reading), today(), reading);
 }
 
-// Same rules as C# CellInput.TryParseDate: the language's forms first, then the common ones, where a leading 4-digit
-// year is read as year-first in every culture
+// Same as C# CellInput.TryParseDate: the language's forms first, then / - . in culture order or year first
 export function matchDate(text, base, reading = DEFAULT_READING) {
     const read = readForms(text, base, reading);
     if (read !== undefined) {
@@ -599,8 +590,7 @@ export function matchDate(text, base, reading = DEFAULT_READING) {
     return isValidDate(date.y, date.m, date.d) ? date : null;
 }
 
-// Same rules as C# DateRules.TryRead. undefined: no form matched, so the common forms decide. null: a form matched
-// but the date does not exist. An era year may run past the era's end, but a date before its first day is rejected.
+// Same as C# DateRules.TryRead; undefined: no form matched, null: a form matched but no such date
 function readForms(text, base, reading) {
     for (const regex of reading.compiledForms) {
         const groups = regex.exec(text)?.groups;
@@ -798,8 +788,7 @@ function inDateRange(date, rule) {
 export function findNext(grid, row, col, dir, skip, wrap, accept = null) {
     let r = row;
     let c = col;
-    // Leaving a merged range starts from its far edge in the direction of travel;
-    // entering one stops at its top-left cell.
+    // Leaving a merge starts from its far edge; entering one stops at its top-left cell
     const toEdge = merge => {
         if (dir === 'down') {
             r = merge.bottom;
@@ -983,8 +972,7 @@ export function indexAt(totals, offset) {
     return low;
 }
 
-// Same rules as C# ClipboardFormat.Parse. Excel ends the last row with a newline too,
-// so exactly one trailing newline is stripped.
+// Same as C# ClipboardFormat.Parse: one trailing newline is dropped, as Excel writes one
 export function parseClipboard(text) {
     if (!text) {
         return [];
@@ -1052,8 +1040,7 @@ export function clipboardCell(text, multiline = false) {
     return rows.length ? normalizeLines(rows[0][0], multiline) : '';
 }
 
-// toTsv and toHtml must match C# ClipboardFormat, which builds the text for ranges
-// that include rows not rendered here.
+// toTsv and toHtml must match C# ClipboardFormat, which writes ranges with rows not rendered here
 export function toTsv(rows) {
     return rows.map(row => row.map(quoteCell).join('\t') + '\r\n').join('');
 }
@@ -1441,9 +1428,7 @@ class SheetController {
         this.menuItems = [];
         this.menuIndex = -1;
 
-        // JS-owned elements live in containers whose content Blazor never renders (.mussel-sheet-layer).
-        // Elements of frozen rows and columns go in containers that stick to their pane; all use sheet coordinates.
-        // decor: frame, selection, drop arrow (inside the grid for frozen rows); input: sink, messages (outside it).
+        // JS-owned elements go in containers Blazor leaves empty, in sheet coordinates; frozen ones stick to their pane
         this.top = root.querySelector('.mussel-sheet-top');
         const paneLayer = selector => root.querySelector(selector) ?? this.layer;
         this.decorLayers = { main: this.layer, l: paneLayer('.mussel-sheet-pane-l'), t: paneLayer('.mussel-sheet-pane-t'), tl: paneLayer('.mussel-sheet-pane-tl') };
@@ -1574,8 +1559,7 @@ class SheetController {
         this.sink.focus({ preventScroll: true });
     }
 
-    // Browser UTC offset in minutes. C# decides 'this year' for short date input from the browser's date,
-    // even on Blazor Server, so it needs the offset.
+    // C# takes 'this year' for year-less dates from the browser's date, also on Server
     timezoneOffset() {
         return new Date().getTimezoneOffset();
     }
@@ -1669,8 +1653,7 @@ class SheetController {
 
     // ---- Input sink ----
 
-    // Focus stays on a transparent textarea even while ready, so typing, including IME composition,
-    // starts in the element that then becomes the editor.
+    // Focus stays on a transparent textarea even while ready, so typing and IME start in the future editor
     createSink() {
         const sink = document.createElement('textarea');
         sink.className = 'mussel-sheet-sink';
@@ -1712,8 +1695,7 @@ class SheetController {
             return;
         }
 
-        // Keys typed while C# is committing are queued and replayed after the move,
-        // including Ctrl+Z and Ctrl+Y right after a row insert.
+        // Keys typed while C# commits are queued and replayed after the move, Ctrl+Z and Ctrl+Y included
         if (this.state === COMMITTING) {
             const k = keyInfo(e);
             const history = k.ctrl && !k.alt && (k.key.toLowerCase() === 'z' || k.key.toLowerCase() === 'y');
@@ -1770,8 +1752,7 @@ class SheetController {
         }
     }
 
-    // Composition can start while ready, so only switch state here;
-    // recreating the element or moving focus would break the IME composition.
+    // Composition can start while ready: only switch state, as recreating or refocusing would break it
     onCompositionStart() {
         if (this.state === READY && this.canEdit(this.currentRule())) {
             this.setState(INPUT);
@@ -1864,8 +1845,7 @@ class SheetController {
         }
     }
 
-    // Copies the unformatted edit text, not the displayed text. Even a single cell gets an HTML table,
-    // so Excel keeps the leading zeros of text cells.
+    // Copies the edit text; even one cell gets an HTML table, so Excel keeps leading zeros
     copyCell(e) {
         const range = { top: this.row, left: this.col };
         const cell = this.cellElement(this.row, this.col);
@@ -1883,7 +1863,6 @@ class SheetController {
     }
 
     // Rows outside the rendered window exist only in C#, so the text is fetched from it
-    // and written to the clipboard afterwards.
     copyRange(e) {
         const range = this.selectionRange();
         const values = this.renderedValues(range);
@@ -1926,8 +1905,7 @@ class SheetController {
         return values;
     }
 
-    // Promises go straight into ClipboardItem so the write starts inside the user gesture while the text
-    // may still be coming from C#; without ClipboardItem only plain text is written.
+    // Promises go into ClipboardItem so the write starts within the gesture; without it, only plain text
     writeClipboard(data, html) {
         if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
             const item = { 'text/plain': data.then(d => new Blob([d.text], { type: 'text/plain' })) };
@@ -2054,8 +2032,7 @@ class SheetController {
 
     // ---- Key handling ----
 
-    // Keys assigned by the app (ReadyKeys, EditingKeys) are checked first. A null assignment unbinds the key:
-    // the sheet ignores it and the browser handles it. Unlisted keys keep their built-in behavior.
+    // App keys (ReadyKeys, EditingKeys) come first; a null assignment leaves the key to the browser
     handleKey(k) {
         const table = this.state === READY ? this.opts.readyKeys : this.opts.editingKeys;
         const combo = comboOf(k);
@@ -2358,8 +2335,7 @@ class SheetController {
         }
     }
 
-    // Arrows pick a day only when the calendar was opened with Alt+Down;
-    // the one shown automatically while editing leaves keys to normal editing.
+    // Arrows pick a day only in a calendar opened with Alt+Down, not in the one shown while editing
     calendarKey(k) {
         if (!this.calendarNav) {
             return false;
@@ -2890,8 +2866,7 @@ class SheetController {
         this.probe.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
 
-    // Cells outside the frozen rows (columns) must not hide under the headers or the frozen part.
-    // Frozen cells are visible without scrolling in that direction, so they get no margin.
+    // Keeps unfrozen cells clear of the headers and the frozen part; frozen cells need no margin
     setScrollMargin(style, pane) {
         const rows = pane === 'main' || pane === 'l';
         const cols = pane === 'main' || pane === 't';
@@ -2899,8 +2874,7 @@ class SheetController {
         style.scrollMarginLeft = cols ? `${this.map.rowHeaderWidth + this.frozenWidth}px` : '0px';
     }
 
-    // The sink keeps focus when moved. It is not moved during input or edit, which would interrupt the IME
-    // composition; it moves once editing ends.
+    // Not moved during input or edit, which would break the IME composition; it moves once editing ends
     attachToPane() {
         const pane = paneOf(this.row, this.col, this.frozenRows, this.frozenCols);
         this.pane = pane;
@@ -2946,8 +2920,7 @@ class SheetController {
         const pane = this.attachToPane();
         this.frame.hidden = false;
         const rect = this.map.cellRect(this.row, this.col);
-        // With no headers, the frame's outer line at row 1 / column A would be cut off by the sheet edge,
-        // so the frame is moved inside the cell.
+        // With no headers, the frame moves inside row 1 / column A so the sheet edge does not cut it
         const box = this.map.mergeAt(this.row, this.col) ?? { top: this.row, left: this.col };
         const edgeTop = box.top === 0 && this.map.headerHeight === 0;
         const edgeLeft = box.left === 0 && this.map.rowHeaderWidth === 0;
@@ -3071,9 +3044,7 @@ class SheetController {
         return this.dotnet.invokeMethodAsync('GetEditText', row, col).catch(() => '');
     }
 
-    // Quick-validate in JS, then move first and send to C# without waiting (optimistic).
-    // When configured to wait for C#, move only after its result.
-    // forceOptimistic is for leaving the sheet.
+    // Checks in JS, then moves and sends without waiting, or waits for C# if set; forceOptimistic is for leaving
     async commit(moveAction, forceOptimistic = false) {
         const row = this.row;
         const col = this.col;
@@ -3553,9 +3524,7 @@ class SheetController {
         this.placeCaps();
     }
 
-    // Draws the active frame of row 1 / column A over the header lines too, as Excel does.
-    // Headers sit above the frame and hide its outer 1px, so that line goes in a layer above them.
-    // Not needed for frozen cells (already above) or while the cell is scrolled under a header.
+    // As in Excel, the frame of row 1 / column A also covers the header line, in a layer above the headers
     placeCaps() {
         this.capTop.hidden = true;
         this.capLeft.hidden = true;
@@ -3574,8 +3543,7 @@ class SheetController {
         const shift = this.stickyShift();
         const invalid = this.isEditing() && this.sink.classList.contains('mussel-sheet-invalid');
         if (showTop && shift.top < 0.5) {
-            // A frozen-column cell does not scroll sideways, so it goes in the container that sticks both ways.
-            // Others use the sideways-scrolling one and skip the part hidden under the row header and frozen columns.
+            // A frozen-column cell uses the container that sticks both ways; others skip the part under the frozen area
             const fixed = this.pane === 'l';
             const hidden = shift.left + this.map.rowHeaderWidth + (fixed ? 0 : this.frozenWidth);
             const start = fixed || ring.x >= hidden - 1 ? ring.x : hidden;
@@ -4065,8 +4033,7 @@ class SheetController {
         }
     }
 
-    // Without the async clipboard (e.g. http on a host other than localhost),
-    // execCommand raises the copy and cut events instead.
+    // Without the async clipboard (such as http off localhost), execCommand raises the copy and cut events
     menuCopy(cut) {
         if (!navigator.clipboard?.write && !navigator.clipboard?.writeText) {
             document.execCommand(cut ? 'cut' : 'copy');
@@ -4086,8 +4053,7 @@ class SheetController {
         }
     }
 
-    // Reading the clipboard needs permission: Chrome and Edge ask, Firefox and Safari show a Paste prompt.
-    // If it cannot be read, the user is told to press Ctrl+V.
+    // Reading the clipboard needs permission; when it cannot be read, the user is told to press Ctrl+V
     async menuPaste() {
         let text = null;
         try {
@@ -4108,8 +4074,7 @@ class SheetController {
         this.pasteText(text);
     }
 
-    // C# applies the change, sends the new sheet info, then returns the range to select;
-    // keys queued meanwhile replay after that selection.
+    // C# applies the change and sends the map before returning the range; queued keys replay after it
     async changeStructure(action) {
         const range = this.selectionRange();
         const row = this.row;
@@ -4458,8 +4423,7 @@ class SheetController {
         return this.root.querySelector(`.mussel-sheet-row[data-r="${row}"] .mussel-sheet-cell[data-c="${col}"]`);
     }
 
-    // Fire and forget; lastSend lets later calls wait for it.
-    // Failures such as a dropped connection are ignored.
+    // Fire and forget: lastSend lets later calls wait, and failures such as a dropped connection are ignored
     send(method, ...args) {
         this.lastSend = this.dotnet.invokeMethodAsync(method, ...args).catch(() => { });
     }

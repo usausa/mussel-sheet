@@ -74,8 +74,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     private bool defaultsApplied;
 
-    // Browser UTC offset in minutes (JS getTimezoneOffset), so a date typed without a year uses the user's date
-    // even when running on Server.
+    // Browser UTC offset in minutes, so a year-less date uses the user's date on Server too
     private int? clientOffset;
 
     private CancellationTokenSource? suggestionCancel;
@@ -305,7 +304,6 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     private int BottomSpace => lastRow >= BodyFirst ? rowLayout.Total - rowLayout.End(lastRow) : rowLayout.Total - rowLayout.Start(FrozenRowCount);
 
-    // Counts the header row and column, and every row including those not rendered because of virtualization
     private int AriaRowCount => Sheet.RowCount + (ShowColumnHeaders ? 1 : 0);
 
     private int AriaColumnCount => Sheet.ColumnCount + (ShowRowHeaders ? 1 : 0);

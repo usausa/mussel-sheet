@@ -2,7 +2,7 @@ namespace MusselSheet.Languages;
 
 using MusselSheet.Languages.Japanese;
 
-// The one place the library names its languages. They use only the public API, so a language an app adds is the same.
+// The only place the library names its languages; they use only the public API
 internal static class BuiltInLanguages
 {
     private static readonly SheetCharacterSet[] Sets =

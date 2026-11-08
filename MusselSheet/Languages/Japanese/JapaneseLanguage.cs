@@ -1,7 +1,6 @@
 namespace MusselSheet.Languages.Japanese;
 
-// The model for a language. It uses only the public API, so another language written the same way, in any assembly,
-// works the same way.
+// The model for a language: it uses only the public API, so a language in any assembly works the same
 public static class JapaneseLanguage
 {
     public static SheetCulture CreateCulture() => new()

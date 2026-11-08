@@ -188,8 +188,7 @@ public sealed class MusselSheetViewRenderTests : BunitContext
             .Add(x => x.OverscanCount, 2));
         var grid = cut.Find("[role=grid]");
 
-        // Counts include the header row and column even when rows are virtualized;
-        // indexes are 1-based and count the headers too
+        // Counts and 1-based indexes include the header row and column, even with virtualized rows
         Assert.Equal("1001", grid.GetAttribute("aria-rowcount"));
         Assert.Equal("4", grid.GetAttribute("aria-colcount"));
         Assert.Equal("1", cut.Find(".mussel-sheet-colhead").GetAttribute("aria-rowindex"));

@@ -5,7 +5,6 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-// Notifies its changes, so the bound sheet follows the object. LineCount and Total are calculated (get only)
 public sealed class Order : INotifyPropertyChanged
 {
     private readonly List<OrderLine> watched = [];

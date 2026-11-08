@@ -2,8 +2,7 @@ namespace MusselSheet.E2ETests;
 
 using static Microsoft.Playwright.Assertions;
 
-// A real IME cannot be driven, so it is verified manually (the composition events are synthesized here);
-// the OS clipboard is never used (clipboard events are synthesized in the page)
+// IME composition and clipboard events are synthesized: a real IME is checked by hand, and the OS clipboard is unused
 public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, IAsyncDisposable
 {
     // Set to wasm to run every test on WebAssembly, for example against the published app
@@ -84,8 +83,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     {
         var sample = await OpenAsync("form", "server");
 
-        // Capture-phase listeners stop each clipboard event before the sheet handles it,
-        // so the OS clipboard is untouched (paste is cancelled, copy writes nothing)
+        // Capture-phase listeners stop clipboard events before the sheet, so the OS clipboard is untouched
         await sample.Page.EvaluateAsync(
             """
             () => {
@@ -180,8 +178,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     {
         var sample = await OpenAsync("large-sheets", "server");
 
-        // 1,000 rows x 49 columns (about 330KB) exceeds Interactive Server's 32KB message limit,
-        // so the paste has to be streamed
+        // 1,000 rows x 49 columns (about 330KB) exceeds Interactive Server's 32KB message limit, so it is streamed
         await sample.Cell(0, 1).ClickAsync();
         var text = string.Concat(Enumerable.Range(0, 1000).Select(r => string.Join('\t', Enumerable.Range(0, 49).Select(c => (r * 1000) + c)) + "\r\n"));
         await sample.DispatchClipboardAsync("paste", text);
@@ -395,8 +392,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
 
         Assert.True(await sample.Page.Locator(".mussel-sheet-row[data-r='0'] .mussel-sheet-cell").CountAsync() < 50);
 
-        // Row 9001 starts at 24px x 9000 plus 16px for each of the 180 rows that are 40px tall (every 50th);
-        // column AT starts at 120 + 100 x 44, and the scroll offsets below stop a little short of both
+        // Row 9001 is at 24 x 9000 + 16 x 180 (every 50th row is 40px), column AT at 120 + 100 x 44
         var a1 = await SamplePage.RectAsync(sample.Cell(0, 0));
         var header = await SamplePage.RectAsync(sample.ColumnHeader(1));
         await sample.ScrollSheetAsync(4160, 218680);

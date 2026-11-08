@@ -1,6 +1,6 @@
 namespace MusselSheet;
 
-// The sets every language shares. Half-width is ASCII and Unicode's half-width forms.
+// Half-width is ASCII and Unicode's half-width forms
 public static class SheetCharacters
 {
     public static SheetCharacterSet None { get; } = new("none", "\u0000-\U0010FFFF");

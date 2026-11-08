@@ -12,8 +12,7 @@ public sealed class InputAssistTests : BunitContext
     [Fact]
     public async Task YearlessDateUsesTheBrowsersYear()
     {
-        // The browser is at UTC+9: while the server clock (UTC) is still 2026-12-31,
-        // the browser is already in 2027
+        // The browser (UTC+9) is already in 2027 while the server clock (UTC) is still at 2026-12-31
         JSInterop.Setup<int>("timezoneOffset").SetResult(-540);
         var sheet = new Sheet(2, 1);
         sheet.Range("A1:A2").Configure(c => c.Kind = CellKind.Date);
@@ -23,8 +22,7 @@ public sealed class InputAssistTests : BunitContext
         await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 0, "1/5", false));
         await cut.InvokeAsync(() => cut.Instance.CommitAsync(1, 0, "２０２５０１０５", false));
 
-        // Year-less input is not remembered; re-editing shows the full date,
-        // so it cannot turn into a different day once the year changes
+        // The year-less text is not kept, so re-editing shows the full date and the day cannot shift with the year
         Assert.Equal(new DateOnly(2027, 1, 5), sheet.GetValue(0, 0));
         Assert.Null(sheet.GetInputText(0, 0));
         Assert.Equal("2027/01/05", sheet.GetEditText(0, 0));

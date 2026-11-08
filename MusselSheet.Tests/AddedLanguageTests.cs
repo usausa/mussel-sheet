@@ -200,8 +200,7 @@ public sealed class AddedLanguageTests : BunitContext
         Assert.Throws<KeyNotFoundException>(() => Sheet.FromDesign(SheetDesignJson.Read(json), new SheetFunctions()));
     }
 
-    // The browser tests read this file, so C# and the browser are tried on the same data. To write it again, run the
-    // tests with MUSSELSHEET_UPDATE_FIXTURES=1.
+    // The browser tests read this file; run the tests with MUSSELSHEET_UPDATE_FIXTURES=1 to write it again
     [Fact]
     public void TheBrowserFixtureIsWhatTheOptionsProduce()
     {

@@ -70,8 +70,7 @@ public sealed class MusselSheetOptions
 
     internal DayOfWeek FirstDayOfWeekFor(CultureInfo culture) => FindValue(culture, x => x.FirstDayOfWeek) ?? culture.DateTimeFormat.FirstDayOfWeek;
 
-    // Made once per culture, because the view asks for every cell and every commit:
-    // configure the options before the first sheet is shown
+    // Cached per culture, so configure the options before the first sheet is shown
     internal DateRules DatesFor(CultureInfo culture) =>
         dates.TryGetValue(culture.Name, out var rules) ? rules : AddDates(culture);
 

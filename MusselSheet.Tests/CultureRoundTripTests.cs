@@ -2,8 +2,7 @@ namespace MusselSheet;
 
 using MusselSheet.Internal;
 
-// Every culture .NET knows must read back what the sheet itself writes, with no language registered. Nothing here
-// names a culture, so a culture that writes something new fails here first.
+// Every .NET culture must read back what the sheet writes, with no language registered
 public sealed class CultureRoundTripTests
 {
     private static readonly DateOnly Today = new(2026, 11, 6);

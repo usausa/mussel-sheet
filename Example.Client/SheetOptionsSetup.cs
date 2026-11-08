@@ -1,6 +1,6 @@
 namespace Example.Client;
 
-// What applies to every sheet of the app. Example and Example.Client register the same options, for Server and WebAssembly
+// Example and Example.Client register these, so Server and WebAssembly use the same options
 public static class SheetOptionsSetup
 {
     public static void Configure(MusselSheetOptions options)

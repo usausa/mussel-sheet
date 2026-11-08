@@ -4,9 +4,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-// What a language says about dates: its eras and the forms it reads. This class holds no language.
-// Forms compile to regular expressions, and the browser runs the same ones: keep readForms and formatDate in
-// MusselSheet.js in step with this class.
+// Keep readForms and formatDate in MusselSheet.js in step: the browser runs the same compiled forms
 internal sealed partial class DateRules
 {
     private readonly Regex[] forms;
@@ -54,9 +52,7 @@ internal sealed partial class DateRules
         return false;
     }
 
-    // ggg is the era's name, gg its short name, g its initial, ee and e the era year with and without padding. In the
-    // era's first year, a single e directly before the language's year unit prints the first-year text.
-    // A date before the first era, or a culture without eras, uses beforeEras or the short date pattern.
+    // g, gg, ggg: era initial, short name, name; e, ee: era year (e before the unit writes year 1 as the first-year text)
     public string Format(DateOnly date, string format, CultureInfo culture, string? beforeEras = null)
     {
         var era = EraOf(date);
@@ -114,8 +110,7 @@ internal sealed partial class DateRules
         return builder.ToString();
     }
 
-    // null: no form matched, so the common forms decide. false: a form matched but the date does not exist.
-    // An era year may run past the era's end, but a date before the era's first day is rejected.
+    // null: no form matched; false: a form matched but no such date (an era year may run past the era's end)
     public bool? TryRead(string text, DateOnly today, out DateOnly date) => TryRead(text, today, out date, out _);
 
     public bool? TryRead(string text, DateOnly today, out DateOnly date, out bool omitsYear)
@@ -208,10 +203,7 @@ internal sealed partial class DateRules
         return Eras[^1];
     }
 
-    // A form uses the symbols of the display format: g gg ggg (era), e ee eee eeee (era year of up to 2, 2, 3 or 4
-    // digits, or the first-year text), yyyy yy (year), M MM and d dd. '/' takes any of / . -, a space may be left out,
-    // and quotes and a backslash hold literal text. A form that cannot be read (no month, a field twice, no era to read,
-    // a month or day name) is left out.
+    // The display format's symbols, with '/' for any of / . - and optional spaces; null when the form cannot be read
     private string? Pattern(string form)
     {
         var builder = new StringBuilder("^");
@@ -243,7 +235,7 @@ internal sealed partial class DateRules
             }
 
             i += count;
-            if (c is 'g' or 'e' or 'y' or 'M' or 'd' && !fields.Add(c))
+            if ((c is 'g' or 'e' or 'y' or 'M' or 'd') && !fields.Add(c))
             {
                 return null;
             }

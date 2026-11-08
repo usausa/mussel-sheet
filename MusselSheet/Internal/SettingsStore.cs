@@ -66,8 +66,7 @@ internal sealed class SettingsStore
         return resolved;
     }
 
-    // A shared edge can be set from either cell (this cell's Right or the neighbor's Left); the later rule wins.
-    // hasRight and hasBelow stop the lookup at the sheet edge.
+    // A shared edge can be set from either cell (Right or the neighbor's Left); the later rule wins
     public CellEdges ResolveEdges(int row, int column, bool hasRight, bool hasBelow)
     {
         var key = Key(row, column);

@@ -192,7 +192,7 @@ public sealed partial class JapaneseFormPage
         return sheet;
     }
 
-    // The server makes the PDF, and the browser saves it. The text is what the cells show, such as 令和8年11月5日
+    // The server makes the PDF from the shown text (such as 令和8年11月5日), and the browser saves it
     private async Task CreatePdfAsync()
     {
         var invoice = new InvoiceData(

@@ -79,8 +79,7 @@ public sealed partial class MusselSheetView
         error ??= RunValidator(settings, row, column, value, checkedText);
         error ??= BindingError(row, column, value);
 
-        // A date typed without a year, or a value changed by the corrector, does not keep the typed text,
-        // so re-editing shows the full date or the corrected value.
+        // A year-less date or a corrected value drops the typed text, so re-editing shows the full value
         var yearless = (settings.Kind == CellKind.Date) && converted && omitsYear;
         return new CommitDraft(checkedText, value, converted, error, (normalized.Length == 0) || yearless || corrected ? null : normalized);
 
@@ -147,8 +146,7 @@ public sealed partial class MusselSheetView
         };
     }
 
-    // optimistic: the user cannot stay in the cell (JS already moved on, or a range operation), so a Stay-mode error
-    // stores the value with an error mark. batch collects changes so a range operation is one undo step.
+    // optimistic: the user has left the cell, so a Stay error is stored with a mark; batch makes one undo step
     private async Task<CommitResult> ApplyAsync(int row, int column, CommitDraft draft, bool optimistic, CellChangeReason reason, List<CellChange>? batch = null)
     {
         var settings = Sheet.GetSettings(row, column);
@@ -163,7 +161,7 @@ public sealed partial class MusselSheetView
 
         if (committing.Cancel)
         {
-            // On cancel nothing is applied; if optimistic (JS already moved on), mark the cell so the failure stays visible
+            // On cancel nothing is applied; if optimistic, the cell is marked so the failure stays visible
             var message = committing.Error ?? Texts.Canceled;
             if (optimistic)
             {

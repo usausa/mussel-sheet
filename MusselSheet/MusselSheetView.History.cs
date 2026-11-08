@@ -46,8 +46,7 @@ public sealed partial class MusselSheetView
             await CellCommitted.InvokeAsync(new CellCommittedEventArgs(Sheet, new CellAddress(row, column), old, snapshot.Value, snapshot.Error, reason)).ConfigureAwait(true);
         }
 
-        // A range operation reselects its whole area, including cells that did not change; if a corner row or column
-        // is gone, the range of the changed cells is selected instead.
+        // Reselects the whole area of a range operation, or the changed cells if a corner row or column is gone
         if ((entry.Area is { } area) && IsAttached(area.Top) && IsAttached(area.Bottom) && IsAttached(area.Left) && IsAttached(area.Right))
         {
             var located = new CellRange(area.Top.Index, area.Left.Index, area.Bottom.Index, area.Right.Index);

@@ -9,8 +9,7 @@ using System.Text.RegularExpressions;
 // Must stay in step with normalizeText and checkInput in MusselSheet.js: change both together
 internal static partial class CellInput
 {
-    // What step 2 changes or drops: full-width ASCII, the ideographic space, the minus sign, bidirectional marks and
-    // the decimal digits of other scripts
+    // What the width step changes or drops: full-width ASCII, U+3000, U+2212, bidi marks and other scripts' digits
     private static readonly SearchValues<char> WidthCharacters = SearchValues.Create(
         string.Concat(Enumerable.Range(0xFF01, 0xFF5E - 0xFF01 + 1).Select(static x => (char)x)) + "\u3000\u2212\u200E\u200F\u061C" +
         string.Concat(Enumerable.Range(0x80, 0xFF01 - 0x80).Select(static x => (char)x).Where(char.IsDigit)));
@@ -28,8 +27,7 @@ internal static partial class CellInput
         '\u2006', '\u2007', '\u2008', '\u2009', '\u200A', '\u2028', '\u2029', '\u202F', '\u205F', '\u3000', '\uFEFF'
     ];
 
-    // Order: line breaks, full-width to half-width per kind, then mask shaping.
-    // Text that does not fit the mask is returned unshaped and left for validation to reject.
+    // Line breaks, then width per kind, then the mask; text that does not fit the mask is left for validation
     public static string Normalize(string text, ResolvedCellSettings settings, ReadingRules reading)
     {
         text = NormalizeLines(text, settings.WrapText);
@@ -48,8 +46,7 @@ internal static partial class CellInput
         return multiline ? LineBreak().Replace(text, "\n") : LineBreak().Replace(text, string.Empty);
     }
 
-    // What every language shares: full-width ASCII and the ideographic space become half-width, the minus sign that
-    // many cultures show becomes '-', and bidirectional marks are not read. The language's own readings come next.
+    // The width step every language shares, then the language's own readings
     public static string Normalize(string text, CellKind kind, ReadingRules reading) => kind switch
     {
         CellKind.List => text.Trim(TrimCharacters),
@@ -75,7 +72,7 @@ internal static partial class CellInput
                 token = mask[++m];
             }
 
-            if (!escaped && token is '9' or 'A' or 'X')
+            if (!escaped && (token is '9' or 'A' or 'X'))
             {
                 if ((i >= text.Length) || !FitsMask(token, text[i]))
                 {
@@ -312,9 +309,7 @@ internal static partial class CellInput
     [GeneratedRegex("\r\n|\n|\r")]
     private static partial Regex LineBreak();
 
-    // Decimal and group separators come from the sheet culture (en-US: '.' and ','; de-DE: ',' and '.').
-    // At least one digit is required. When the group separator is a space (French and others), a plain space is
-    // accepted too. Same as parseNumber in MusselSheet.js.
+    // Same as parseNumber in MusselSheet.js; a plain space also counts where the group separator is a space
     private static bool TryParseNumber(string text, ReadingRules reading, out decimal number)
     {
         number = 0;
@@ -346,9 +341,7 @@ internal static partial class CellInput
 
     private static bool IsBlankSeparator(string separator) => (separator.Length > 0) && char.IsWhiteSpace(separator[0]);
 
-    // The language's forms come first. Then separators are '/', '-' and '.'; the field order follows the sheet culture,
-    // but a leading 4-digit year is read under any culture. A missing year uses today's year.
-    // Same as matchDate in MusselSheet.js.
+    // Same as matchDate in MusselSheet.js: the language's forms first, then / - . in culture order or year first
     private static bool TryParseDate(string text, InputContext context, out DateOnly date, out bool omitsYear)
     {
         var (today, reading) = (context.Today, context.Reading);
@@ -377,7 +370,7 @@ internal static partial class CellInput
     internal static bool TryCreateDate(int year, int month, int day, out DateOnly date)
     {
         date = default;
-        if (year is < 1 or > 9999 || month is < 1 or > 12 || (day < 1) || (day > DateTime.DaysInMonth(year, month)))
+        if ((year is < 1 or > 9999) || (month is < 1 or > 12) || (day < 1) || (day > DateTime.DaysInMonth(year, month)))
         {
             return false;
         }
@@ -426,8 +419,7 @@ internal static partial class CellInput
 
         if (DigitsDateText().IsMatch(text))
         {
-            // Digit-only forms by order: year-first yyyyMMdd, yyMMdd, MMdd; month-first MMddyyyy, MMddyy, MMdd;
-            // day-first ddMMyyyy, ddMMyy, ddMM.
+            // ymd: yyyyMMdd, yyMMdd or MMdd; mdy: MMddyyyy, MMddyy or MMdd; dmy: ddMMyyyy, ddMMyy or ddMM
             var digits = text.AsSpan();
             var yearFirst = order == DateOrder.YearMonthDay;
             var dayFirst = order == DateOrder.DayMonthYear;
@@ -441,7 +433,7 @@ internal static partial class CellInput
         return false;
     }
 
-    // Same pivot as Excel: 00 to 29 are 20xx, 30 to 99 are 19xx
+    // Same pivot as Excel
     internal static int FullYear(int year) => year < 30 ? 2000 + year : 1900 + year;
 
     // The culture's separator is read as well as ':'
@@ -616,7 +608,7 @@ internal static partial class CellInput
 
         try
         {
-            return PatternOf(pattern) is not { } regex || regex.IsMatch(text) ? null : texts.Pattern;
+            return (PatternOf(pattern) is not { } regex) || regex.IsMatch(text) ? null : texts.Pattern;
         }
         catch (RegexMatchTimeoutException)
         {

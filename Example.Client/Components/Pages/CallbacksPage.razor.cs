@@ -64,7 +64,7 @@ public sealed partial class CallbacksPage
             sheet.Range("B6").Configure(c =>
             {
                 c.Kind = CellKind.Date;
-                c.StyleProvider = x => x.Value is DateOnly date && (date < today) ? new CellStyle { FillColor = "#fff3cd", Bold = true } : null;
+                c.StyleProvider = x => (x.Value is DateOnly date) && (date < today) ? new CellStyle { FillColor = "#fff3cd", Bold = true } : null;
             });
             sheet.Range("B7").Configure(static c =>
             {
@@ -75,7 +75,7 @@ public sealed partial class CallbacksPage
             sheet.Range("B8").Configure(static c =>
             {
                 c.Kind = CellKind.Number;
-                c.Validator = static x => x.Value is decimal d && (d % 2 != 0) ? "Enter an even number." : null;
+                c.Validator = static x => (x.Value is decimal d) && (d % 2 != 0) ? "Enter an even number." : null;
             });
 
             sheet.SetValues(0, 0,

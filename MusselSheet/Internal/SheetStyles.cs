@@ -3,8 +3,7 @@ namespace MusselSheet.Internal;
 using System.Globalization;
 using System.Text;
 
-// Alignment, emphasis and border kinds map to fixed classes in MusselSheet.css; colors, font sizes,
-// indents and column widths are emitted into a per-instance <style> instead of per-cell inline styles.
+// Fixed kinds use classes in MusselSheet.css; colors, sizes, indents and widths go in a per-instance <style>
 internal sealed class SheetStyles
 {
     private readonly Dictionary<string, int> colors = new(StringComparer.Ordinal);
@@ -54,16 +53,14 @@ internal sealed class SheetStyles
             Register(style.Borders.Left?.Color);
         }
 
-        // No line breaks or similar whitespace are written: in prerendered HTML they become character references
-        // (&#xA;), which <style> does not decode.
+        // No line breaks: prerendering writes them as &#xA;, which <style> does not decode
         var widths = sheet.Columns.Select(x => x.ActualWidth).ToArray();
         var frozen = Math.Clamp(frozenColumns, 0, widths.Length);
         var header = rowHeaderWidth > 0 ? [rowHeaderWidth] : Array.Empty<int>();
         var css = new StringBuilder();
         AppendTemplate(css, $".{Scope} .mussel-sheet-row,.{Scope} .mussel-sheet-colhead", [.. header, .. widths[..frozen], widths[frozen..].Sum()]);
 
-        // Frozen columns stick to the right of the header. The boundary line is a box-shadow on the last one; the error
-        // variant repeats it beside the error outline, because the more specific rule would otherwise replace it.
+        // The frozen boundary is a box-shadow on the last frozen column, repeated in the error rule that overrides it
         var left = rowHeaderWidth;
         for (var c = 0; c < frozen; c++)
         {
@@ -122,8 +119,7 @@ internal sealed class SheetStyles
 
     public string GetMergeClass(CellRange range) => mergeClasses.TryGetValue(range, out var name) ? name : string.Empty;
 
-    // Each shared edge is drawn by the right or bottom line of one cell; left and top lines are drawn only by the
-    // cells in the first column and the first row.
+    // Shared edges are right and bottom lines; left and top lines are drawn only in the first column and row
     public string GetCellClass(ResolvedCellSettings settings, CellEdges edges, CellBorder? left, CellBorder? top)
     {
         var key = (settings, edges, left, top);
@@ -208,14 +204,13 @@ internal sealed class SheetStyles
         return result;
     }
 
-    // Written as an inline style because it varies per value, so a class would not do. Borders and vertical
-    // alignment are never changed by value; the CSS class is added by the caller.
+    // Inline, as it varies per value; borders and vertical alignment never change by value
     public static string? GetValueStyle(ResolvedCellSettings settings, CellStyle patch)
     {
         var css = new StringBuilder();
         var style = settings.Style;
         var alignment = EffectiveAlignment(settings);
-        if (patch.HorizontalAlignment is { } horizontal && (horizontal != HorizontalAlignment.General))
+        if ((patch.HorizontalAlignment is { } horizontal) && (horizontal != HorizontalAlignment.General))
         {
             alignment = horizontal;
             css.Append(horizontal switch
@@ -281,7 +276,7 @@ internal sealed class SheetStyles
 
     private static void AppendInlineColor(StringBuilder css, string property, string? color)
     {
-        if (!string.IsNullOrWhiteSpace(color) && color.All(x => char.IsAsciiLetterOrDigit(x) || x is '#' or '(' or ')' or ',' or '.' or '%' or ' ' or '-'))
+        if (!string.IsNullOrWhiteSpace(color) && color.All(x => char.IsAsciiLetterOrDigit(x) || (x is '#' or '(' or ')' or ',' or '.' or '%' or ' ' or '-')))
         {
             css.Append(CultureInfo.InvariantCulture, $"{property}:{color.Trim()};");
         }
@@ -313,7 +308,7 @@ internal sealed class SheetStyles
 
         foreach (var ch in value)
         {
-            if (!char.IsAsciiLetterOrDigit(ch) && ch is not ('#' or '(' or ')' or ',' or '.' or '%' or ' ' or '-'))
+            if (!char.IsAsciiLetterOrDigit(ch) && (ch is not ('#' or '(' or ')' or ',' or '.' or '%' or ' ' or '-')))
             {
                 return false;
             }

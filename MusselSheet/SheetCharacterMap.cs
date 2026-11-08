@@ -4,8 +4,7 @@ using System.Buffers;
 
 using MusselSheet.Internal;
 
-// Characters a language reads as others. from and to are written like a character set and pair up by position:
-// "a-z" to "A-Z". A single character in to takes every character of from.
+// from and to pair up by position ("a-z" to "A-Z"); a single character in to takes all of from
 public sealed class SheetCharacterMap
 {
     private readonly Dictionary<string, string> characters = new(StringComparer.Ordinal);
@@ -34,7 +33,6 @@ public sealed class SheetCharacterMap
 
     internal IReadOnlyDictionary<string, string> Characters => characters;
 
-    // Only a character some key starts with is looked up, and text with none of them is returned as it is
     internal string Convert(string text)
     {
         var rest = text.AsSpan();

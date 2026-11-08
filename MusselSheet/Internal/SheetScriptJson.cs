@@ -2,8 +2,7 @@ namespace MusselSheet.Internal;
 
 using System.Text.Json;
 
-// JS interop serializes arguments and results by reflection, and a trimmed WebAssembly app loses what that needs
-// (the constructor parameter names of records and anonymous types). So what crosses to JS is already JSON.
+// Already JSON, as interop's reflection loses record parameter names in a trimmed WebAssembly app
 internal static class SheetScriptJson
 {
     public static JsonElement ToElement(SheetMap value) => JsonSerializer.SerializeToElement(value, SheetScriptJsonContext.Default.SheetMap);

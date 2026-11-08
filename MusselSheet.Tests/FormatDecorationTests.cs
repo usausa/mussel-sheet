@@ -70,7 +70,7 @@ public sealed class FormatDecorationTests : BunitContext
 
         Assert.Contains("ir1", cells[1].ClassList);
         Assert.DoesNotContain(cells[2].ClassList, x => x.StartsWith("il", StringComparison.Ordinal) || x.StartsWith("ir", StringComparison.Ordinal));
-        Assert.DoesNotContain(cells[3].ClassList, x => x is "mussel-sheet-i" or "mussel-sheet-u" or "mussel-sheet-s" || x.StartsWith("fs", StringComparison.Ordinal));
+        Assert.DoesNotContain(cells[3].ClassList, x => (x is "mussel-sheet-i" or "mussel-sheet-u" or "mussel-sheet-s") || x.StartsWith("fs", StringComparison.Ordinal));
     }
 
     [Fact]

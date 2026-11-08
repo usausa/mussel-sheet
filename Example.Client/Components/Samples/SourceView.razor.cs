@@ -2,7 +2,6 @@ namespace Example.Client.Components.Samples;
 
 using Microsoft.AspNetCore.Components;
 
-// Shows the files of a page, embedded in the assembly by Example.Client.csproj
 public sealed partial class SourceView
 {
     private IReadOnlyList<(string Name, string Text)> files = [];

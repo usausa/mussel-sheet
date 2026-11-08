@@ -1,6 +1,5 @@
 namespace Example.Client.Components.Samples;
 
-// Handlers for the events of MusselSheetView. The page passes them to the view, and SampleFrame shows the result
 public sealed class SheetEventLog
 {
     private const int MaxLines = 8;
