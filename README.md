@@ -51,22 +51,6 @@ Create a `Sheet` and show it in an interactive component.
 
 The `Example` project shows every feature on Server and WebAssembly.  
 
-## 🌐 Languages
-
-English and Japanese are built in and follow the culture of the sheet. A language is data of one shape, with eras and date forms, so an app adds another one the same way.  
-
-```csharp
-builder.Services.AddMusselSheet(static options => options.Cultures["ko"] = new SheetCulture
-{
-    Texts = new SheetTexts { Required = "값을 입력하세요." },
-    DateForms = { "yyyy년 M월 d일", "M월 d일" }
-});
-```
-
-Full-width input and the digits of every script are read in number, date and time cells in every language. To convert the text of a text cell, use a `Corrector`, for example with `Usa.Smart.Text.Japanese`.  
-
-See Languages in the [specification](Document/SPEC.md).  
-
 ## 🎨 Look
 
 | Part | Detail |
