@@ -68,6 +68,8 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     private string? sentMap;
 
+    private string? sentLanguage;
+
     private string? sentOptions;
 
     private bool defaultsApplied;

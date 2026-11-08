@@ -116,13 +116,18 @@ internal sealed partial class DateRules
 
     // null: no form matched, so the common forms decide. false: a form matched but the date does not exist.
     // An era year may run past the era's end, but a date before the era's first day is rejected.
-    public bool? TryRead(string text, DateOnly today, out DateOnly date)
+    public bool? TryRead(string text, DateOnly today, out DateOnly date) => TryRead(text, today, out date, out _);
+
+    public bool? TryRead(string text, DateOnly today, out DateOnly date, out bool omitsYear)
     {
         date = default;
+        omitsYear = false;
         if (Match(text) is not { } match)
         {
             return null;
         }
+
+        omitsYear = !match.Groups["year"].Success && !match.Groups["eraYear"].Success;
 
         SheetEra? era = null;
         int year;
@@ -145,9 +150,6 @@ internal sealed partial class DateRules
 
         return CellInput.TryCreateDate(year, Number(match.Groups["month"].ValueSpan), Number(match.Groups["day"].ValueSpan), out date) && ((era is null) || (date >= era.Start));
     }
-
-    public bool? OmitsYear(string text) =>
-        Match(text) is { } match ? !match.Groups["year"].Success && !match.Groups["eraYear"].Success : null;
 
     private static int Number(ReadOnlySpan<char> text) => int.Parse(text, provider: CultureInfo.InvariantCulture);
 

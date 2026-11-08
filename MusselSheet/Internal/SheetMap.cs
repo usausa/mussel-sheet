@@ -15,10 +15,10 @@ internal sealed record SheetMap(
     IReadOnlyList<InputRule> Rules,
     IReadOnlyList<IReadOnlyList<int>> Patterns,
     IReadOnlyList<int> RowPatterns,
-    IReadOnlyDictionary<string, string> Messages,
-    IReadOnlyList<int> Merges,
-    CalendarInfo Calendar,
-    ReadingInfo Reading);
+    IReadOnlyList<int> Merges);
+
+// What depends on the culture, the options and the UI culture, sent apart from the map and only when it changes
+internal sealed record ScriptLanguage(IReadOnlyDictionary<string, string> Messages, CalendarInfo Calendar, ReadingInfo Reading);
 
 // A language reaches the browser only as this data. Sets holds what the sheet's rules use.
 internal sealed record ReadingInfo(
@@ -88,10 +88,11 @@ internal sealed record ScriptItem(string Value, string Text);
 
 internal static class SheetMapBuilder
 {
-    public static SheetMap Build(Sheet sheet, int headerHeight, int rowHeaderWidth, SheetValidationMode defaultPolicy, InputContext? context = null, CalendarInfo? calendar = null)
+    public static ScriptLanguage Language(InputContext context, CalendarInfo calendar) => new(context.ForScript(), calendar, context.Reading.ForScript());
+
+    public static SheetMap Build(Sheet sheet, int headerHeight, int rowHeaderWidth, SheetValidationMode defaultPolicy, InputContext? context = null)
     {
         context ??= new InputContext(sheet.Culture, DateOnly.FromDateTime(DateTime.Today), SheetTexts.English, sheet.Culture.DateTimeFormat.ShortDatePattern, ReadingRules.From(sheet.Culture));
-        calendar ??= CalendarInfo.From(sheet.Culture, sheet.Culture.DateTimeFormat.FirstDayOfWeek);
         var rules = new List<InputRule>();
         var ruleIndex = new Dictionary<ResolvedCellSettings, int>(ReferenceEqualityComparer.Instance);
         var patterns = new List<IReadOnlyList<int>>();
@@ -149,10 +150,7 @@ internal static class SheetMapBuilder
             rules,
             patterns,
             rowPatterns,
-            context.ForScript(),
-            [.. sheet.MergeAreas.SelectMany(x => new[] { x.Top, x.Left, x.Bottom, x.Right })],
-            calendar,
-            context.Reading.ForScript());
+            [.. sheet.MergeAreas.SelectMany(x => new[] { x.Top, x.Left, x.Bottom, x.Right })]);
     }
 
     internal static List<int> RowBounds(Sheet sheet)

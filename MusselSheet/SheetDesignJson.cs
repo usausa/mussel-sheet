@@ -2,6 +2,7 @@ namespace MusselSheet;
 
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 using MusselSheet.Internal;
@@ -20,7 +21,8 @@ public static class SheetDesignJson
         var options = new JsonSerializerOptions(SheetDesignJsonContext.Default.Options)
         {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-            NewLine = "\n"
+            NewLine = "\n",
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
         };
         return (JsonTypeInfo<SheetDesign>)options.GetTypeInfo(typeof(SheetDesign));
     }

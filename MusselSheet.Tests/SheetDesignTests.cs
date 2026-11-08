@@ -3,6 +3,16 @@ namespace MusselSheet;
 public sealed class SheetDesignTests
 {
     [Fact]
+    public void ADesignWithAPropertyTheLibraryDoesNotKnowIsAnError()
+    {
+        var json = SheetDesignJson.Write(new Sheet(1, 1).ToDesign());
+        var unknown = json.Replace("\"version\"", "\"characterConversions\": \"hiraganaToKatakana\", \"version\"", StringComparison.Ordinal);
+
+        Assert.NotEqual(json, unknown);
+        Assert.Throws<System.Text.Json.JsonException>(() => SheetDesignJson.Read(unknown));
+    }
+
+    [Fact]
     public void DesignRoundTripsThroughJson()
     {
         var sheet = DesignedSheet();

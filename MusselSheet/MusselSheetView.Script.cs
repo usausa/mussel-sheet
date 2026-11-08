@@ -12,23 +12,38 @@ public sealed partial class MusselSheetView
     private string MapSignature() =>
         string.Create(CultureInfo.InvariantCulture, $"{RuntimeHelpers.GetHashCode(Sheet)}|{Sheet.StructureVersion}|{HeaderHeight}|{HeaderWidth}|{ValidationMode}");
 
-    private SheetMap BuildMap() =>
-        SheetMapBuilder.Build(Sheet, HeaderHeight, HeaderWidth, ValidationMode, InputContext, CalendarInfo.From(Sheet.Culture, Options.FirstDayOfWeekFor(Sheet.Culture)));
+    private string LanguageSignature() =>
+        string.Create(CultureInfo.InvariantCulture, $"{RuntimeHelpers.GetHashCode(Options)}|{RuntimeHelpers.GetHashCode(Sheet.Culture)}|{CultureInfo.CurrentUICulture.Name}|{Today}");
+
+    private SheetMap BuildMap() => SheetMapBuilder.Build(Sheet, HeaderHeight, HeaderWidth, ValidationMode, InputContext);
+
+    private ScriptLanguage BuildLanguage() =>
+        SheetMapBuilder.Language(InputContext, CalendarInfo.From(Sheet.Culture, Options.FirstDayOfWeekFor(Sheet.Culture)));
 
     // Resend the sheet map only when the shape or settings changed. After a user-driven row change,
     // send it without waiting for the render to finish, so it arrives before JS moves to that row.
     private async Task SyncMapAsync()
     {
-        var map = MapSignature();
-        if ((controller is null) || string.Equals(sentMap, map, StringComparison.Ordinal))
+        if (controller is null)
         {
             return;
         }
 
-        sentMap = map;
         try
         {
-            await controller.InvokeVoidAsync("setMap", SheetScriptJson.ToElement(BuildMap())).ConfigureAwait(true);
+            var language = LanguageSignature();
+            if (!string.Equals(sentLanguage, language, StringComparison.Ordinal))
+            {
+                sentLanguage = language;
+                await controller.InvokeVoidAsync("setLanguage", SheetScriptJson.ToElement(BuildLanguage())).ConfigureAwait(true);
+            }
+
+            var map = MapSignature();
+            if (!string.Equals(sentMap, map, StringComparison.Ordinal))
+            {
+                sentMap = map;
+                await controller.InvokeVoidAsync("setMap", SheetScriptJson.ToElement(BuildMap())).ConfigureAwait(true);
+            }
         }
         catch (JSDisconnectedException)
         {
@@ -84,9 +99,10 @@ public sealed partial class MusselSheetView
         self ??= DotNetObjectReference.Create(new SheetScriptBridge(this));
         var options = SheetScriptJson.ToElement(ScriptOptions());
         sentMap = MapSignature();
+        sentLanguage = LanguageSignature();
         sentOptions = options.GetRawText();
         sentThresholds = null;
-        controller = await module.InvokeAsync<IJSObjectReference>("attach", root, self, options, SheetScriptJson.ToElement(BuildMap())).ConfigureAwait(true);
+        controller = await module.InvokeAsync<IJSObjectReference>("attach", root, self, options, SheetScriptJson.ToElement(BuildMap()), SheetScriptJson.ToElement(BuildLanguage())).ConfigureAwait(true);
         clientOffset = await controller.InvokeAsync<int>("timezoneOffset").ConfigureAwait(true);
     }
 

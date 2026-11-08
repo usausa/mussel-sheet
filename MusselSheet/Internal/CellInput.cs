@@ -135,9 +135,12 @@ internal static partial class CellInput
         texts.CharacterSets.GetValueOrDefault(set.Name) ?? set.Message ?? texts.Characters;
 
     // A corrected string value is validated by the corrected text, not the typed one
-    public static string? Check(string text, ResolvedCellSettings settings, InputContext context, out object? value, out bool converted, Func<object?, object?>? correct = null)
+    public static string? Check(string text, ResolvedCellSettings settings, InputContext context, out object? value, out bool converted, Func<object?, object?>? correct = null) =>
+        Check(text, settings, context, out value, out converted, out _, correct);
+
+    public static string? Check(string text, ResolvedCellSettings settings, InputContext context, out object? value, out bool converted, out bool omitsYear, Func<object?, object?>? correct = null)
     {
-        converted = TryConvert(text, settings, context, out value, out var error);
+        converted = TryConvert(text, settings, context, out value, out var error, out omitsYear);
         if (converted && (correct is not null))
         {
             value = correct(value);
@@ -148,10 +151,14 @@ internal static partial class CellInput
         return error is null ? null : settings.ErrorMessage ?? error;
     }
 
-    public static bool TryConvert(string text, ResolvedCellSettings settings, InputContext context, out object? value, out string? error)
+    public static bool TryConvert(string text, ResolvedCellSettings settings, InputContext context, out object? value, out string? error) =>
+        TryConvert(text, settings, context, out value, out error, out _);
+
+    public static bool TryConvert(string text, ResolvedCellSettings settings, InputContext context, out object? value, out string? error, out bool omitsYear)
     {
         value = null;
         error = null;
+        omitsYear = false;
         if (text.Length == 0)
         {
             return true;
@@ -165,7 +172,7 @@ internal static partial class CellInput
             case CellKind.Number:
                 error = context.Texts.Number;
                 return false;
-            case CellKind.Date when TryParseDate(text, context, out var date):
+            case CellKind.Date when TryParseDate(text, context, out var date, out omitsYear):
                 value = date;
                 return true;
             case CellKind.Date:
@@ -190,9 +197,6 @@ internal static partial class CellInput
                 return true;
         }
     }
-
-    public static bool OmitsYear(string text, ReadingRules reading) =>
-        reading.Dates.OmitsYear(text) ?? (TrySplitDate(text, reading, out var year, out _, out _) && year.IsEmpty);
 
     public static string? Validate(object? value, string text, ResolvedCellSettings settings, InputContext context)
     {
@@ -345,10 +349,10 @@ internal static partial class CellInput
     // The language's forms come first. Then separators are '/', '-' and '.'; the field order follows the sheet culture,
     // but a leading 4-digit year is read under any culture. A missing year uses today's year.
     // Same as matchDate in MusselSheet.js.
-    private static bool TryParseDate(string text, InputContext context, out DateOnly date)
+    private static bool TryParseDate(string text, InputContext context, out DateOnly date, out bool omitsYear)
     {
         var (today, reading) = (context.Today, context.Reading);
-        if (reading.Dates.TryRead(text, today, out date) is { } read)
+        if (reading.Dates.TryRead(text, today, out date, out omitsYear) is { } read)
         {
             return read;
         }
@@ -358,6 +362,8 @@ internal static partial class CellInput
         {
             return false;
         }
+
+        omitsYear = yearText.IsEmpty;
 
         var year = yearText.IsEmpty ? today.Year : int.Parse(yearText, provider: CultureInfo.InvariantCulture);
         if (yearText.Length == 2)

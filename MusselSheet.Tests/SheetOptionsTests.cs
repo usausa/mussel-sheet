@@ -149,7 +149,7 @@ public sealed class SheetOptionsTests : BunitContext
     {
         var sheet = EraSheet();
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
-        var attached = (JsonElement)JSInterop.Invocations["attach"].Single().Arguments[3]!;
+        var attached = (JsonElement)JSInterop.Invocations["attach"].Single().Arguments[4]!;
         Assert.NotEqual(0, attached.GetProperty("reading").GetProperty("eras").GetArrayLength());
         var kinds = new List<SheetChangeKind>();
         sheet.Changed += (_, e) => kinds.Add(e.Kind);
@@ -158,7 +158,7 @@ public sealed class SheetOptionsTests : BunitContext
 
         Assert.Equal([SheetChangeKind.Reset], kinds);
         await cut.WaitForAssertionAsync(() => Assert.Equal(PlainText, Shown(cut)));
-        var sent = (JsonElement)JSInterop.Invocations["setMap"][^1].Arguments[0]!;
+        var sent = (JsonElement)JSInterop.Invocations["setLanguage"][^1].Arguments[0]!;
         Assert.Equal(0, sent.GetProperty("reading").GetProperty("eras").GetArrayLength());
         Assert.Equal(Rejection, (await Commit(cut, EraText)).Error);
     }
@@ -175,6 +175,20 @@ public sealed class SheetOptionsTests : BunitContext
         sheet.Options = null;
 
         Assert.Equal(PlainText, sheet.GetText(0, 0));
+    }
+
+    [Fact]
+    public async Task AChangeOfStructureDoesNotSendTheLanguageAgain()
+    {
+        var sheet = EraSheet();
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var maps = JSInterop.Invocations["setMap"].Count;
+        var languages = JSInterop.Invocations["setLanguage"].Count;
+
+        await cut.InvokeAsync(() => sheet.Range("A1").Configure(static c => c.Style.Bold = true));
+
+        await cut.WaitForAssertionAsync(() => Assert.Equal(maps + 1, JSInterop.Invocations["setMap"].Count));
+        Assert.Equal(languages, JSInterop.Invocations["setLanguage"].Count);
     }
 
     [Fact]

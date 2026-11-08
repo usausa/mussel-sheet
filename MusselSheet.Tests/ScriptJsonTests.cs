@@ -20,18 +20,32 @@ public sealed class ScriptJsonTests
 
         var map = SheetScriptJson.ToElement(SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay));
 
-        string[] names = ["rows", "columns", "headerHeight", "rowHeaderWidth", "columnWidths", "defaultRowHeight", "customRowHeights", "rules", "patterns", "rowPatterns", "messages", "merges", "calendar", "reading"];
+        string[] names = ["rows", "columns", "headerHeight", "rowHeaderWidth", "columnWidths", "defaultRowHeight", "customRowHeights", "rules", "patterns", "rowPatterns", "merges"];
         Assert.Equal(names, map.EnumerateObject().Select(static x => x.Name));
 
         var rule = map.GetProperty("rules").EnumerateArray().First(static x => x.GetProperty("kind").GetString() == "list");
         Assert.Equal("Sales", rule.GetProperty("items")[0].GetProperty("text").GetString());
         Assert.True(rule.GetProperty("font").GetProperty("bold").GetBoolean());
+        Assert.False(rule.TryGetProperty("restrictionMessage", out _));
+    }
 
-        string[] reading = ["decimal", "group", "time", "order", "editDate", "forms", "readings", "dateReadings", "eras", "eraFirstYear", "eraFirstYearUnit"];
-        Assert.Equal(reading, map.GetProperty("reading").EnumerateObject().Select(static x => x.Name));
+    [Fact]
+    public void LanguageUsesTheNamesTheScriptReads()
+    {
+        var culture = CultureInfo.GetCultureInfo("ja-JP");
+        var reading = new MusselSheetOptions().ReadingFor(culture);
+        var context = new InputContext(culture, new DateOnly(2026, 11, 8), SheetTexts.English, reading.DateFormat, reading);
+
+        var language = SheetScriptJson.ToElement(SheetMapBuilder.Language(context, CalendarInfo.From(culture, DayOfWeek.Sunday)));
+
+        Assert.Equal(["messages", "calendar", "reading"], language.EnumerateObject().Select(static x => x.Name));
+        Assert.Equal(JsonValueKind.String, language.GetProperty("messages").GetProperty("required").ValueKind);
+
+        string[] readingNames = ["decimal", "group", "time", "order", "editDate", "forms", "readings", "dateReadings", "eras", "eraFirstYear", "eraFirstYearUnit"];
+        Assert.Equal(readingNames, language.GetProperty("reading").EnumerateObject().Select(static x => x.Name));
 
         string[] calendar = ["dayNames", "firstDay", "yearMonth", "monthNames", "abbreviatedMonthNames", "era"];
-        Assert.Equal(calendar, map.GetProperty("calendar").EnumerateObject().Select(static x => x.Name));
+        Assert.Equal(calendar, language.GetProperty("calendar").EnumerateObject().Select(static x => x.Name));
     }
 
     [Theory]
@@ -55,9 +69,13 @@ public sealed class ScriptJsonTests
     [Fact]
     public void MessagesKeepTheirKeys()
     {
-        var map = SheetScriptJson.ToElement(SheetMapBuilder.Build(new Sheet(1, 1), 24, 40, SheetValidationMode.Stay));
+        var culture = CultureInfo.GetCultureInfo("en-US");
+        var reading = ReadingRules.From(culture);
+        var context = new InputContext(culture, new DateOnly(2026, 11, 8), SheetTexts.English, reading.DateFormat, reading);
 
-        Assert.Equal(JsonValueKind.String, map.GetProperty("messages").GetProperty("required").ValueKind);
+        var language = SheetScriptJson.ToElement(SheetMapBuilder.Language(context, CalendarInfo.From(culture, DayOfWeek.Sunday)));
+
+        Assert.Equal(JsonValueKind.String, language.GetProperty("messages").GetProperty("calendarToday").ValueKind);
     }
 
     [Fact]

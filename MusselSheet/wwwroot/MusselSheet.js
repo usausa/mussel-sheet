@@ -90,8 +90,8 @@ let noteSequence = 0;
 
 const SHORTCUT_PREFIX = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '') ? '⌘' : 'Ctrl+';
 
-export function attach(root, dotnet, options, map) {
-    return new SheetController(root, dotnet, options, map);
+export function attach(root, dotnet, options, map, language) {
+    return new SheetController(root, dotnet, options, map, language);
 }
 
 // ---- Input normalization and quick validation (same rules as C# CellInput; change both together) ----
@@ -107,8 +107,16 @@ const TIME_TEXT = /^([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?$/;
 const BOUND_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const BOUND_TIME = /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/;
 
-// No language is written in this file: a language reaches it only as the data in map.reading, made ready here.
+// No language is written in this file: a language reaches it only as data, made ready here.
 // C# compiles the date forms, so both sides run the same regular expressions.
+export function compileLanguage(language = {}) {
+    return {
+        messages: language.messages ?? {},
+        calendar: language.calendar ?? DEFAULT_CALENDAR,
+        reading: language.reading ? compileReading(language.reading) : DEFAULT_READING,
+    };
+}
+
 export function compileReading(info = {}) {
     const reading = {
         decimal: '.',
@@ -1223,7 +1231,7 @@ function moveInto(container, element) {
 // ---- Sheet information ----
 
 export class SheetMap {
-    constructor(map) {
+    constructor(map, language = compileLanguage()) {
         this.rows = map.rows;
         this.cols = map.columns;
         this.headerHeight = map.headerHeight;
@@ -1232,9 +1240,7 @@ export class SheetMap {
         this.rules = map.rules;
         this.patterns = map.patterns;
         this.rowPatterns = map.rowPatterns;
-        this.messages = map.messages;
-        this.calendar = map.calendar ?? DEFAULT_CALENDAR;
-        this.reading = map.reading ? compileReading(map.reading) : DEFAULT_READING;
+        this.useLanguage(language);
         this.colLefts = runningTotals(map.columnWidths);
         const heights = new Array(this.rows).fill(map.defaultRowHeight);
         for (let i = 0; i + 1 < map.customRowHeights.length; i += 2) {
@@ -1256,6 +1262,12 @@ export class SheetMap {
         }
 
         this.groupBounds = groupBounds(this.rules, this.patterns, this.rowPatterns);
+    }
+
+    useLanguage(language) {
+        this.messages = language.messages;
+        this.calendar = language.calendar;
+        this.reading = language.reading;
     }
 
     get isEmpty() {
@@ -1385,14 +1397,15 @@ function hideFloating(element) {
 // ---- Input handling ----
 
 class SheetController {
-    constructor(root, dotnet, options, map) {
+    constructor(root, dotnet, options, map, language) {
         this.root = root;
         this.dotnet = dotnet;
         this.viewport = root.querySelector('.mussel-sheet-viewport');
         this.content = root.querySelector('.mussel-sheet-content');
         this.layer = root.querySelector('.mussel-sheet-layer');
         this.opts = { ...DEFAULT_OPTIONS, ...options };
-        this.map = new SheetMap(map);
+        this.language = compileLanguage(language);
+        this.map = new SheetMap(map, this.language);
         this.state = READY;
         this.row = 0;
         this.col = 0;
@@ -1522,7 +1535,7 @@ class SheetController {
 
     setMap(map) {
         this.closeMenu();
-        this.map = new SheetMap(map);
+        this.map = new SheetMap(map, this.language);
         if (this.map.isEmpty) {
             this.finishEdit();
             this.place();
@@ -1542,6 +1555,13 @@ class SheetController {
 
     setOptions(options) {
         this.opts = { ...this.opts, ...options };
+        this.place();
+    }
+
+    setLanguage(language) {
+        this.language = compileLanguage(language);
+        this.map.useLanguage(this.language);
+        this.sink.setAttribute('aria-label', this.map.messages.cellInput ?? '');
         this.place();
     }
 

@@ -74,14 +74,14 @@ public sealed partial class MusselSheetView
         var context = InputContext;
         var normalized = CellInput.Normalize(text, settings, context.Reading);
         var corrected = false;
-        var error = CellInput.Check(normalized, settings, context, out var value, out var converted, settings.Corrector is null ? null : Correct);
+        var error = CellInput.Check(normalized, settings, context, out var value, out var converted, out var omitsYear, settings.Corrector is null ? null : Correct);
         var checkedText = corrected ? CellText.Edit(value, settings, Sheet.Culture, context.Reading) : normalized;
         error ??= RunValidator(settings, row, column, value, checkedText);
         error ??= BindingError(row, column, value);
 
         // A date typed without a year, or a value changed by the corrector, does not keep the typed text,
         // so re-editing shows the full date or the corrected value.
-        var yearless = (settings.Kind == CellKind.Date) && converted && CellInput.OmitsYear(normalized, context.Reading);
+        var yearless = (settings.Kind == CellKind.Date) && converted && omitsYear;
         return new CommitDraft(checkedText, value, converted, error, (normalized.Length == 0) || yearless || corrected ? null : normalized);
 
         object? Correct(object? input)

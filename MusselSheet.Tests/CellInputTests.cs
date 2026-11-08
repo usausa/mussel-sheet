@@ -140,13 +140,16 @@ public sealed class CellInputTests
     [Fact]
     public void OnlyYearlessDatesOmitTheYear()
     {
-        Assert.True(CellInput.OmitsYear("11/5", Context.Reading));
-        Assert.True(CellInput.OmitsYear("1105", Context.Reading));
-        Assert.True(CellInput.OmitsYear("11月5日", Context.Reading));
-        Assert.False(CellInput.OmitsYear("25/11/5", Context.Reading));
-        Assert.False(CellInput.OmitsYear("20251105", Context.Reading));
-        Assert.False(CellInput.OmitsYear("2025年11月5日", Context.Reading));
-        Assert.False(CellInput.OmitsYear("abc", Context.Reading));
+        Assert.True(OmitsYear("11/5"));
+        Assert.True(OmitsYear("1105"));
+        Assert.True(OmitsYear("11月5日"));
+        Assert.False(OmitsYear("25/11/5"));
+        Assert.False(OmitsYear("20251105"));
+        Assert.False(OmitsYear("2025年11月5日"));
+        Assert.False(OmitsYear("令和7年11月5日"));
+        Assert.False(OmitsYear("abc"));
+
+        static bool OmitsYear(string text) => CellInput.TryConvert(text, Settings(CellKind.Date), Context, out _, out _, out var omits) && omits;
     }
 
     [Fact]
