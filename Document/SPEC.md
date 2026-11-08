@@ -495,7 +495,7 @@ A language's `DateForms` are read first. Then, in every language, separators are
 
 A 2-digit year from `00` to `29` is 20xx, and from `30` to `99` is 19xx. A missing year is the browser's current year, also on Server. A date without a year keeps no `InputText`, so editing it again shows the full date. A day alone (`5`) is rejected.
 
-A form in `DateForms` uses the symbols of a date format. A form without a month and a day, with a field twice, or with an era the culture does not have is left out.
+A form in `DateForms` uses the symbols of a date format. A form without a month and a day, with a field twice, with an era the culture does not have, or with a month or day name is left out.
 
 | Symbol | Reads |
 |---|---|
@@ -505,7 +505,7 @@ A form in `DateForms` uses the symbols of a date format. A form without a month 
 | `M`, `d` | A month and a day of up to 2 digits |
 | `/` | Any of `/`, `.` and `-` |
 | A space | Any number of spaces, or none |
-| Quotes | Literal text |
+| Quotes, `\` | Literal text |
 
 In a `ja` sheet, these are also read:
 
