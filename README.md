@@ -5,7 +5,7 @@
 ## 🐚 What is this?
 
 An Excel-like input sheet for Blazor, made for keyboard and IME entry.  
-Each cell has its own kind, rules and style, so one sheet works as a list or a form. A sibling of [MusselChart](https://github.com/usausa/mussel-chart).  
+Each cell has its own kind, rules and style, so one sheet works as a list or a form.  
 
 | 📝 Form | 📅 Cell kinds | 🧾 Japanese form |
 |:-:|:-:|:-:|
@@ -80,4 +80,5 @@ See the [API reference](Document/API.md) and the [specification](Document/SPEC.m
 ## 🌊 Mussel family
 
 - [MusselChart](https://github.com/usausa/mussel-chart) - Charts
-- [MusselSheet ](https://github.com/usausa/mussel-sheet) - Input sheet
+- [MusselSheet](https://github.com/usausa/mussel-sheet) - Input sheet
+- [MusselCalendar](https://github.com/usausa/mussel-calendar) - Calendar
