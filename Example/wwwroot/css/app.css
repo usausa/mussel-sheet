@@ -5,6 +5,7 @@ html {
 
 .mussel-sheet {
     --mussel-sheet-sticky-top: 48px;
+    --mussel-font-family: "Noto Sans JP", sans-serif;
 }
 
 .page-card {

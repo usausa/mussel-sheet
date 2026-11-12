@@ -9,12 +9,16 @@ public static class InvoiceReportBuilder
 {
     private static readonly string TemplatePath = Path.Combine(AppContext.BaseDirectory, "Assets", "Reports", "Invoice.xlsx");
 
-    // The template uses Meiryo, a Windows font
+    // The template uses Windows fonts; the PDF uses Noto Sans JP, the same as the web sheet
     private static readonly ReportRenderOption Options = new()
     {
+        UseSystemFonts = false,
+        FontDirectories = [Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts")],
+        HeaderFooterFallbackFonts = ["Noto Sans JP"],
         FontAliases = new Dictionary<string, IReadOnlyList<string>>
         {
-            ["Meiryo"] = ["Noto Sans CJK JP", "Hiragino Sans", "IPAexGothic"]
+            ["Meiryo"] = ["Noto Sans JP"],
+            ["Calibri"] = ["Noto Sans JP"]
         }
     };
 
