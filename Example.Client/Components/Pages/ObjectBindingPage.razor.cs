@@ -165,12 +165,12 @@ public sealed partial class ObjectBindingPage
     private string Describe()
     {
         var text = new StringBuilder();
-        text.AppendLine($"Order date: {order.OrderDate} / Customer: {order.Customer} / Department: {order.Department}");
-        text.AppendLine($"Lines: {order.LineCount} / Total: {order.Total:N0}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Order date: {order.OrderDate} / Customer: {order.Customer} / Department: {order.Department}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Lines: {order.LineCount} / Total: {order.Total:N0}");
         for (var i = 0; i < order.Lines.Count; i++)
         {
             var line = order.Lines[i];
-            text.AppendLine($"{i + 1}. {line.Name} / Quantity {line.Quantity:N0} / Unit price {line.Price:N0} / Amount {line.Amount:N0}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"{i + 1}. {line.Name} / Quantity {line.Quantity:N0} / Unit price {line.Price:N0} / Amount {line.Amount:N0}");
         }
 
         return text.ToString();
