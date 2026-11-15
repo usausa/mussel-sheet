@@ -1,6 +1,7 @@
 # MusselSheet - Input sheet for Blazor
 
 [![NuGet](https://img.shields.io/nuget/v/MusselSheet.svg)](https://www.nuget.org/packages/MusselSheet/)
+[![Demo](https://img.shields.io/badge/demo-WebAssembly-blue.svg)](https://usausa.github.io/mussel-sheet/)
 
 ## 🐚 What is this?
 

@@ -19,12 +19,21 @@ public sealed partial class JapaneseFormPage
 
     private static readonly string[] ReportFiles = ["InvoiceData.cs", "InvoiceReportBuilder.cs"];
 
+#if EXAMPLE_STANDALONE
+    private static readonly string[] FontFiles = ["NotoSansJP-Regular.otf", "NotoSansJP-Bold.otf"];
+#endif
+
     private readonly SheetEventLog log = new();
 
     private readonly Sheet sheet = CreateSheet();
 
     [Inject]
     private IJSRuntime Runtime { get; set; } = default!;
+
+#if EXAMPLE_STANDALONE
+    [Inject]
+    private HttpClient Http { get; set; } = default!;
+#endif
 
     private static Sheet CreateSheet()
     {
@@ -192,7 +201,7 @@ public sealed partial class JapaneseFormPage
         return sheet;
     }
 
-    // The server makes the PDF from the shown text (such as 令和8年11月5日), and the browser saves it
+    // The server (the browser in the standalone demo) makes the PDF from the shown text (such as 令和8年11月5日), and the browser saves it
     private async Task CreatePdfAsync()
     {
         var invoice = new InvoiceData(
@@ -214,16 +223,47 @@ public sealed partial class JapaneseFormPage
             },
             [.. Enumerable.Range(FirstDetailRow, LastDetailRow - FirstDetailRow + 1).Select(DetailLine)]);
 
-        var json = JsonSerializer.Serialize(invoice, InvoiceJsonContext.Default.InvoiceData);
         try
         {
+#if EXAMPLE_STANDALONE
+            var error = await CreateInBrowserAsync(invoice);
+#else
+            var json = JsonSerializer.Serialize(invoice, InvoiceJsonContext.Default.InvoiceData);
             var error = await Runtime.InvokeAsync<string?>("exampleDownload", "api/reports/invoice", json, "請求書.pdf");
+#endif
             log.Add(error is null ? "PDF を作成しました" : $"PDF を作成できませんでした: {error}");
         }
         catch (JSDisconnectedException)
         {
         }
     }
+
+#if EXAMPLE_STANDALONE
+    private async Task<string?> CreateInBrowserAsync(InvoiceData invoice)
+    {
+        try
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "fonts");
+            Directory.CreateDirectory(directory);
+            foreach (var name in FontFiles)
+            {
+                var path = Path.Combine(directory, name);
+                if (!File.Exists(path))
+                {
+                    await File.WriteAllBytesAsync(path, await Http.GetByteArrayAsync(new Uri($"assets/Fonts/{name}", UriKind.Relative)));
+                }
+            }
+
+            using var template = new MemoryStream(await Http.GetByteArrayAsync(new Uri("assets/Reports/Invoice.xlsx", UriKind.Relative)));
+            await Runtime.InvokeVoidAsync("exampleSave", Example.Reports.InvoiceReportBuilder.Build(invoice, template, directory), "請求書.pdf");
+            return null;
+        }
+        catch (HttpRequestException e)
+        {
+            return e.Message;
+        }
+    }
+#endif
 
     private Dictionary<string, string?> DetailLine(int row) => new()
     {

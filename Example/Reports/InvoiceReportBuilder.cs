@@ -4,16 +4,31 @@ using Example.Client.Models;
 
 using OysterReport;
 
-// Runs on the server, where the fonts are, in both render modes
+// Runs where the fonts are: on the server in both render modes, or in the browser in the standalone demo
 public static class InvoiceReportBuilder
 {
     private static readonly string TemplatePath = Path.Combine(AppContext.BaseDirectory, "Assets", "Reports", "Invoice.xlsx");
 
+    private static readonly ReportRenderOption Options = CreateOptions(Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts"));
+
+    public static byte[] Build(InvoiceData invoice)
+    {
+        using var workbook = new TemplateWorkbook(TemplatePath, Options);
+        return Render(workbook, invoice, Options);
+    }
+
+    public static byte[] Build(InvoiceData invoice, Stream template, string fontDirectory)
+    {
+        var options = CreateOptions(fontDirectory);
+        using var workbook = new TemplateWorkbook(template, options);
+        return Render(workbook, invoice, options);
+    }
+
     // The template uses Windows fonts; the PDF uses Noto Sans JP, the same as the web sheet
-    private static readonly ReportRenderOption Options = new()
+    private static ReportRenderOption CreateOptions(string fontDirectory) => new()
     {
         UseSystemFonts = false,
-        FontDirectories = [Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts")],
+        FontDirectories = [fontDirectory],
         HeaderFooterFallbackFonts = ["Noto Sans JP"],
         FontAliases = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -22,15 +37,14 @@ public static class InvoiceReportBuilder
         }
     };
 
-    public static byte[] Build(InvoiceData invoice)
+    private static byte[] Render(TemplateWorkbook workbook, InvoiceData invoice, ReportRenderOption options)
     {
-        using var workbook = new TemplateWorkbook(TemplatePath, Options);
         var sheet = workbook.GetSheet(0);
         sheet.ReplacePlaceholders(invoice.Fields);
         sheet.ReplacePlaceholders(invoice.Lines);
 
         using var output = new MemoryStream();
-        new OysterReportEngine { RenderingOptions = Options }.GeneratePdf(workbook, output);
+        new OysterReportEngine { RenderingOptions = options }.GeneratePdf(workbook, output);
         return output.ToArray();
     }
 }

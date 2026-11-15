@@ -9,6 +9,20 @@
     <BlazorWebAssemblyLoadAllGlobalizationData>true</BlazorWebAssemblyLoadAllGlobalizationData>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(ExampleStandalone)' == 'true'">
+    <DefineConstants>$(DefineConstants);EXAMPLE_STANDALONE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(ExampleStandalone)' != 'true'">
+    <Content Remove="wwwroot\index.html" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(ExampleStandalone)' == 'true'">
+    <PackageReference Include="OysterReport" Version="3.0.0" />
+    <Compile Include="..\Example\Reports\InvoiceReportBuilder.cs" Link="Reports\InvoiceReportBuilder.cs" />
+    <Content Include="..\Example\Assets\**\*" Link="wwwroot\assets\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0" />
     <PackageReference Include="MudBlazor" Version="9.13.0" />
