@@ -215,8 +215,14 @@ public sealed partial class JapaneseFormPage
             [.. Enumerable.Range(FirstDetailRow, LastDetailRow - FirstDetailRow + 1).Select(DetailLine)]);
 
         var json = JsonSerializer.Serialize(invoice, InvoiceJsonContext.Default.InvoiceData);
-        var error = await Runtime.InvokeAsync<string?>("exampleDownload", "api/reports/invoice", json, "請求書.pdf");
-        log.Add(error is null ? "PDF を作成しました" : $"PDF を作成できませんでした: {error}");
+        try
+        {
+            var error = await Runtime.InvokeAsync<string?>("exampleDownload", "api/reports/invoice", json, "請求書.pdf");
+            log.Add(error is null ? "PDF を作成しました" : $"PDF を作成できませんでした: {error}");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private Dictionary<string, string?> DetailLine(int row) => new()

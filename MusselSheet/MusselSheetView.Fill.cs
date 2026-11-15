@@ -192,9 +192,11 @@ public sealed partial class MusselSheetView
             return source.Bottom;
         }
 
-        var column = (source.Left > 0) && !IsEmpty(below, source.Left - 1) ? source.Left - 1
-            : (source.Right + 1 < Sheet.ColumnCount) && !IsEmpty(below, source.Right + 1) ? source.Right + 1
-            : -1;
+        var column = (source.Left > 0) && !IsEmpty(below, source.Left - 1)
+            ? source.Left - 1
+            : (source.Right + 1 < Sheet.ColumnCount) && !IsEmpty(below, source.Right + 1)
+                ? source.Right + 1
+                : -1;
         var end = source.Bottom;
         while ((column >= 0) && (end + 1 < Sheet.RowCount) && !IsEmpty(end + 1, column) && IsEmptyRow(end + 1, source.Left, source.Right))
         {

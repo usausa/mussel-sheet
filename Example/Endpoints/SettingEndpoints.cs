@@ -33,5 +33,5 @@ public static class SettingEndpoints
         context.Response.Cookies.Append(name, value, new CookieOptions { Path = "/", MaxAge = TimeSpan.FromDays(30), IsEssential = true });
 
     private static IResult RedirectBack(string? redirect) =>
-        Results.LocalRedirect(string.IsNullOrEmpty(redirect) || !redirect.StartsWith('/') ? "/" : redirect);
+        Results.LocalRedirect(string.IsNullOrEmpty(redirect) || !redirect.StartsWith('/', StringComparison.Ordinal) ? "/" : redirect);
 }

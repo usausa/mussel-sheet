@@ -154,7 +154,9 @@ internal static class SheetDesigner
         {
             HorizontalAlignment: null, VerticalAlignment: null, Bold: null, Italic: null, Underline: null, Strikethrough: null, FontSize: null, IndentLevel: null,
             FontColor: null, FillColor: null, CssClass: null, Top: null, Right: null, Bottom: null, Left: null
-        } ? null : design;
+        }
+            ? null
+            : design;
     }
 
     private static CellBorderDesign? ToBorder(CellBorder? line) =>

@@ -132,7 +132,7 @@ public sealed class CommitPipelineTests : BunitContext
     public async Task ValidatorRunsAfterTheBuiltInRules()
     {
         var sheet = new Sheet(1, 1);
-        sheet["A1"].Configure(c => c.Validator = x => x.Text.StartsWith('A') ? null : "A で始めてください");
+        sheet["A1"].Configure(c => c.Validator = x => x.Text.StartsWith('A', StringComparison.Ordinal) ? null : "A で始めてください");
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
 
         var rejected = await Commit(cut, 0, 0, "B1", false);

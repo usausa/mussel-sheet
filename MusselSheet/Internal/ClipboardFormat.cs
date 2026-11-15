@@ -92,7 +92,11 @@ internal static class ClipboardFormat
             return text[..^2];
         }
 
+#if NET11_0_OR_GREATER
+        return (text.EndsWith('\n', StringComparison.Ordinal) || text.EndsWith('\r', StringComparison.Ordinal)) ? text[..^1] : text;
+#else
         return (text.EndsWith('\n') || text.EndsWith('\r')) ? text[..^1] : text;
+#endif
     }
 
     private static (string Cell, int Next) ReadCell(string text, int index)
@@ -140,7 +144,11 @@ internal static class ClipboardFormat
             .Replace("'", "&#39;", StringComparison.Ordinal);
 
     private static string Quote(string cell) =>
+#if NET11_0_OR_GREATER
+        (cell.IndexOfAny(['\t', '\r', '\n']) >= 0) || cell.StartsWith('"', StringComparison.Ordinal)
+#else
         (cell.IndexOfAny(['\t', '\r', '\n']) >= 0) || cell.StartsWith('"')
+#endif
             ? "\"" + cell.Replace("\"", "\"\"", StringComparison.Ordinal) + "\""
             : cell;
 }

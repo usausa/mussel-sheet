@@ -217,8 +217,8 @@ public sealed partial class MusselSheetView
         var text = Width.Trim();
         return text.EndsWith("px", StringComparison.OrdinalIgnoreCase)
             && int.TryParse(text.AsSpan(0, text.Length - 2), NumberStyles.Integer, CultureInfo.InvariantCulture, out var px)
-            ? px
-            : DefaultViewportWidth;
+                ? px
+                : DefaultViewportWidth;
     }
 
     private int ViewportHeight()
@@ -231,8 +231,8 @@ public sealed partial class MusselSheetView
         var text = Height.Trim();
         return text.EndsWith("px", StringComparison.OrdinalIgnoreCase)
             && int.TryParse(text.AsSpan(0, text.Length - 2), NumberStyles.Integer, CultureInfo.InvariantCulture, out var px)
-            ? px
-            : DefaultViewportHeight;
+                ? px
+                : DefaultViewportHeight;
     }
 
     // Where JS reports a scroll: half the overscan inside the drawn range, so it comes before the edge is reached

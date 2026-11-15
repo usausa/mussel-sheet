@@ -24,6 +24,10 @@ public static class SheetDesignJson
             NewLine = "\n",
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
         };
+#if NET11_0_OR_GREATER
+        return options.GetTypeInfo<SheetDesign>();
+#else
         return (JsonTypeInfo<SheetDesign>)options.GetTypeInfo(typeof(SheetDesign));
+#endif
     }
 }

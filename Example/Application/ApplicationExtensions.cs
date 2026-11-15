@@ -47,20 +47,6 @@ public static class ApplicationExtensions
     }
 
     //--------------------------------------------------------------------------------
-    // Development
-    //--------------------------------------------------------------------------------
-
-    public static WebApplication UseDevelopmentTools(this WebApplication app)
-    {
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseWebAssemblyDebugging();
-        }
-
-        return app;
-    }
-
-    //--------------------------------------------------------------------------------
     // Localization
     //--------------------------------------------------------------------------------
 

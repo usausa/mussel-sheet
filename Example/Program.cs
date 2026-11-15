@@ -16,9 +16,6 @@ builder.ConfigureBlazor();
 //--------------------------------------------------------------------------------
 var app = builder.Build();
 
-// Development
-app.UseDevelopmentTools();
-
 // Localization
 app.UseLocalization();
 

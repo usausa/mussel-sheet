@@ -12,7 +12,15 @@ builder.Services.AddMusselSheet(SheetOptionsSetup.Configure);
 
 var host = builder.Build();
 
-var name = await host.Services.GetRequiredService<IJSRuntime>().InvokeAsync<string?>("exampleCulture");
+string? name = null;
+try
+{
+    name = await host.Services.GetRequiredService<IJSRuntime>().InvokeAsync<string?>("exampleCulture");
+}
+catch (JSDisconnectedException)
+{
+}
+
 var culture = CultureInfo.GetCultureInfo(name ?? "en-US");
 CultureInfo.DefaultThreadCurrentCulture = culture;
 CultureInfo.DefaultThreadCurrentUICulture = culture;

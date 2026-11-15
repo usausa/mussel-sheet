@@ -94,15 +94,21 @@ public sealed partial class MusselSheetView
 
     private async Task AttachAsync()
     {
-        module ??= await Runtime.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(true);
-        self ??= DotNetObjectReference.Create(new SheetScriptBridge(this));
-        var options = SheetScriptJson.ToElement(ScriptOptions());
-        sentMap = MapSignature();
-        sentLanguage = LanguageSignature();
-        sentOptions = options.GetRawText();
-        sentThresholds = null;
-        controller = await module.InvokeAsync<IJSObjectReference>("attach", root, self, options, SheetScriptJson.ToElement(BuildMap()), SheetScriptJson.ToElement(BuildLanguage())).ConfigureAwait(true);
-        clientOffset = await controller.InvokeAsync<int>("timezoneOffset").ConfigureAwait(true);
+        try
+        {
+            module ??= await Runtime.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(true);
+            self ??= DotNetObjectReference.Create(new SheetScriptBridge(this));
+            var options = SheetScriptJson.ToElement(ScriptOptions());
+            sentMap = MapSignature();
+            sentLanguage = LanguageSignature();
+            sentOptions = options.GetRawText();
+            sentThresholds = null;
+            controller = await module.InvokeAsync<IJSObjectReference>("attach", root, self, options, SheetScriptJson.ToElement(BuildMap()), SheetScriptJson.ToElement(BuildLanguage())).ConfigureAwait(true);
+            clientOffset = await controller.InvokeAsync<int>("timezoneOffset").ConfigureAwait(true);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task DetachAsync()

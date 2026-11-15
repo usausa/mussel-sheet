@@ -70,7 +70,11 @@ internal sealed partial class DateRules
             var c = format[i];
             if (c is '\'' or '"')
             {
+#if NET11_0_OR_GREATER
+                var end = format.IndexOf(c, i + 1, StringComparison.Ordinal);
+#else
                 var end = format.IndexOf(c, i + 1);
+#endif
                 end = end < 0 ? format.Length : end;
                 builder.Append(format, i + 1, end - i - 1);
                 i = end + 1;
@@ -214,7 +218,11 @@ internal sealed partial class DateRules
             var c = form[i];
             if (c is '\'' or '"')
             {
+#if NET11_0_OR_GREATER
+                var end = form.IndexOf(c, i + 1, StringComparison.Ordinal);
+#else
                 var end = form.IndexOf(c, i + 1);
+#endif
                 end = end < 0 ? form.Length : end;
                 builder.Append(Literal(form[(i + 1)..end]));
                 i = end + 1;
