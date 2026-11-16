@@ -87,7 +87,7 @@ internal sealed record ScriptItem(string Value, string Text);
 
 internal static class SheetMapBuilder
 {
-    public static ScriptLanguage Language(InputContext context, CalendarInfo calendar) => new(context.ForScript(), calendar, context.Reading.ForScript());
+    public static ScriptLanguage Language(InputContext context, CalendarInfo calendar) => new(Messages(context), calendar, Reading(context.Reading));
 
     public static SheetMap Build(Sheet sheet, int headerHeight, int rowHeaderWidth, SheetValidationMode defaultPolicy, InputContext? context = null)
     {
@@ -222,6 +222,56 @@ internal static class SheetMapBuilder
         SheetValidationMode.AcceptAndMark => "accept",
         _ => "stay"
     };
+
+    private static Dictionary<string, string> Messages(InputContext context) => new()
+    {
+        ["required"] = context.Texts.Required,
+        ["number"] = context.Texts.Number,
+        ["date"] = context.DateMessage,
+        ["time"] = context.Texts.Time,
+        ["check"] = context.Texts.Check,
+        ["list"] = context.Texts.List,
+        ["between"] = context.Texts.Between,
+        ["atLeast"] = context.Texts.AtLeast,
+        ["atMost"] = context.Texts.AtMost,
+        ["maxLength"] = context.Texts.MaxLength,
+        ["maxByteLength"] = context.Texts.MaxByteLength,
+        ["pattern"] = context.Texts.Pattern,
+        ["mask"] = context.Texts.Mask,
+        ["canceled"] = context.Texts.Canceled,
+        ["menuCut"] = context.Texts.MenuCut,
+        ["menuCopy"] = context.Texts.MenuCopy,
+        ["menuPaste"] = context.Texts.MenuPaste,
+        ["menuInsertRowsAbove"] = context.Texts.MenuInsertRowsAbove,
+        ["menuInsertRowsBelow"] = context.Texts.MenuInsertRowsBelow,
+        ["menuDeleteRows"] = context.Texts.MenuDeleteRows,
+        ["menuInsertColumnsLeft"] = context.Texts.MenuInsertColumnsLeft,
+        ["menuInsertColumnsRight"] = context.Texts.MenuInsertColumnsRight,
+        ["menuDeleteColumns"] = context.Texts.MenuDeleteColumns,
+        ["menuPasteFailed"] = context.Texts.MenuPasteFailed,
+        ["calendarToday"] = context.Texts.CalendarToday,
+        ["calendarPrevious"] = context.Texts.CalendarPrevious,
+        ["calendarNext"] = context.Texts.CalendarNext,
+        ["cellInput"] = context.Texts.CellInput
+    };
+
+    internal static ReadingInfo Reading(ReadingRules rules) => new(
+        rules.DecimalSeparator,
+        rules.GroupSeparator,
+        rules.TimeSeparator,
+        rules.DateOrder switch
+        {
+            DateOrder.DayMonthYear => "dmy",
+            DateOrder.MonthDayYear => "mdy",
+            _ => "ymd"
+        },
+        rules.EditDateFormat,
+        rules.Dates.Patterns,
+        rules.Readings?.Characters,
+        rules.DateReadings?.Characters,
+        [.. rules.Dates.Eras.Select(static x => new EraInfo(x.Name, x.ShortName, x.Initial, x.Start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), x.FirstYear))],
+        rules.Dates.FirstYear?.Text,
+        rules.Dates.FirstYear?.Unit);
 
     private sealed class PatternComparer : IEqualityComparer<int[]>
     {

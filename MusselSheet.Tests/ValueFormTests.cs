@@ -98,7 +98,7 @@ public sealed class ValueFormTests
     [InlineData("ja-JP", "ymd")]
     public void DateOrderComesFromTheCulture(string culture, string expected)
     {
-        Assert.Equal(expected, ReadingRules.From(CultureInfo.GetCultureInfo(culture)).ForScript().Order);
+        Assert.Equal(expected, SheetMapBuilder.Reading(ReadingRules.From(CultureInfo.GetCultureInfo(culture))).Order);
     }
 
     [Theory]

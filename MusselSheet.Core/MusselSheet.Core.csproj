@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net11.0;net10.0</TargetFrameworks>
+    <RootNamespace>MusselSheet</RootNamespace>
+    <IsTrimmable>true</IsTrimmable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <CodeAnalysisRuleSet>..\Analyzers.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>MusselSheet.Core</PackageId>
+    <Title>MusselSheet.Core</Title>
+    <Description>Sheet model, cell settings, values, computation, binding and design JSON of MusselSheet, without UI</Description>
+    <PackageTags>sheet spreadsheet model input validation binding</PackageTags>
+  </PropertyGroup>
+
+</Project>

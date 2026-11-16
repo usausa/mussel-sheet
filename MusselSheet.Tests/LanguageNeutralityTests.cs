@@ -13,20 +13,23 @@ public sealed partial class LanguageNeutralityTests
     [Fact]
     public void OnlyTheLanguagesFolderHoldsALanguage()
     {
-        var folder = Path.Combine(TestPaths.Root, "MusselSheet");
         var found = new List<string>();
-        foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+        foreach (var project in (string[])["MusselSheet.Core", "MusselSheet"])
         {
-            var relative = Path.GetRelativePath(folder, file);
-            if (relative.StartsWith("bin", StringComparison.Ordinal) || relative.StartsWith("obj", StringComparison.Ordinal) || relative.StartsWith("Languages", StringComparison.Ordinal))
+            var folder = Path.Combine(TestPaths.Root, project);
+            foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
             {
-                continue;
-            }
+                var relative = Path.GetRelativePath(folder, file);
+                if (relative.StartsWith("bin", StringComparison.Ordinal) || relative.StartsWith("obj", StringComparison.Ordinal) || relative.StartsWith("Languages", StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            if (Path.GetExtension(file) is ".cs" or ".razor" or ".js" or ".css" or ".csproj")
-            {
-                var text = Escape().Replace(File.ReadAllText(file), static x => ((char)Convert.ToInt32(x.Groups[1].Value, 16)).ToString());
-                found.AddRange(text.EnumerateRunes().Where(static x => IsLanguageLetter(x)).Select(x => $"{relative}: {x} U+{x.Value:X4}"));
+                if (Path.GetExtension(file) is ".cs" or ".razor" or ".js" or ".css" or ".csproj")
+                {
+                    var text = Escape().Replace(File.ReadAllText(file), static x => ((char)Convert.ToInt32(x.Groups[1].Value, 16)).ToString());
+                    found.AddRange(text.EnumerateRunes().Where(static x => IsLanguageLetter(x)).Select(x => $"{project}/{relative}: {x} U+{x.Value:X4}"));
+                }
             }
         }
 
@@ -81,11 +84,13 @@ public sealed partial class LanguageNeutralityTests
     }
 
     [Fact]
-    public void OnlyTheTestsSeeTheInternals()
+    public void OnlyTheViewAndTheTestsSeeTheInternals()
     {
-        var friends = typeof(Sheet).Assembly.GetCustomAttributes<InternalsVisibleToAttribute>().Select(static x => x.AssemblyName);
+        var core = typeof(Sheet).Assembly.GetCustomAttributes<InternalsVisibleToAttribute>().Select(static x => x.AssemblyName).Order();
+        var view = typeof(MusselSheetView).Assembly.GetCustomAttributes<InternalsVisibleToAttribute>().Select(static x => x.AssemblyName);
 
-        Assert.Equal(["MusselSheet.Tests"], friends);
+        Assert.Equal(["MusselSheet", "MusselSheet.Core.Tests", "MusselSheet.Tests"], core);
+        Assert.Equal(["MusselSheet.Tests"], view);
     }
 
     [Fact]

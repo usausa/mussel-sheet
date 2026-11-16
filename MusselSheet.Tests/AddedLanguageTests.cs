@@ -209,7 +209,7 @@ public sealed class AddedLanguageTests : BunitContext
         foreach (var name in new[] { "ja-JP", "zh-TW", "th-TH", "ko-KR", "ar-SA" })
         {
             var culture = ReadingRules.Gregorian(TestLanguages.Culture(name));
-            root[name] = JsonSerializer.SerializeToNode(Options.ReadingFor(culture).ForScript(), SheetScriptJsonContext.Default.ReadingInfo);
+            root[name] = JsonSerializer.SerializeToNode(SheetMapBuilder.Reading(Options.ReadingFor(culture)), SheetScriptJsonContext.Default.ReadingInfo);
         }
 
         var setNodes = new JsonObject();

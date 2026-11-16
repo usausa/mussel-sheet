@@ -138,24 +138,6 @@ internal sealed partial record ReadingRules(string DecimalSeparator, string Grou
         };
     }
 
-    public ReadingInfo ForScript() => new(
-        DecimalSeparator,
-        GroupSeparator,
-        TimeSeparator,
-        DateOrder switch
-        {
-            DateOrder.DayMonthYear => "dmy",
-            DateOrder.MonthDayYear => "mdy",
-            _ => "ymd"
-        },
-        EditDateFormat,
-        Dates.Patterns,
-        Readings?.Characters,
-        DateReadings?.Characters,
-        [.. Dates.Eras.Select(static x => new EraInfo(x.Name, x.ShortName, x.Initial, x.Start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), x.FirstYear))],
-        Dates.FirstYear?.Text,
-        Dates.FirstYear?.Unit);
-
     [GeneratedRegex("^(?=[^y]*y)(?=[^M]*M)(?=[^d]*d)[yMd/.-]+$")]
     private static partial Regex NumericDatePattern();
 

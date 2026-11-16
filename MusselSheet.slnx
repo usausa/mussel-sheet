@@ -4,9 +4,11 @@
     <Project Path="Example/Example.csproj" DefaultStartup="true" />
   </Folder>
   <Folder Name="/Library/">
+    <Project Path="MusselSheet.Core/MusselSheet.Core.csproj" />
     <Project Path="MusselSheet/MusselSheet.csproj" />
   </Folder>
   <Folder Name="/Tests/">
+    <Project Path="MusselSheet.Core.Tests/MusselSheet.Core.Tests.csproj" />
     <Project Path="MusselSheet.E2ETests/MusselSheet.E2ETests.csproj" />
     <Project Path="MusselSheet.Tests/MusselSheet.Tests.csproj" />
   </Folder>
