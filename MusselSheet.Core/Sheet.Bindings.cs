@@ -8,6 +8,8 @@ public sealed partial class Sheet
 {
     private readonly List<ISheetBinding> bindings = [];
 
+    internal event EventHandler? Rebound;
+
     public SheetBinding<T> Bind<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(T source)
         where T : class
     {
@@ -17,6 +19,8 @@ public sealed partial class Sheet
     }
 
     internal void Unbind(ISheetBinding binding) => bindings.Remove(binding);
+
+    internal void OnRebound() => Rebound?.Invoke(this, EventArgs.Empty);
 
     internal BoundProperty? FindBinding(int row, int column)
     {

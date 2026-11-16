@@ -29,6 +29,17 @@ public sealed class SheetValuesTests
     }
 
     [Fact]
+    public void BinaryFractionsReadAsDecimalsKeepTheirDigits()
+    {
+        var sheet = new Sheet(1, 2);
+        sheet.SetValue(0, 0, 0.1d);
+        sheet.SetValue(0, 1, 0.1f);
+
+        Assert.Equal(0.1m, sheet.GetValue<decimal>(0, 0));
+        Assert.Equal(0.1m, sheet.GetValue<decimal>(0, 1));
+    }
+
+    [Fact]
     public void GetValueThrowsWhenTheValueCannotBeConverted()
     {
         var sheet = new Sheet(1, 2);

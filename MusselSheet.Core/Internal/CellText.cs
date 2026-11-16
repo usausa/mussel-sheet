@@ -102,6 +102,7 @@ internal static class CellText
                 DateOnly date when target == typeof(DateTime) => date.ToDateTime(TimeOnly.MinValue),
                 TimeSpan span when target == typeof(TimeOnly) => TimeOnly.FromTimeSpan(span),
                 TimeOnly time when target == typeof(TimeSpan) => time.ToTimeSpan(),
+                double or float when target == typeof(decimal) => ToDecimal(value),
                 IConvertible convertible when typeof(IConvertible).IsAssignableFrom(target) => Convert.ChangeType(convertible, target, CultureInfo.InvariantCulture),
                 _ => null
             };
@@ -111,6 +112,13 @@ internal static class CellText
             return null;
         }
     }
+
+    internal static decimal ToDecimal(object value) => value switch
+    {
+        double number => decimal.Parse(number.ToString("G15", CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture),
+        float number => decimal.Parse(number.ToString("G7", CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture),
+        _ => Convert.ToDecimal(value, CultureInfo.InvariantCulture)
+    };
 
     public static string Format(IFormattable value, string format, CultureInfo culture)
     {

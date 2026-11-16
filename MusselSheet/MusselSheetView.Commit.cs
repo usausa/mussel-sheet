@@ -153,7 +153,7 @@ public sealed partial class MusselSheetView
         var address = new CellAddress(row, column);
         var (value, error) = (draft.Value, draft.Error);
         var committing = new CellCommittingEventArgs(Sheet, address, draft.Text, value, error, reason);
-        await CellCommitting.InvokeAsync(committing).ConfigureAwait(true);
+        await HandleAsync(CellCommitting, committing).ConfigureAwait(true);
         if (!IsEditable(row, column))
         {
             return Rejected;
@@ -204,7 +204,7 @@ public sealed partial class MusselSheetView
             batch.Add(change);
         }
 
-        await CellCommitted.InvokeAsync(new CellCommittedEventArgs(Sheet, address, before.Value, value, error, reason)).ConfigureAwait(true);
+        await HandleAsync(CellCommitted, new CellCommittedEventArgs(Sheet, address, before.Value, value, error, reason)).ConfigureAwait(true);
         return new CommitResult(error is null, error, true);
     }
 

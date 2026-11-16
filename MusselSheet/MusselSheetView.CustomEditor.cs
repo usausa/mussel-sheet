@@ -52,21 +52,22 @@ public sealed partial class MusselSheetView
     }
 
     // Once closed, JS returns focus to the input element; the active cell does not move
-    private async Task<bool> CommitCustomFromTemplateAsync(CellEditContext edit)
-    {
-        if (!ReferenceEquals(edit, customEdit))
+    private Task<bool> CommitCustomFromTemplateAsync(CellEditContext edit) =>
+        RunInTurnAsync(async () =>
         {
-            return false;
-        }
+            if (!ReferenceEquals(edit, customEdit))
+            {
+                return false;
+            }
 
-        var result = await CommitCustomCoreAsync(edit).ConfigureAwait(true);
-        if (result.Closed)
-        {
-            await InvokeScriptAsync("finishCustom").ConfigureAwait(true);
-        }
+            var result = await CommitCustomCoreAsync(edit).ConfigureAwait(true);
+            if (result.Closed)
+            {
+                await InvokeScriptAsync("finishCustom").ConfigureAwait(true);
+            }
 
-        return result.Closed && (result.Error is null);
-    }
+            return result.Closed && (result.Error is null);
+        });
 
     private async Task CancelCustomFromTemplateAsync()
     {

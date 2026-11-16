@@ -19,7 +19,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Built first and started by the tests as a separate process -->
     <ProjectReference Include="..\Example\Example.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 

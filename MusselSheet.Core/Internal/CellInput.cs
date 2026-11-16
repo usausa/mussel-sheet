@@ -27,6 +27,8 @@ internal static partial class CellInput
         '\u2006', '\u2007', '\u2008', '\u2009', '\u200A', '\u2028', '\u2029', '\u202F', '\u205F', '\u3000', '\uFEFF'
     ];
 
+    private static readonly string ScriptSpaces = string.Concat(TrimCharacters.Where(static x => x != (char)0x85));
+
     // Line breaks, then width per kind, then the mask; text that does not fit the mask is left for validation
     public static string Normalize(string text, ResolvedCellSettings settings, ReadingRules reading)
     {
@@ -238,13 +240,54 @@ internal static partial class CellInput
 
             try
             {
-                return new Regex($"^(?:{key})$(?![\\s\\S])", RegexOptions.ECMAScript, PatternTimeout);
+                return new Regex($"^(?:{WithScriptSpaces(key)})$(?![\\s\\S])", RegexOptions.ECMAScript, PatternTimeout);
             }
             catch (ArgumentException)
             {
                 return null;
             }
         });
+
+    private static string WithScriptSpaces(string pattern)
+    {
+        var builder = new StringBuilder(pattern.Length);
+        var inClass = false;
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var ch = pattern[i];
+            if ((ch == '\\') && (i + 1 < pattern.Length))
+            {
+                var next = pattern[++i];
+                if (next == 's')
+                {
+                    builder.Append(inClass ? ScriptSpaces : $"[{ScriptSpaces}]");
+                }
+                else if ((next == 'S') && !inClass)
+                {
+                    builder.Append("[^").Append(ScriptSpaces).Append(']');
+                }
+                else
+                {
+                    builder.Append(ch).Append(next);
+                }
+
+                continue;
+            }
+
+            if (ch == '[')
+            {
+                inClass = true;
+            }
+            else if (ch == ']')
+            {
+                inClass = false;
+            }
+
+            builder.Append(ch);
+        }
+
+        return builder.ToString();
+    }
 
     private static bool HasCategory(string pattern)
     {

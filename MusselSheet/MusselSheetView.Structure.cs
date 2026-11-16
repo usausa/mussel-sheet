@@ -14,7 +14,7 @@ public sealed partial class MusselSheetView
 
         var anchor = Sheet.Rows[row];
         var inserting = new SheetRowsInsertingEventArgs(Sheet, row + 1, 1);
-        await RowsInserting.InvokeAsync(inserting).ConfigureAwait(true);
+        await HandleAsync(RowsInserting, inserting).ConfigureAwait(true);
         if (inserting.Cancel || !IsAttached(anchor))
         {
             return false;
@@ -64,7 +64,7 @@ public sealed partial class MusselSheetView
         var count = selection.Bottom - selection.Top + 1;
         var index = below ? selection.Bottom + 1 : selection.Top;
         var inserting = new SheetRowsInsertingEventArgs(Sheet, index, count);
-        await RowsInserting.InvokeAsync(inserting).ConfigureAwait(true);
+        await HandleAsync(RowsInserting, inserting).ConfigureAwait(true);
         var template = below ? selection.Bottom : selection.Top;
         if (inserting.Cancel || (template >= Sheet.RowCount))
         {
@@ -87,7 +87,7 @@ public sealed partial class MusselSheetView
         }
 
         var deleting = new SheetRowsDeletingEventArgs(Sheet, selection.Top, count);
-        await RowsDeleting.InvokeAsync(deleting).ConfigureAwait(true);
+        await HandleAsync(RowsDeleting, deleting).ConfigureAwait(true);
         if (deleting.Cancel || (selection.Bottom >= Sheet.RowCount) || (count >= Sheet.RowCount))
         {
             return null;
@@ -105,7 +105,7 @@ public sealed partial class MusselSheetView
         var count = selection.Right - selection.Left + 1;
         var index = right ? selection.Right + 1 : selection.Left;
         var inserting = new SheetColumnsInsertingEventArgs(Sheet, index, count);
-        await ColumnsInserting.InvokeAsync(inserting).ConfigureAwait(true);
+        await HandleAsync(ColumnsInserting, inserting).ConfigureAwait(true);
         var template = right ? selection.Right : selection.Left;
         if (inserting.Cancel || (template >= Sheet.ColumnCount))
         {
@@ -128,7 +128,7 @@ public sealed partial class MusselSheetView
         }
 
         var deleting = new SheetColumnsDeletingEventArgs(Sheet, selection.Left, count);
-        await ColumnsDeleting.InvokeAsync(deleting).ConfigureAwait(true);
+        await HandleAsync(ColumnsDeleting, deleting).ConfigureAwait(true);
         if (deleting.Cancel || (selection.Right >= Sheet.ColumnCount) || (count >= Sheet.ColumnCount))
         {
             return null;

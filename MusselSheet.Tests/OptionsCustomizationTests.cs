@@ -43,6 +43,14 @@ public sealed class OptionsCustomizationTests : BunitContext
     }
 
     [Fact]
+    public void TheSameKeyWrittenTwiceKeepsTheLastCommand()
+    {
+        var keys = KeyCombo.NormalizeAll(new Dictionary<string, string?> { ["Ctrl+Shift+K"] = "FillDown", ["shift+ctrl+k"] = "FillRight" });
+
+        Assert.Equal("FillRight", Assert.Single(keys, static x => x.Key == "Ctrl+Shift+K").Value);
+    }
+
+    [Fact]
     public async Task MenuItemClickReachesTheApp()
     {
         Services.AddMusselSheet(o => o.Menu.Items.Add(new SheetMenuItem { Name = "note", Text = "Note", Texts = { ["ja"] = "メモ" } }));

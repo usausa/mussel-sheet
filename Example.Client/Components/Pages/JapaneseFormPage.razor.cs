@@ -225,11 +225,12 @@ public sealed partial class JapaneseFormPage
 
         try
         {
+            await using var module = await Runtime.InvokeAsync<IJSObjectReference>("import", "./js/download.js");
 #if EXAMPLE_STANDALONE
-            var error = await CreateInBrowserAsync(invoice);
+            var error = await CreateInBrowserAsync(module, invoice);
 #else
             var json = JsonSerializer.Serialize(invoice, InvoiceJsonContext.Default.InvoiceData);
-            var error = await Runtime.InvokeAsync<string?>("exampleDownload", "api/reports/invoice", json, "請求書.pdf");
+            var error = await module.InvokeAsync<string?>("post", "api/reports/invoice", json, "請求書.pdf");
 #endif
             log.Add(error is null ? "PDF を作成しました" : $"PDF を作成できませんでした: {error}");
         }
@@ -239,7 +240,7 @@ public sealed partial class JapaneseFormPage
     }
 
 #if EXAMPLE_STANDALONE
-    private async Task<string?> CreateInBrowserAsync(InvoiceData invoice)
+    private async Task<string?> CreateInBrowserAsync(IJSObjectReference module, InvoiceData invoice)
     {
         try
         {
@@ -255,7 +256,9 @@ public sealed partial class JapaneseFormPage
             }
 
             using var template = new MemoryStream(await Http.GetByteArrayAsync(new Uri("assets/Reports/Invoice.xlsx", UriKind.Relative)));
-            await Runtime.InvokeVoidAsync("exampleSave", Example.Reports.InvoiceReportBuilder.Build(invoice, template, directory), "請求書.pdf");
+            using var content = new MemoryStream(Example.Reports.InvoiceReportBuilder.Build(invoice, template, directory));
+            using var stream = new DotNetStreamReference(content, true);
+            await module.InvokeVoidAsync("download", "請求書.pdf", "application/pdf", stream);
             return null;
         }
         catch (HttpRequestException e)

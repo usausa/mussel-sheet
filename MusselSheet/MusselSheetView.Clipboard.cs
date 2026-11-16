@@ -17,24 +17,29 @@ public sealed partial class MusselSheetView
         CommitCoreAsync(row, column, string.Empty, true, CellChangeReason.Cut);
 
     // JS sends the text as a stream: it can be large, and Interactive Server limits a message to 32 KB
-    internal async Task<PasteResult> PasteRangeAsync(int top, int left, int bottom, int right, IJSStreamReference data)
+    internal async Task<PasteResult> PasteRangeAsync(int top, int left, int bottom, int right, IJSStreamReference data) =>
+        await PasteTextAsync(new CellRange(top, left, bottom, right), await ReadTextAsync(data).ConfigureAwait(true)).ConfigureAwait(true);
+
+    internal static async Task<string> ReadTextAsync(IJSStreamReference? data)
     {
-        string text;
+        if (data is null)
+        {
+            return string.Empty;
+        }
+
         try
         {
             var stream = await data.OpenReadStreamAsync(MaxPasteBytes).ConfigureAwait(true);
             await using (stream.ConfigureAwait(true))
             {
                 using var reader = new StreamReader(stream, Encoding.UTF8);
-                text = await reader.ReadToEndAsync().ConfigureAwait(true);
+                return await reader.ReadToEndAsync().ConfigureAwait(true);
             }
         }
         finally
         {
             await data.DisposeAsync().ConfigureAwait(true);
         }
-
-        return await PasteTextAsync(new CellRange(top, left, bottom, right), text).ConfigureAwait(true);
     }
 
     internal Task ClearRangeAsync(int top, int left, int bottom, int right) =>
@@ -86,7 +91,7 @@ public sealed partial class MusselSheetView
         var range = new CellRange(selection.Top, selection.Left, bottom - cutRows, right - cutColumns);
 
         var pasting = new SheetPastingEventArgs(Sheet, range, values);
-        await Pasting.InvokeAsync(pasting).ConfigureAwait(true);
+        await HandleAsync(Pasting, pasting).ConfigureAwait(true);
         if (pasting.Cancel)
         {
             return new PasteResult(selection.Top, selection.Left, selection.Bottom, selection.Right, null);

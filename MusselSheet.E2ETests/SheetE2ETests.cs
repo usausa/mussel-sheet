@@ -228,6 +228,32 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
+    public async Task ALongPasteIntoOneCellReachesTheServer()
+    {
+        var sample = await OpenAsync("cell-kinds", "server");
+        var text = new string('a', 40000);
+
+        await sample.Cell(17, 1).ClickAsync();
+        await sample.DispatchClipboardAsync("paste", text);
+
+        await Expect(sample.Cell(17, 1)).ToHaveTextAsync(text);
+    }
+
+    [Fact]
+    public async Task OneCopiedCellWithLineBreaksPastesBackIntoOneCell()
+    {
+        const string text = "First line\nThe second line is long and wraps to the width of the cell";
+        var sample = await OpenAsync("cell-kinds", "server");
+
+        await sample.Cell(17, 1).ClickAsync();
+        var copied = await sample.DispatchClipboardAsync("copy", null);
+        Assert.Equal($"\"{text}\"", copied);
+
+        await sample.DispatchClipboardAsync("paste", copied);
+        await Expect(sample.Cell(17, 1)).ToHaveTextAsync(text);
+    }
+
+    [Fact]
     public async Task AltEnterBreaksLinesAndCtrlSemicolonEntersToday()
     {
         var sample = await OpenAsync("cell-kinds", "server");
@@ -944,6 +970,98 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
+    public async Task AMoveRequestedWhileACommitWaitsIsAppliedAfterIt()
+    {
+        var sample = await OpenHoldingCommitsAsync();
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("7");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "SetActiveCellAsync" }).ClickAsync();
+        await sample.ReleaseCommitAsync(0);
+
+        await Expect(sample.Cell(0, 1)).ToHaveTextAsync("7");
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: C2");
+    }
+
+    [Fact]
+    public async Task AnEditRequestedWhileACommitWaitsStartsAfterIt()
+    {
+        var sample = await OpenHoldingCommitsAsync();
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("7");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "SetActiveCellAsync" }).ClickAsync();
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "BeginEditAsync" }).ClickAsync();
+        await sample.ReleaseCommitAsync(0);
+
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: C2");
+        await Expect(sample.Page.Locator(".mussel-sheet-sink.mussel-sheet-editing")).ToBeVisibleAsync();
+        await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync("200");
+    }
+
+    [Fact]
+    public async Task KeysAndCallsWhileACommitWaitsRunInTheOrderTheyCame()
+    {
+        var sample = await OpenHoldingCommitsAsync();
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("7");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "SetActiveCellAsync" }).ClickAsync();
+        await sample.Page.Locator(".mussel-sheet-sink").FocusAsync();
+        await sample.Keyboard.TypeAsync("5");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.ReleaseCommitAsync(0);
+        await sample.WaitForHeldCommitsAsync(2);
+        await sample.ReleaseCommitAsync(1);
+
+        await Expect(sample.Cell(1, 2)).ToHaveTextAsync("5");
+        await Expect(sample.Cell(1, 1)).ToHaveTextAsync("2");
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: C3");
+    }
+
+    [Fact]
+    public async Task EditingRightAfterACommitStartsFromTheCommittedText()
+    {
+        var sample = await OpenAsync("playground", "wasm");
+        await sample.HoldCommitsAsync();
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("7");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Keyboard.PressAsync("ArrowUp");
+        await sample.Keyboard.PressAsync("F2");
+        await sample.ReleaseCommitAsync(0);
+
+        await Expect(sample.Page.Locator(".mussel-sheet-sink.mussel-sheet-editing")).ToBeVisibleAsync();
+        await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync("7");
+    }
+
+    [Fact]
+    public async Task CopyingRightAfterACommitCopiesTheCommittedText()
+    {
+        var sample = await OpenAsync("playground", "wasm");
+        await sample.FakeAsyncClipboardAsync();
+        await sample.HoldCommitsAsync();
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("7");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Keyboard.PressAsync("ArrowUp");
+        await sample.DispatchClipboardAsync("copy", null);
+        await sample.ReleaseCommitAsync(0);
+
+        await sample.WaitForClipboardAsync("7");
+    }
+
+    [Fact]
     public async Task ColumnHeadersStopBelowAFixedPageHeader()
     {
         const int appBarHeight = 48;
@@ -1118,6 +1236,23 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
+    public async Task KeysBeforeTheCustomEditorOpensDoNotCommit()
+    {
+        var sample = await OpenAsync("customization", "server");
+        var editor = sample.Page.Locator(".mussel-sheet-custom.mussel-sheet-open");
+
+        await sample.Cell(1, 1).ClickAsync();
+        await sample.Keyboard.PressAsync("F2");
+        await sample.Keyboard.PressAsync("Enter");
+        await Expect(editor).ToBeVisibleAsync();
+        await sample.Keyboard.PressAsync("Escape");
+
+        await Expect(editor).ToHaveCountAsync(0);
+        await Expect(sample.Cell(1, 1)).ToHaveTextAsync("#1a73e8");
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B2");
+    }
+
+    [Fact]
     public async Task CustomEditorFollowsTheKeys()
     {
         var sample = await OpenAsync("customization", "server");
@@ -1250,6 +1385,39 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Page.GetByRole(AriaRole.Link, new() { Name = "Home" }).ClickAsync();
         await Expect(sample.Page.Locator("h1")).ToHaveTextAsync("Getting Started");
         await sample.WaitForSheetAsync();
+    }
+
+    [Fact]
+    public async Task TheErrorPageOpens()
+    {
+        var sample = opened = await app.OpenBlankAsync();
+
+        var response = await sample.Page.GotoAsync($"{app.BaseAddress}error");
+        Assert.Equal(200, response?.Status);
+        await Expect(sample.Page.Locator("h1")).ToHaveTextAsync("Error");
+    }
+
+    [Theory]
+    [InlineData("render-mode/server")]
+    [InlineData("culture/en-US")]
+    public async Task RedirectsOutsideTheAppGoHome(string path)
+    {
+        var sample = opened = await app.OpenBlankAsync();
+
+        var response = await sample.Page.GotoAsync($"{app.BaseAddress}{path}?redirect=%2F%5Cexample.com");
+        Assert.Equal(200, response?.Status);
+        Assert.Equal(app.BaseAddress, sample.Page.Url);
+    }
+
+    private async Task<SamplePage> OpenHoldingCommitsAsync()
+    {
+        var sample = await OpenAsync("playground", "wasm").ConfigureAwait(true);
+        var commitMode = sample.Page.Locator(".mud-input-control.mud-select").Filter(new() { HasText = "CommitMode" });
+        await commitMode.ClickAsync().ConfigureAwait(true);
+        await sample.Page.Locator(".mud-popover-open .mud-list-item").Filter(new() { HasText = "Wait" }).ClickAsync().ConfigureAwait(true);
+        await Expect(commitMode.Locator("input").First).ToHaveValueAsync("Wait").ConfigureAwait(true);
+        await sample.HoldCommitsAsync().ConfigureAwait(true);
+        return sample;
     }
 
     private async Task<SamplePage> OpenAsync(string path, string mode) =>

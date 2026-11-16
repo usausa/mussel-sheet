@@ -70,12 +70,12 @@ internal static class SheetDesigner
 
             foreach (var rule in design.Rules ?? [])
             {
-                sheet.Configure(ParseRange(rule.Range), ToSettings(rule, functions));
+                sheet.Configure(CellRange.Parse(rule.Range), ToSettings(rule, functions));
             }
 
             foreach (var merge in design.Merges ?? [])
             {
-                sheet.Merge(ParseRange(merge));
+                sheet.Merge(CellRange.Parse(merge));
             }
 
             foreach (var value in design.Values ?? [])
@@ -314,13 +314,11 @@ internal static class SheetDesigner
             var range = x.Range ?? x.Name;
             return design.PerRow && CellAddress.TryParseColumn(range, out _) ? Observation.SameRow(sheet, range, x.Name) : Observation.Of(sheet, range, x.Name);
         }).ToArray();
-        sheet.Restore(ParseRange(design.Target), design.PerRow, observations, compute);
+        sheet.Restore(CellRange.Parse(design.Target), design.PerRow, observations, compute);
     }
 
     private static SheetFunctions Table(SheetFunctions? functions, string name) =>
         functions ?? throw new InvalidOperationException($"The design uses '{name}'. Pass the SheetFunctions that has it.");
-
-    private static CellRange ParseRange(string text) => text == "*" ? CellRange.All : CellRange.Parse(text);
 
     private static string? NameOf<T>(T? value)
         where T : struct, Enum =>

@@ -18,77 +18,98 @@ internal sealed class SheetScriptBridge
     public void OnViewportChanged(int top, int height, int left, int width) => view.OnViewportChanged(top, height, left, width);
 
     [JSInvokable]
-    public Task OnMenuItemAsync(string name, int top, int left, int bottom, int right, int row, int column) => view.OnMenuItemAsync(name, top, left, bottom, right, row, column);
+    public Task OnMenuItemAsync(string name, int top, int left, int bottom, int right, int row, int column) =>
+        RunAsync(() => view.OnMenuItemAsync(name, top, left, bottom, right, row, column));
 
     [JSInvokable]
-    public async Task<JsonElement> CommitAsync(int row, int column, string text, bool optimistic) => SheetScriptJson.ToElement(await view.CommitAsync(row, column, text, optimistic).ConfigureAwait(true));
+    public Task<JsonElement> CommitAsync(int row, int column, string? text, bool optimistic, IJSStreamReference? data) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.CommitAsync(row, column, text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true), optimistic).ConfigureAwait(true)));
 
     [JSInvokable]
-    public async Task<JsonElement> ClearAsync(int row, int column) => SheetScriptJson.ToElement(await view.ClearAsync(row, column).ConfigureAwait(true));
+    public Task<JsonElement> ClearAsync(int row, int column) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.ClearAsync(row, column).ConfigureAwait(true)));
 
     [JSInvokable]
-    public async Task<JsonElement> PasteAsync(int row, int column, string text, bool optimistic) => SheetScriptJson.ToElement(await view.PasteAsync(row, column, text, optimistic).ConfigureAwait(true));
+    public Task<JsonElement> PasteAsync(int row, int column, string? text, bool optimistic, IJSStreamReference? data) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.PasteAsync(row, column, text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true), optimistic).ConfigureAwait(true)));
 
     [JSInvokable]
-    public async Task<JsonElement> CutAsync(int row, int column) => SheetScriptJson.ToElement(await view.CutAsync(row, column).ConfigureAwait(true));
+    public Task<JsonElement> CutAsync(int row, int column) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.CutAsync(row, column).ConfigureAwait(true)));
 
     [JSInvokable]
-    public async Task<JsonElement> PasteRangeAsync(int top, int left, int bottom, int right, IJSStreamReference data) => SheetScriptJson.ToElement(await view.PasteRangeAsync(top, left, bottom, right, data).ConfigureAwait(true));
+    public Task<JsonElement> PasteRangeAsync(int top, int left, int bottom, int right, IJSStreamReference data) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.PasteRangeAsync(top, left, bottom, right, data).ConfigureAwait(true)));
 
     [JSInvokable]
-    public Task ClearRangeAsync(int top, int left, int bottom, int right) => view.ClearRangeAsync(top, left, bottom, right);
+    public Task ClearRangeAsync(int top, int left, int bottom, int right) => RunAsync(() => view.ClearRangeAsync(top, left, bottom, right));
 
     [JSInvokable]
-    public Task CutRangeAsync(int top, int left, int bottom, int right) => view.CutRangeAsync(top, left, bottom, right);
+    public Task CutRangeAsync(int top, int left, int bottom, int right) => RunAsync(() => view.CutRangeAsync(top, left, bottom, right));
 
     [JSInvokable]
-    public JsonElement GetRangeText(int top, int left, int bottom, int right) => SheetScriptJson.ToElement(view.GetRangeText(top, left, bottom, right));
+    public Task<JsonElement> GetRangeTextAsync(int top, int left, int bottom, int right) =>
+        RunAsync(() => Task.FromResult(SheetScriptJson.ToElement(view.GetRangeText(top, left, bottom, right))));
 
     [JSInvokable]
-    public async Task<JsonElement> FillAsync(int top, int left, int bottom, int right, string text) => SheetScriptJson.ToElement(await view.FillAsync(top, left, bottom, right, text).ConfigureAwait(true));
+    public Task<JsonElement> FillAsync(int top, int left, int bottom, int right, string? text, IJSStreamReference? data) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.FillAsync(top, left, bottom, right, text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true)).ConfigureAwait(true)));
 
     [JSInvokable]
-    public async Task<JsonElement> FillDownAsync(int top, int left, int bottom, int right) => SheetScriptJson.ToElement(await view.FillDownAsync(top, left, bottom, right).ConfigureAwait(true));
+    public Task<JsonElement> FillDownAsync(int top, int left, int bottom, int right) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.FillDownAsync(top, left, bottom, right).ConfigureAwait(true)));
 
     [JSInvokable]
-    public async Task<JsonElement> FillRightAsync(int top, int left, int bottom, int right) => SheetScriptJson.ToElement(await view.FillRightAsync(top, left, bottom, right).ConfigureAwait(true));
+    public Task<JsonElement> FillRightAsync(int top, int left, int bottom, int right) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.FillRightAsync(top, left, bottom, right).ConfigureAwait(true)));
 
     [JSInvokable]
-    public async Task<JsonElement> AutoFillAsync(int top, int left, int bottom, int right, int toTop, int toLeft, int toBottom, int toRight, bool toggle) => SheetScriptJson.ToElement(await view.AutoFillAsync(top, left, bottom, right, toTop, toLeft, toBottom, toRight, toggle).ConfigureAwait(true));
+    public Task<JsonElement> AutoFillAsync(int top, int left, int bottom, int right, int toTop, int toLeft, int toBottom, int toRight, bool toggle) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.AutoFillAsync(top, left, bottom, right, toTop, toLeft, toBottom, toRight, toggle).ConfigureAwait(true)));
 
     [JSInvokable]
-    public async Task<JsonElement> AutoFillDownAsync(int top, int left, int bottom, int right) => SheetScriptJson.ToElement(await view.AutoFillDownAsync(top, left, bottom, right).ConfigureAwait(true));
+    public Task<JsonElement> AutoFillDownAsync(int top, int left, int bottom, int right) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.AutoFillDownAsync(top, left, bottom, right).ConfigureAwait(true)));
 
     [JSInvokable]
-    public int[] FindEdge(int row, int column, string direction) => view.FindEdge(row, column, direction);
+    public Task<int[]> FindEdgeAsync(int row, int column, string direction) => RunAsync(() => Task.FromResult(view.FindEdge(row, column, direction)));
 
     [JSInvokable]
-    public Task<bool> AddRowFromScriptAsync(int row, int column) => view.AddRowFromScriptAsync(row, column);
+    public Task<bool> AddRowFromScriptAsync(int row, int column) => RunAsync(() => view.AddRowFromScriptAsync(row, column));
 
     [JSInvokable]
-    public Task<int[]?> ChangeStructureAsync(string action, int top, int left, int bottom, int right, int row, int column) => view.ChangeStructureAsync(action, top, left, bottom, right, row, column);
+    public Task<int[]?> ChangeStructureAsync(string action, int top, int left, int bottom, int right, int row, int column) =>
+        RunAsync(() => view.ChangeStructureAsync(action, top, left, bottom, right, row, column));
 
     [JSInvokable]
-    public async Task<JsonElement> ToggleAsync(int row, int column) => SheetScriptJson.ToElement(await view.ToggleAsync(row, column).ConfigureAwait(true));
+    public Task<JsonElement> ToggleAsync(int row, int column) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.ToggleAsync(row, column).ConfigureAwait(true)));
 
     [JSInvokable]
-    public Task<int[]?> UndoFromScriptAsync(bool redo) => view.UndoFromScriptAsync(redo);
+    public Task<int[]?> UndoFromScriptAsync(bool redo) => RunAsync(() => view.UndoFromScriptAsync(redo));
 
     [JSInvokable]
-    public Task OnActiveCellChangedAsync(int row, int column, int top, int left, int bottom, int right) => view.OnActiveCellChangedAsync(row, column, top, left, bottom, right);
+    public Task OnActiveCellChangedAsync(int row, int column, int top, int left, int bottom, int right) =>
+        view.ReportAsync(view.OnActiveCellChangedAsync(row, column, top, left, bottom, right));
 
     [JSInvokable]
-    public string GetEditText(int row, int column) => view.GetEditText(row, column);
+    public Task<string> GetEditTextAsync(int row, int column) => RunAsync(() => Task.FromResult(view.GetEditText(row, column)));
 
     [JSInvokable]
-    public async Task<string[]?> GetSuggestionsAsync(int row, int column, string text) => (await view.GetSuggestionsAsync(row, column, text).ConfigureAwait(true))?.ToArray();
+    public async Task<string[]?> GetSuggestionsAsync(int row, int column, string text) =>
+        (await view.ReportAsync(view.GetSuggestionsAsync(row, column, text)).ConfigureAwait(true))?.ToArray();
 
     [JSInvokable]
-    public bool OpenCustomEditor(int row, int column) => view.OpenCustomEditor(row, column);
+    public Task<bool> OpenCustomEditorAsync(int row, int column) => RunAsync(() => Task.FromResult(view.OpenCustomEditor(row, column)));
 
     [JSInvokable]
-    public async Task<JsonElement> CommitCustomEditorAsync() => SheetScriptJson.ToElement(await view.CommitCustomEditorAsync().ConfigureAwait(true));
+    public Task<JsonElement> CommitCustomEditorAsync() =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.CommitCustomEditorAsync().ConfigureAwait(true)));
 
     [JSInvokable]
     public void CancelCustomEditor() => view.CancelCustomEditor();
+
+    private Task<T> RunAsync<T>(Func<Task<T>> operation) => view.ReportAsync(view.RunInTurnAsync(operation));
+
+    private Task RunAsync(Func<Task> operation) => view.ReportAsync(view.RunInTurnAsync(operation));
 }

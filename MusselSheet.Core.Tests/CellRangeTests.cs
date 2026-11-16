@@ -53,6 +53,12 @@ public sealed class CellRangeTests
     [InlineData("B:D")]
     [InlineData("1:3")]
     [InlineData("2:5")]
+    [InlineData("*")]
+    [InlineData("2:*")]
+    [InlineData("B:*")]
+    [InlineData("A2:A*")]
+    [InlineData("B2:*5")]
+    [InlineData("B2:**")]
     public void ToStringRoundTrips(string text)
     {
         Assert.Equal(text, CellRange.Parse(text).ToString());

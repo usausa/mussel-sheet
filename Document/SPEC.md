@@ -15,11 +15,11 @@ An input cell accepts user input. An input-disabled cell has `ReadOnly` or `Kind
 
 With `ReadyEnterMode.Edit`, Enter also starts edit or opens the custom editor.
 
-While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards. Other keys, the mouse and IME input are ignored.
+While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and a rejected commit drops them with the keys.
 
 ## 🧾 Sheet
 
-Cells in one column can differ in kind, rules and style. By default rows are 24 pixels high and columns 100 wide. Row and column numbers start at 0. An address is `B2`, `B2:D5`, `B:D` (whole columns) or `2:4` (whole rows), with letters in either case and corners in any order. `sheet.Cells` is the whole sheet.
+Cells in one column can differ in kind, rules and style. By default rows are 24 pixels high and columns 100 wide. Row and column numbers start at 0. An address is `B2`, `B2:D5`, `B:D` (whole columns) or `2:4` (whole rows), with letters in either case and corners in any order; `*` is an open end (`2:*`, `B2:B*`) or the whole sheet. `sheet.Cells` is the whole sheet.
 
 - `SetValue` stores any object as it is. `ReadOnly` limits the user, not the app.
 - `GetValue<T>` converts on reading: `IConvertible` types, `DateTime` and `DateOnly`, `TimeSpan` and `TimeOnly`. It throws when it cannot, also for an empty cell with a non-nullable `T`. `TryGetValue<T>` returns `false` instead.
@@ -155,6 +155,8 @@ Focus moving to a focusable element outside the sheet commits without a move, an
 - A range paste, Ctrl+Enter, Ctrl+D, Ctrl+R and the fill handle run the steps per cell. `Stay` and `AcceptAndMark` store with an error mark, `Revert` leaves the cell, and a message gives the counts.
 - If the active cell becomes input-disabled during input or edit, the typed text is dropped.
 - `SetActiveCellAsync` commits an edit first. `BeginEditAsync` works in ready. `CommitEditAsync` commits without a move.
+- C# runs the operations from the sheet, `UndoAsync` and `RedoAsync` one at a time in the order they come, also across the views of one `Sheet`. An operation that comes while a handler of an earlier one runs waits for it, and a call that the handler awaits runs at once.
+- An exception from a handler called through the sheet reaches `ErrorBoundary`, as with an ordinary Blazor event, and the sheet treats the operation as failed.
 
 ## ⌨️ Keys
 
@@ -201,7 +203,7 @@ Ctrl also means ⌘, and `—` leaves the key to the browser. On an input-disabl
 
 ## 🧭 Movement
 
-The first input cell is active after loading, or A1 if there is none. The sheet does not take focus on loading; `FocusAsync` gives it. A move scrolls the cell clear of the headers and frozen parts.
+The first input cell is active after loading, or A1 if there is none. The sheet does not take focus on loading; `FocusAsync` gives it. Calls made before JS is attached, such as `FocusAsync` in the first render, run after it in order. A move scrolls the cell clear of the headers and frozen parts.
 
 | Key | Goes to |
 |---|---|
@@ -330,7 +332,7 @@ It opens by right-click, Shift+F10 or the menu key. A right-click outside the se
 
 ## ⏪ Undo
 
-Each view has its own history, up to `UndoLimit`, and a new `Sheet` clears it. Each user operation is one step: value changes and rows or columns the user inserted or deleted. Anything the app does, binding updates and computed values are not recorded.
+Each view has its own history, up to `UndoLimit`. A new `Sheet` clears it, and so does a binding that changes what the cells or rows show: a new binding, a replaced list, a reset, a replaced item, or `Refresh()` that changes which item a row shows. Each user operation is one step: value changes and rows or columns the user inserted or deleted. Anything the app does, binding updates and computed values are not recorded.
 
 - A value step restores the value, `InputText` and error mark, and selects the cell, or for a range operation the whole operated range. It raises `CellCommitted` with `Undo` or `Redo`, runs no rules and raises no `CellCommitting`.
 - A structure step brings back the same rows and columns with values, error marks, sizes, settings and merges, and restores the selection. It raises no `RowsInserting` or similar events.

@@ -1,18 +1,21 @@
-window.exampleSave = (data, fileName) => {
+export async function download(name, type, stream) {
+    const buffer = await stream.arrayBuffer();
+    const url = URL.createObjectURL(new Blob([buffer], { type }));
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data]));
-    link.download = fileName;
+    link.href = url;
+    link.download = name;
+    document.body.append(link);
     link.click();
-    URL.revokeObjectURL(link.href);
-};
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
-// Returns an error message, or null
-window.exampleDownload = async (url, json, fileName) => {
+export async function post(url, json, name) {
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json });
     if (!response.ok) {
         return `${response.status} ${response.statusText}`;
     }
 
-    window.exampleSave(await response.blob(), fileName);
+    await download(name, response.headers.get('Content-Type') ?? '', response);
     return null;
-};
+}

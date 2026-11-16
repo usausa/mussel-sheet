@@ -30,6 +30,8 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     private readonly EditHistory history = new();
 
+    private readonly Queue<(string Identifier, object?[] Args)> pendingCalls = new();
+
     private Sheet? subscribed;
 
     private int layoutVersion = -1;
@@ -318,30 +320,12 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     public Task CancelEditAsync() => InvokeScriptAsync("cancelEdit");
 
-    public async Task<bool> UndoAsync()
-    {
-        var target = await ApplyHistoryAsync(false).ConfigureAwait(true);
-        if (target is { } range)
-        {
-            await InvokeScriptAsync("setSelection", range.Top, range.Left, range.Bottom, range.Right).ConfigureAwait(true);
-        }
+    public Task<bool> UndoAsync() => RunInTurnAsync(() => RunHistoryAsync(false));
 
-        return target is not null;
-    }
-
-    public async Task<bool> RedoAsync()
-    {
-        var target = await ApplyHistoryAsync(true).ConfigureAwait(true);
-        if (target is { } range)
-        {
-            await InvokeScriptAsync("setSelection", range.Top, range.Left, range.Bottom, range.Right).ConfigureAwait(true);
-        }
-
-        return target is not null;
-    }
+    public Task<bool> RedoAsync() => RunInTurnAsync(() => RunHistoryAsync(true));
 
     internal Task OnMenuItemAsync(string name, int top, int left, int bottom, int right, int row, int column) =>
-        MenuItemClicked.InvokeAsync(new SheetMenuItemClickedEventArgs(Sheet, name, new CellRange(top, left, bottom, right), new CellAddress(row, column)));
+        HandleAsync(MenuItemClicked, new SheetMenuItemClickedEventArgs(Sheet, name, new CellRange(top, left, bottom, right), new CellAddress(row, column)));
 
     internal async Task OnActiveCellChangedAsync(int row, int column, int top, int left, int bottom, int right)
     {
@@ -376,19 +360,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
         Unsubscribe();
         await DetachAsync().ConfigureAwait(true);
-        if (module is not null)
-        {
-            try
-            {
-                await module.DisposeAsync().ConfigureAwait(true);
-            }
-            catch (JSDisconnectedException)
-            {
-            }
-
-            module = null;
-        }
-
+        await ReleaseModuleAsync().ConfigureAwait(true);
         self?.Dispose();
         self = null;
     }
@@ -416,6 +388,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
         {
             Unsubscribe();
             Sheet.Changed += OnSheetChanged;
+            Sheet.Rebound += OnSheetRebound;
             Sheet.UseRegisteredOptions(RegisteredOptions);
             subscribed = Sheet;
             layoutVersion = -1;
@@ -448,32 +421,45 @@ public sealed partial class MusselSheetView : IAsyncDisposable
                 attaching = null;
             }
 
-            if (controller is null)
+            if (controller is not { } current)
             {
                 return;
             }
 
             await SyncMapAsync().ConfigureAwait(true);
+            if (disposed)
+            {
+                return;
+            }
+
             var options = SheetScriptJson.ToElement(ScriptOptions());
             var optionsText = options.GetRawText();
             if (!string.Equals(sentOptions, optionsText, StringComparison.Ordinal))
             {
                 sentOptions = optionsText;
-                await controller.InvokeVoidAsync("setOptions", options).ConfigureAwait(true);
+                await current.InvokeVoidAsync("setOptions", options).ConfigureAwait(true);
+                if (disposed)
+                {
+                    return;
+                }
             }
 
             var thresholds = Thresholds();
             if (sentThresholds != thresholds)
             {
                 sentThresholds = thresholds;
-                await controller.InvokeVoidAsync("setCovered", thresholds.Top, thresholds.Bottom, thresholds.Left, thresholds.Right).ConfigureAwait(true);
+                await current.InvokeVoidAsync("setCovered", thresholds.Top, thresholds.Bottom, thresholds.Left, thresholds.Right).ConfigureAwait(true);
+                if (disposed)
+                {
+                    return;
+                }
             }
 
             // A newly opened custom editor is shown by JS after the render, which positions it and moves focus to it
             if (customPending && (customEdit is not null))
             {
                 customPending = false;
-                await controller.InvokeVoidAsync("showCustom", customElement).ConfigureAwait(true);
+                await current.InvokeVoidAsync("showCustom", customElement).ConfigureAwait(true);
             }
         }
         catch (JSDisconnectedException)
@@ -497,6 +483,8 @@ public sealed partial class MusselSheetView : IAsyncDisposable
                 StateHasChanged();
             }
         });
+
+    private void OnSheetRebound(object? sender, EventArgs e) => _ = InvokeAsync(history.Clear);
 
     // Frozen row and column counts can also be changed on the Sheet, so sheet changes run this check too
     private void CheckView()
@@ -537,6 +525,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
         if (subscribed is not null)
         {
             subscribed.Changed -= OnSheetChanged;
+            subscribed.Rebound -= OnSheetRebound;
             subscribed = null;
         }
     }

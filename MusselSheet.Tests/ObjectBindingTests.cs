@@ -252,6 +252,22 @@ public sealed class ObjectBindingTests : BunitContext
     }
 
     [Fact]
+    public async Task RowsEmptiedByTheAppComeBackEmptyWithUndo()
+    {
+        var order = Order(("ノート", 10m, 120m), ("鉛筆", 5m, 50m));
+        var sheet = DetailSheet();
+        using var binding = BindDetails(sheet, order);
+        var cut = RenderMenuSheet(sheet);
+
+        await cut.InvokeAsync(order.Lines.Clear);
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 4, 0, 4, 3, 4, 0));
+        await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false));
+
+        Assert.Empty(order.Lines);
+        Assert.Null(sheet.GetValue(4, 0));
+    }
+
+    [Fact]
     public async Task InsertedRowsBecomeItemsWhenValuesAreEntered()
     {
         var order = Order(("ノート", 10m, 120m), ("鉛筆", 5m, 50m));
@@ -268,6 +284,113 @@ public sealed class ObjectBindingTests : BunitContext
         await cut.InvokeAsync(() => cut.Instance.PasteTextAsync(new CellRange(6, 0, 6, 1), "定規\t4"));
         Assert.Equal(["ノート", "消しゴム", "鉛筆", "定規"], order.Lines.Select(x => x.Name));
         Assert.Equal(4m, order.Lines[3].Quantity);
+    }
+
+    [Fact]
+    public async Task ReplacingTheListForgetsUndo()
+    {
+        var order = Order(("ノート", 10m, 120m));
+        var sheet = DetailSheet();
+        using var binding = BindDetails(sheet, order);
+        var cut = RenderMenuSheet(sheet);
+        var other = new TestLine { Name = "ペン", Quantity = 7m, Price = 80m };
+
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(3, 1, "5", false));
+        await cut.InvokeAsync(() => order.Lines = [other]);
+
+        Assert.Null(await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false)));
+        Assert.Equal(7m, other.Quantity);
+    }
+
+    [Fact]
+    public async Task UndoDoesNotPutADeletedItemIntoANewList()
+    {
+        var order = Order(("ノート", 10m, 120m), ("鉛筆", 5m, 50m));
+        var sheet = DetailSheet();
+        using var binding = BindDetails(sheet, order);
+        var cut = RenderMenuSheet(sheet);
+
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 3, 0, 3, 3, 3, 0));
+        await cut.InvokeAsync(() => order.Lines = [new TestLine { Name = "ペン" }]);
+        await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false));
+
+        Assert.Equal(["ペン"], order.Lines.Select(x => x.Name));
+    }
+
+    [Fact]
+    public async Task ReplacingAnItemForgetsUndo()
+    {
+        var order = Order(("ノート", 10m, 120m));
+        var sheet = DetailSheet();
+        using var binding = BindDetails(sheet, order);
+        var cut = RenderMenuSheet(sheet);
+        var other = new TestLine { Name = "ペン", Quantity = 7m, Price = 80m };
+
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(3, 1, "5", false));
+        await cut.InvokeAsync(() => order.Lines[0] = other);
+
+        Assert.Null(await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false)));
+        Assert.Equal(7m, other.Quantity);
+    }
+
+    [Fact]
+    public async Task RefreshAfterReorderingForgetsUndo()
+    {
+        var order = new PlainOrder { Lines = [new PlainLine { Name = "ノート" }, new PlainLine { Name = "鉛筆" }] };
+        var sheet = new Sheet(2, 1);
+        using var binding = sheet.Bind(order).Rows("A1:A2", x => x.Lines, row => row.Column("A", x => x.Name));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 0, "消しゴム", false));
+        order.Lines.Reverse();
+        await cut.InvokeAsync(binding.Refresh);
+
+        Assert.Null(await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false)));
+        Assert.Equal(["鉛筆", "消しゴム"], order.Lines.Select(x => x.Name));
+    }
+
+    [Fact]
+    public async Task ANewBindingForgetsUndo()
+    {
+        var sheet = new Sheet(1, 1);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var order = new PlainOrder { Customer = "青山商事" };
+
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 0, "a", false));
+        using var binding = await cut.InvokeAsync(() => sheet.Bind(order).Cell("A1", x => x.Customer));
+
+        Assert.Null(await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false)));
+        Assert.Equal("青山商事", order.Customer);
+    }
+
+    [Fact]
+    public async Task RefreshWithoutChangesKeepsUndo()
+    {
+        var order = Order(("ノート", 10m, 120m));
+        var sheet = DetailSheet();
+        using var binding = BindDetails(sheet, order);
+        var cut = RenderMenuSheet(sheet);
+
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(3, 1, "5", false));
+        await cut.InvokeAsync(binding.Refresh);
+        await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false));
+
+        Assert.Equal(10m, order.Lines[0].Quantity);
+    }
+
+    [Fact]
+    public async Task AddingAnItemKeepsUndo()
+    {
+        var order = Order(("ノート", 10m, 120m));
+        var sheet = DetailSheet();
+        using var binding = BindDetails(sheet, order);
+        var cut = RenderMenuSheet(sheet);
+
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(3, 1, "5", false));
+        await cut.InvokeAsync(() => order.Lines.Add(new TestLine { Name = "ペン" }));
+        await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false));
+
+        Assert.Equal(10m, order.Lines[0].Quantity);
     }
 
     private static Sheet DetailSheet(int frameRows = 2)

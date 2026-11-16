@@ -128,6 +128,22 @@ public sealed class ComputationTests : BunitContext
     }
 
     [Fact]
+    public async Task RowComputationsOverARangeFollowDeletedRowsAndUndo()
+    {
+        var sheet = new Sheet(10, 3);
+        sheet.SetValues(1, 1, [[1m], [1m]]);
+        using var shares = sheet.ComputeRows("C2:C3", ["B", "B2:B10"], x => x.Get<decimal>("B") / x.Values("B2:B10").OfType<decimal>().Sum());
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowDeleteRows, true));
+        Assert.Equal(0.5m, sheet.GetValue(1, 2));
+
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 2, 0, 2, 2, 2, 0));
+        Assert.Equal(1m, sheet.GetValue(1, 2));
+
+        await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false));
+        Assert.Equal(0.5m, sheet.GetValue(1, 2));
+    }
+
+    [Fact]
     public void LoopsStopAndDisposeStopsComputing()
     {
         var sheet = new Sheet(2, 2);

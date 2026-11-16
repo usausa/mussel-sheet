@@ -83,3 +83,4 @@ See the [API reference](Document/API.md) and the [specification](Document/SPEC.m
 - [MusselChart](https://github.com/usausa/mussel-chart) - Charts
 - [MusselSheet](https://github.com/usausa/mussel-sheet) - Input sheet
 - [MusselCalendar](https://github.com/usausa/mussel-calendar) - Calendar
+- [MusselDiagram](https://github.com/usausa/mussel-diagram) - Diagram editor

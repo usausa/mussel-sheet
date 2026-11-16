@@ -10,6 +10,17 @@ public sealed partial class MusselSheetView
         return target is { } range ? [range.Top, range.Left, range.Bottom, range.Right] : null;
     }
 
+    private async Task<bool> RunHistoryAsync(bool redo)
+    {
+        var target = await ApplyHistoryAsync(redo).ConfigureAwait(true);
+        if (target is { } range)
+        {
+            await InvokeScriptAsync("setSelection", range.Top, range.Left, range.Bottom, range.Right).ConfigureAwait(true);
+        }
+
+        return target is not null;
+    }
+
     private async Task<CellRange?> ApplyHistoryAsync(bool redo)
     {
         var entry = redo ? history.TakeRedo() : history.TakeUndo();
@@ -43,7 +54,7 @@ public sealed partial class MusselSheetView
             target = target is { } t
                 ? new CellRange(Math.Min(t.Top, row), Math.Min(t.Left, column), Math.Max(t.Bottom, row), Math.Max(t.Right, column))
                 : CellRange.Cell(row, column);
-            await CellCommitted.InvokeAsync(new CellCommittedEventArgs(Sheet, new CellAddress(row, column), old, snapshot.Value, snapshot.Error, reason)).ConfigureAwait(true);
+            await HandleAsync(CellCommitted, new CellCommittedEventArgs(Sheet, new CellAddress(row, column), old, snapshot.Value, snapshot.Error, reason)).ConfigureAwait(true);
         }
 
         // Reselects the whole area of a range operation, or the changed cells if a corner row or column is gone

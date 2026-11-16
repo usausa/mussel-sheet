@@ -43,6 +43,7 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
         var link = new CellLink(Sheet.Rows[row], Sheet.Columns[column], BoundProperty.Of(property));
         cells.Add(link);
         sync.Show(Source, link.Property, row, column);
+        Sheet.OnRebound();
         return this;
     }
 

@@ -12,6 +12,8 @@ public sealed class SheetComputation : IDisposable
 
     private readonly HashSet<SheetRow> dirty = [];
 
+    private readonly bool watchesOtherRows;
+
     private bool running;
 
     private bool disposed;
@@ -23,6 +25,7 @@ public sealed class SheetComputation : IDisposable
         Observations = observations;
         Function = compute;
         Target = target;
+        watchesOtherRows = observations.Any(static x => !x.IsSameRow);
         rows = target.IsEntireColumns ? TrackedRows.All() : TrackedRows.Of(sheet, target.Top, Math.Min(target.Bottom, sheet.RowCount - 1), perRow);
         column = sheet.Columns[target.Left];
     }
@@ -88,13 +91,13 @@ public sealed class SheetComputation : IDisposable
                 }
 
                 rows.OnInserted(sheet, e.Index, e.Count, dirty);
-                if (!PerRow)
+                if (!PerRow || watchesOtherRows)
                 {
                     MarkAll();
                 }
 
                 break;
-            case SheetChangeKind.RowsDeleted when !PerRow:
+            case SheetChangeKind.RowsDeleted when !PerRow || watchesOtherRows:
             case SheetChangeKind.ColumnsInserted or SheetChangeKind.ColumnsDeleted:
                 MarkAll();
                 break;

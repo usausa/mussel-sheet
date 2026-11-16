@@ -123,7 +123,7 @@ public sealed partial class MusselSheetView
         }
 
         var filling = new SheetFillingEventArgs(Sheet, source, target);
-        await Filling.InvokeAsync(filling).ConfigureAwait(true);
+        await HandleAsync(Filling, filling).ConfigureAwait(true);
         if (filling.Cancel)
         {
             return new PasteResult(source.Top, source.Left, source.Bottom, source.Right, null);

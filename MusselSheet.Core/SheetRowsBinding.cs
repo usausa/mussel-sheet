@@ -104,6 +104,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         emptyTop = frame.Top;
         attached = true;
         Load();
+        sync.Sheet.OnRebound();
     }
 
     void IRowsBinding.Detach() => DetachList();
@@ -250,6 +251,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private void Load()
     {
+        var before = items.ToArray();
         DetachList();
         list = listProperty.Get(source) as IList<TItem>;
         if (list is INotifyCollectionChanged notifier)
@@ -286,6 +288,10 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
                 }
             }
         });
+        if (!HasItems(before))
+        {
+            sync.Sheet.OnRebound();
+        }
     }
 
     private void OnListChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -385,6 +391,10 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
 
         Bind(row, item);
+        if (!ReferenceEquals(old, item))
+        {
+            sync.Sheet.OnRebound();
+        }
     }
 
     private void OnItemChanged(object? sender, PropertyChangedEventArgs e)
@@ -452,6 +462,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private void ClearRow(SheetRow row)
     {
+        remembered.Remove(row);
         foreach (var link in columns)
         {
             if (IsCurrent(link))
@@ -559,6 +570,24 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     }
 
     private List<SheetRow> ElementRows() => rows.Where(items.ContainsKey).ToList();
+
+    private bool HasItems(KeyValuePair<SheetRow, TItem>[] before)
+    {
+        if (before.Length != items.Count)
+        {
+            return false;
+        }
+
+        foreach (var (row, item) in before)
+        {
+            if (!items.TryGetValue(row, out var current) || !ReferenceEquals(current, item))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private void ChangeList(Action<IList<TItem>> change)
     {

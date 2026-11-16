@@ -50,6 +50,12 @@ public readonly record struct CellRange
     {
         range = default;
         var span = text.AsSpan().Trim();
+        if (span is "*")
+        {
+            range = All;
+            return true;
+        }
+
         var colon = span.IndexOf(':');
         if (colon < 0)
         {
@@ -64,22 +70,40 @@ public readonly record struct CellRange
 
         var first = span[..colon].Trim();
         var second = span[(colon + 1)..].Trim();
-        if (CellAddress.TryParse(first, out var a) && CellAddress.TryParse(second, out var b))
+        if (CellAddress.TryParse(first, out var a) && TryParseCorner(second, out var row, out var column))
         {
-            range = new CellRange(Math.Min(a.Row, b.Row), Math.Min(a.Column, b.Column), Math.Max(a.Row, b.Row), Math.Max(a.Column, b.Column));
+            range = new CellRange(Math.Min(a.Row, row), Math.Min(a.Column, column), Math.Max(a.Row, row), Math.Max(a.Column, column));
             return true;
         }
 
-        if (CellAddress.TryParseColumn(first, out var left) && CellAddress.TryParseColumn(second, out var right))
+        if (CellAddress.TryParseColumn(first, out var left))
         {
-            range = Columns(Math.Min(left, right), Math.Max(left, right));
-            return true;
+            if (second is "*")
+            {
+                range = Columns(left, End);
+                return true;
+            }
+
+            if (CellAddress.TryParseColumn(second, out var right))
+            {
+                range = Columns(Math.Min(left, right), Math.Max(left, right));
+                return true;
+            }
         }
 
-        if (CellAddress.TryParseRow(first, out var top) && CellAddress.TryParseRow(second, out var bottom))
+        if (CellAddress.TryParseRow(first, out var top))
         {
-            range = Rows(Math.Min(top, bottom), Math.Max(top, bottom));
-            return true;
+            if (second is "*")
+            {
+                range = Rows(top, End);
+                return true;
+            }
+
+            if (CellAddress.TryParseRow(second, out var bottom))
+            {
+                range = Rows(Math.Min(top, bottom), Math.Max(top, bottom));
+                return true;
+            }
         }
 
         return false;
@@ -127,6 +151,29 @@ public readonly record struct CellRange
         }
 
         return $"{topLeft}:{FormatColumn(Right)}{FormatRow(Bottom)}";
+    }
+
+    private static bool TryParseCorner(ReadOnlySpan<char> text, out int row, out int column)
+    {
+        if (CellAddress.TryParse(text, out var address))
+        {
+            (row, column) = (address.Row, address.Column);
+            return true;
+        }
+
+        row = End;
+        column = End;
+        if (text.Length < 2)
+        {
+            return false;
+        }
+
+        if (text[^1] == '*')
+        {
+            return (text[..^1] is "*") || CellAddress.TryParseColumn(text[..^1], out column);
+        }
+
+        return (text[0] == '*') && CellAddress.TryParseRow(text[1..], out row);
     }
 
     private static string FormatColumn(int column) => column == End ? "*" : CellAddress.ColumnName(column);

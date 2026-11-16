@@ -20,6 +20,8 @@ public sealed class FillHandleTests : BunitContext
         Assert.Equal([0m, -10m], Values<decimal>(FillSeries.Create([10m, 20m], false), -1, -2));
         Assert.Equal([0.3m], Values<decimal>(FillSeries.Create([0.1m, 0.2m], false), 2));
         Assert.Equal([3m], Values<decimal>(FillSeries.Create([1, 2.0], false), 2));
+        Assert.Equal([0.3m], Values<decimal>(FillSeries.Create([0.1d, 0.2d], false), 2));
+        Assert.Equal([0.3m], Values<decimal>(FillSeries.Create([0.1f, 0.2f], false), 2));
 
         // Uneven spacing follows a least-squares line like Excel; trailing zeros are dropped
         Assert.Equal([5.3333333333333333333333333333m], Values<decimal>(FillSeries.Create([1m, 2m, 4m], false), 3));

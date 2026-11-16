@@ -273,6 +273,10 @@ public sealed class CellInputTests
     [InlineData(@"\d+", "๑๒๓", false)]
     [InlineData(@"\d+", "１２３", false)]
     [InlineData("abc", "abc\n", false)]
+    [InlineData(@"\S+\s\S+", "山田　太郎", true)]
+    [InlineData(@"\S+", "山田　太郎", false)]
+    [InlineData(@"[\s]+", "　", true)]
+    [InlineData(@"\\s", @"\s", true)]
     [InlineData(@"\p{IsHiragana}+", "abc", true)]
     public void APatternIsReadAsTheBrowserReadsIt(string pattern, string text, bool allowed)
     {

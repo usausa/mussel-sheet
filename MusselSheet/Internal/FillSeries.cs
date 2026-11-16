@@ -121,10 +121,10 @@ internal static class FillSeries
 
         try
         {
-            number = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+            number = CellText.ToDecimal(value);
             return true;
         }
-        catch (OverflowException)
+        catch (Exception ex) when (ex is OverflowException or FormatException)
         {
             return false;
         }

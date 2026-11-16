@@ -68,6 +68,35 @@ public sealed class SamplePage(IBrowserContext context, IPage page) : IAsyncDisp
     public Task WaitForClipboardAsync(string text) =>
         page.WaitForFunctionAsync("text => window.fakeClipboard.text === text", text);
 
+    public Task HoldCommitsAsync() =>
+        page.EvaluateAsync(
+            """
+            () => {
+                const proto = DotNet.DotNetObject.prototype;
+                const invoke = proto.invokeMethodAsync;
+                let target = null;
+                let tail = Promise.resolve();
+                window.heldCommits = [];
+                proto.invokeMethodAsync = function (name, ...args) {
+                    if (name === 'CommitAsync') {
+                        target = this;
+                    }
+                    if (this !== target) {
+                        return invoke.call(this, name, ...args);
+                    }
+                    const held = name === 'CommitAsync' ? new Promise(resolve => window.heldCommits.push(resolve)) : null;
+                    const result = Promise.all([tail, held]).then(() => invoke.call(this, name, ...args));
+                    tail = result.catch(() => { });
+                    return result;
+                };
+            }
+            """);
+
+    public Task WaitForHeldCommitsAsync(int count) =>
+        page.WaitForFunctionAsync("count => window.heldCommits.length >= count", count);
+
+    public Task ReleaseCommitAsync(int index) => page.EvaluateAsync("index => window.heldCommits[index]()", index);
+
     public Task<string> DispatchClipboardAsync(string type, string? text) =>
         page.EvaluateAsync<string>(
             """

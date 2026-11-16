@@ -10,8 +10,16 @@ internal static class KeyCombo
         "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
     ];
 
-    public static Dictionary<string, string?> NormalizeAll(IDictionary<string, string?> keys) =>
-        keys.ToDictionary(x => Normalize(x.Key), x => x.Value, StringComparer.Ordinal);
+    public static Dictionary<string, string?> NormalizeAll(IDictionary<string, string?> keys)
+    {
+        var normalized = new Dictionary<string, string?>(keys.Count, StringComparer.Ordinal);
+        foreach (var (key, value) in keys)
+        {
+            normalized[Normalize(key)] = value;
+        }
+
+        return normalized;
+    }
 
     public static string Normalize(string combo)
     {

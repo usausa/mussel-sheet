@@ -31,7 +31,6 @@
     <script type="module" src="@Assets["js/reconnect.js"]"></script>
     <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
     <script src="@Assets["js/culture.js"]"></script>
-    <script src="@Assets["js/download.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
@@ -41,7 +40,6 @@
     [CascadingParameter]
     public HttpContext HttpContext { get; set; } = default!;
 
-    // One render mode for the whole app, from the top bar switch; [ExcludeFromInteractiveRouting] pages stay static
     private IComponentRenderMode? PageRenderMode =>
         !HttpContext.AcceptsInteractiveRouting()
             ? null
