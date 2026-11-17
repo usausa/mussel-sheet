@@ -6,7 +6,7 @@ public sealed partial class ComputedCellsPage
 
     private const int MaxDetailRows = 10;
 
-    private const decimal TaxRate = 1.1m;
+    private const decimal TaxRate = 0.1m;
 
     private readonly SheetEventLog log = new();
 
@@ -76,7 +76,7 @@ public sealed partial class ComputedCellsPage
             // The watched ranges grow when rows are added inside them
             sheet.Compute("D2", ["A4:A6"], static x => (decimal)x.Values("A4:A6").Count(static v => v is string { Length: > 0 }));
             sheet.Compute("D7", ["D4:D6"], static x => x.Values("D4:D6").OfType<decimal>().Sum());
-            sheet.Compute("D8", ["D7"], static x => Math.Round(x.Get<decimal>("D7") * TaxRate, 0, MidpointRounding.AwayFromZero));
+            sheet.Compute("D8", ["D7"], static x => Math.Round(x.Get<decimal>("D7") * (1 + TaxRate), 0, MidpointRounding.AwayFromZero));
         }
 
         return sheet;

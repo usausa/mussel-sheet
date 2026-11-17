@@ -15,7 +15,7 @@ An input cell accepts user input. An input-disabled cell has `ReadOnly` or `Kind
 
 With `ReadyEnterMode.Edit`, Enter also starts edit or opens the custom editor.
 
-While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and a rejected commit drops them with the keys. Keys before a custom editor opens are dropped.
+While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu, the edit text read from C# for F2, Alt+Down, a double-click or Ctrl+Enter on a cell that is not drawn or while a change is on its way, and a cut until the clipboard takes the text), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync`, `CommitEditAsync`, `CancelEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and so are `SetActiveCellAsync` and the selection while a custom editor commits. A rejected commit drops them with the keys. Keys before a custom editor opens are dropped.
 
 ## 🧾 Sheet
 
@@ -94,7 +94,7 @@ Values are never inherited. Deleting shrinks rules and drops empty ones. These m
 | `MaxByteLength` | Strings | ASCII and Unicode's half-width forms count 1, others 2 |
 | `CharacterRestriction` | `Text`, `Mask`, `AutoComplete` | Every character must be in the `SheetCharacterSet`. `SheetCharacters.Fullwidth` excludes ASCII and Unicode's half-width forms, `Halfwidth` allows only those, `Alphanumeric` and `Digits` are ASCII, and `None` lifts a restriction of an earlier rule. `JapaneseCharacters.Hiragana` and `Katakana` also allow `ー` and spaces, `Katakana` also `・`, and `HalfwidthKatakana` also the ASCII space. The value of an `AutoComplete` item is not checked |
 | `Mask` | `Text`, `Mask` | `9` is a digit, `A` an ASCII letter, `X` either, and `\c` the literal `c`. Other characters are separators the input may omit or replace with an ASCII symbol: for `999-9999`, `1234567` and `123 4567` store `123-4567`. An empty editor shows the mask |
-| `Pattern` | All but `Checkbox` | A regular expression over the whole text, read by the rules of JavaScript on both sides, so `\d` and `\w` are ASCII. A pattern those rules cannot read, or with `\S` in a class, is ignored, and a match over 200 ms fails |
+| `Pattern` | All but `Checkbox` | A regular expression over the whole text, read by the rules of JavaScript on both sides, so `\d` and `\w` are ASCII. A pattern those rules cannot read, or that .NET reads another way (`\p`, `\S` in a class, `\A`, `\z`, `\Z`, `\G`, `\e`, `[]`, class subtraction, and groups starting with `(?` other than `(?:`, `(?=`, `(?!` and `(?<`), is ignored on both sides, and a match over 200 ms fails |
 
 ## 🔁 From text to value
 
@@ -154,7 +154,7 @@ Focus moving to a focusable element outside the sheet commits without a move, an
 - `Cancel` in `CellCommitting` stores nothing. The message is `Error`, or else the `Canceled` text. In `Optimistic` it becomes the error mark. In `Wait` the cell stays with the message, and a `Revert` cell moves.
 - Text over 16 MiB in UTF-8 is not read, and nothing is stored. A range paste and Ctrl+Enter show the `TextTooLarge` text as their message, and a commit or paste of one cell is handled like `Cancel` with that text.
 - A range paste, Ctrl+Enter, Ctrl+D, Ctrl+R and the fill handle run the steps per cell. `Stay` and `AcceptAndMark` store with an error mark, `Revert` leaves the cell, and a message gives the counts.
-- If the active cell becomes input-disabled during input or edit, the typed text is dropped.
+- If the active cell becomes input-disabled during input or edit, the typed text is dropped. Rows and columns the app inserts or deletes move the active cell, the selection and the text being typed with them; when the row or column being typed in is deleted, the text is dropped. A custom editor commits to the cell it opened on, and to nothing if the app deleted it.
 - `SetActiveCellAsync` commits an edit first. `BeginEditAsync` works in ready. `CommitEditAsync` commits without a move.
 - C# runs the operations from the sheet, `UndoAsync` and `RedoAsync` one at a time in the order they come, also across the views of one `Sheet`. An operation that comes while a handler of an earlier one runs waits for it, and a call that the handler awaits runs at once.
 - An exception from a handler called through the sheet reaches `ErrorBoundary`, as with an ordinary Blazor event, and the sheet treats the operation as failed.
@@ -389,8 +389,8 @@ The `CustomEditor` template opens with F2, double-click, Alt+Down or ▼, never 
 | The app adds an element | The next empty row after the previous element, or an inserted row |
 | The app removes an element | Its row is deleted, and a new empty row at the end keeps the original count |
 | The app replaces an element, resets or replaces the list | The row, or all rows, show it |
-| A row inserted below a detail row, or above the first | It joins the detail as an empty row |
-| The user deletes a row | Its element leaves the list. Undo returns it to the same position |
+| A row inserted below a detail row, or above the first | It joins the detail as an empty row. Between two details, it joins the upper one, and an empty detail counts as being at its place. Rows a detail adds for its elements join only that detail |
+| The user deletes a row | Its element leaves the list. Undo returns it to the same position of the same detail |
 
 A read-only list gets no new elements. Without `Create` or a parameterless constructor, binding throws.
 
@@ -408,18 +408,18 @@ A read-only list gets no new elements. Without `Create` or a parameterless const
 | Runs | At registration, and after a watched value changes. Inside `BeginUpdate`, once at the end. `ComputeRows` runs only changed rows, or all rows when an address changes |
 | Chains, loops | A computed value can be watched by another computation. Computations watching each other stop after one pass |
 | Result | Stored like `SetValue` when it differs: no undo step, no change mark. Undo recomputes from the restored values |
-| Growth | Ranges of two or more rows and `ComputeRows` targets take rows inserted inside them, directly below the last or directly above the first. A single cell follows that cell. Deleted rows return with undo |
+| Growth | Ranges of two or more rows and `ComputeRows` targets take rows inserted inside them, directly below the last or directly above the first. A single cell follows that cell. Deleted rows return with undo, only to the ranges they were in |
 | `Refresh()`, `Dispose()` | Runs it again. Stops it, and the values and read-only rule stay |
 
 ## 💾 Design
 
 - Saved: row and column counts, default sizes that differ from 24 and 100, culture name, frozen counts, heights, widths and headers set on rows and columns, rules in order, merges, `Label` values, and computations. With `includeValues`, all values.
-- Not saved: error marks, change marks, `InputText`, undo history, parameters of the view, functions not in `SheetFunctions`, with the computations using them, and computations whose cells or read cells were deleted.
+- Not saved: error marks, change marks, `InputText`, undo history, parameters of the view, functions not in `SheetFunctions`, with the computations using them, and computations whose cells or read cells were deleted, or whose read columns have a column inserted between them.
 - Functions are saved by name, and `FromDesign` takes them from the same `SheetFunctions`. Names are unique across all function kinds, and adding a name again replaces it.
 - Character sets are saved by `Name`. `FromDesign` takes them from `SheetFunctions` (`AddCharacterSet`) first, then from the built-in ones.
 - A computation saves the name it reads, and the current address when different. A loaded sheet computes at once, and the read-only rule comes from the saved rules.
 - Loading throws `JsonException` for a property it does not know, `NotSupportedException` for an unknown `version`, `InvalidOperationException` for a function name without `SheetFunctions`, and `KeyNotFoundException` for a name not in it.
-- JSON: camelCase names, no `null` items, LF line breaks. Ranges use addresses, and `*` is the whole sheet. Enums use camelCase names. `characterRestriction` is a name. Limits are text (`0`, `2026-01-01`, `09:00:00`). Values have a type: `text`, `number`, `date`, `time` or `check`. A value none of them holds (a `TimeSpan` of a day or more, a number outside `decimal`) is written as `text`. The invariant culture is an empty name.
+- JSON: camelCase names, no `null` items, LF line breaks. Ranges use addresses, and `*` is the whole sheet. Enums use camelCase names. `characterRestriction` is a name. Limits are text (`0`, `2026-01-01`, `09:00:00`). Values have a type: `text`, `number`, `date`, `time` or `check`. A value none of them holds (a negative `TimeSpan` or one of a day or more, a number outside `decimal`) is written as `text`. The invariant culture is an empty name.
 
 > Note: Saving finds a name from the delegate, so attach the delegate returned by `SheetFunctions`. The JSON is not escaped for HTML.
 
@@ -432,7 +432,7 @@ The code of the sheet knows no language. A language is data of one shape, regist
 | `Sheet.Culture` | Shown and edit text, number and time separators, date field order, calendar names, and all of `SheetCulture` except `Texts` |
 | `CurrentUICulture` | `SheetTexts` messages and menu labels, `SheetMenuItem.Texts` |
 
-`Cultures` is searched item by item from the culture to its parents (`ja-JP`, `ja`, then the empty name). An item not set or empty does not count, and an item found nowhere comes from .NET. Built in: the empty name has `SheetTexts.English`, and `ja` has `JapaneseLanguage.CreateCulture()` from `MusselSheet.Languages.Japanese`. Configure the options before the first sheet is shown.
+`Cultures` is searched item by item from the culture to its parents (`ja-JP`, `ja`, then the empty name). An item not set or empty does not count, and an item found nowhere comes from .NET. `Texts` is one item, so a culture that sets `Texts` takes every text from it: start from the texts of the language, as in `JapaneseTexts.Default with { Required = "…" }`. Built in: the empty name has `SheetTexts.English`, and `ja` has `JapaneseLanguage.CreateCulture()` from `MusselSheet.Languages.Japanese`. Configure the options before the first sheet is shown.
 
 ### What every language shares
 
@@ -555,7 +555,7 @@ A `Format` with an unquoted `g` or `e` is an era format. It uses the eras of the
 | Error in the editor | A red frame, with the message below the cell |
 | Change mark | With `ShowChanges`, a small triangle at the top left corner |
 | `InputMessage` | Below the active cell while the sheet has focus, or above when a scrolling sheet has no room. Hidden during an error message, a popup, the menu and the custom editor |
-| Paste and fill messages | Below the active cell until the next key or move |
+| Paste and fill messages | Below the active cell until the next key, move or IME input |
 
 ## ♿ Accessibility
 

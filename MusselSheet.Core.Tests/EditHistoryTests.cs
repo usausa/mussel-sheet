@@ -23,6 +23,23 @@ public sealed class EditHistoryTests
     }
 
     [Fact]
+    public void OnlyClearingStartsANewGeneration()
+    {
+        var history = new EditHistory();
+        var first = history.Generation;
+        history.Record(Entry());
+        history.TakeUndo();
+        history.TakeRedo();
+        var kept = history.Generation;
+
+        history.Clear();
+
+        Assert.Equal(first, kept);
+        Assert.Equal(first + 1, history.Generation);
+        Assert.False(history.CanUndo);
+    }
+
+    [Fact]
     public void RecordingClearsRedo()
     {
         var history = new EditHistory();

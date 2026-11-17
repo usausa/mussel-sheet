@@ -97,6 +97,11 @@ public sealed partial class Sheet
 
     internal void TakeRows(int index, int count, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges)
     {
+        for (var r = index; r < index + count; r++)
+        {
+            rowList[r].WasRemoved = true;
+        }
+
         rowList.RemoveRange(index, count);
         Reindex();
         settings.Replace(rules);

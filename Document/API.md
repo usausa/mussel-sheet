@@ -2,6 +2,8 @@
 
 The components, their event arguments, `CellEditContext`, `CellDisplayContext` and `AddMusselSheet` are in `MusselSheet`. Everything else is in `MusselSheet.Core`, which has no UI and also works on a server.
 
+The behaviour is in the [specification](SPEC.md).
+
 ## 📋 MusselSheetView
 
 The sheet component. `Sheet` is required, and other attributes such as `class` and `id` go to the root element, except `style`, which the view sets. The root gets `data-attached` once its script is attached and the calls made before are applied, and loses it when the script is disposed.  
@@ -196,7 +198,7 @@ English and Japanese are built in. `JapaneseLanguage`, `JapaneseTexts` and `Japa
 
 Link `_content/MusselSheet/MusselSheet.css` in the page head; the sheet needs it. Colors come from CSS variables, and an app changes them by setting the variables, from any selector and in any file order.
 
-These are shared with the other Mussel libraries. Set them on any container to theme them together.
+These are shared with the other Mussel libraries. Their light defaults follow the look of each library, so set them on a container to give several libraries the same colors.
 
 | Variable | Use |
 |---|---|
@@ -232,7 +234,7 @@ There is no dark theme yet, so the shared variables do not reach a sheet inside 
 | Render mode | Needs an interactive render mode (Server, WebAssembly or Auto). Static rendering only shows the values |
 | Content Security Policy | `style-src` needs `'unsafe-inline'`: the layout is written in `style` attributes and a `<style>` element, and the cells lose their size without it. `script-src 'self'` is enough for the script |
 | Size | Tested up to 10,000 rows x 50 columns with a fixed `Width` and `Height`. With `auto`, every row and column is drawn |
-| Paste | Up to 16 MB of text. A longer text pastes nothing, and a longer edit is not committed |
+| Paste | Up to 16 MiB of text in UTF-8. A longer text pastes nothing, and a longer edit is not committed |
 | Suggestions | The first 50 candidates of `SuggestionProvider` |
 | Focus | Focus moving out of the sheet commits the edit, so a button calling `CommitEditAsync` or `CancelEditAsync` must keep the focus (`@onmousedown:preventDefault`) |
 | Paste from the context menu | Uses the browser's clipboard permission. When it is refused, a message asks for Ctrl+V |

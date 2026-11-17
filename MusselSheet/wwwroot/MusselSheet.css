@@ -6,9 +6,9 @@
     --mussel-sheet-text-color: var(--mussel-primary-text, #1f2328);
     --mussel-sheet-header-color: var(--mussel-secondary-text, #57606a);
     --mussel-sheet-readonly-color: var(--mussel-secondary-text, #57606a);
-    --mussel-sheet-muted-color: var(--mussel-muted-text, #8c959f);
+    --mussel-sheet-muted-color: var(--mussel-muted-text, #6e7781);
     --mussel-sheet-grid-color: var(--mussel-grid-line, #d0d7de);
-    --mussel-sheet-error-color: var(--mussel-critical, #d93025);
+    --mussel-sheet-error-color: var(--mussel-critical, #cf222e);
     --mussel-sheet-popup-bg: var(--mussel-tooltip-background, #fff);
     --mussel-sheet-popup-border: var(--mussel-tooltip-border, #d0d7de);
     --mussel-sheet-popup-color: var(--mussel-tooltip-text, #1f2328);

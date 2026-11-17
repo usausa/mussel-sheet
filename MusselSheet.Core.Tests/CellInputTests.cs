@@ -166,6 +166,17 @@ public sealed class CellInputTests
     }
 
     [Fact]
+    public void ListItemsMatchByTheLowerCaseOfTheBrowser()
+    {
+        var settings = Settings(CellKind.List) with { Items = ["\u212A", "\U00010400"] };
+
+        Assert.True(CellInput.TryConvert("k", settings, Context, out var value, out _));
+        Assert.Equal("\u212A", value);
+        Assert.True(CellInput.TryConvert("\U00010428", settings, Context, out value, out _));
+        Assert.Equal("\U00010400", value);
+    }
+
+    [Fact]
     public void AutoCompleteTakesTheValueOfAMatchingItem()
     {
         var settings = Settings(CellKind.AutoComplete) with { Items = [new CellListItem("13", "東京"), "大阪"], CharacterRestriction = SheetCharacters.Fullwidth };
@@ -177,6 +188,15 @@ public sealed class CellInputTests
         Assert.Null(CellInput.Check("名古屋", settings, Context, out value, out _));
         Assert.Equal("名古屋", value);
         Assert.Equal(CellInput.CharacterMessage(SheetCharacters.Fullwidth, JapaneseTexts.Default), CellInput.Check("abc", settings, Context, out _, out _));
+    }
+
+    [Fact]
+    public void ACorrectorThatKeepsTheValueKeepsTheTypedTextForThePattern()
+    {
+        var settings = Settings(CellKind.AutoComplete) with { Items = [new CellListItem("13", "東京")], Pattern = "[^0-9]+" };
+
+        Assert.Null(CellInput.Check("東京", settings, Context, out var value, out _, static x => x is string text ? text.Trim() : x));
+        Assert.Equal("13", value);
     }
 
     [Fact]
@@ -297,12 +317,34 @@ public sealed class CellInputTests
     [InlineData(".+", "a\rb", false)]
     [InlineData("[.]", "a", false)]
     [InlineData(@"a\.b", "a.b", true)]
+    [InlineData("(?<year>[0-9]{4})", "2026", true)]
+    [InlineData("(?=a)a", "a", true)]
     public void APatternIsReadAsTheBrowserReadsIt(string pattern, string text, bool allowed)
     {
         var settings = Settings(CellKind.Text) with { Pattern = pattern };
 
         Assert.Equal(allowed, CellInput.Validate(text, text, settings, Context) is null);
         Assert.Equal(pattern is @"\p{IsHiragana}+" or @"[\S]+" ? null : pattern, CellInput.ScriptPattern(pattern));
+    }
+
+    [Theory]
+    [InlineData(@"\A\d{3}\z")]
+    [InlineData(@"\d{3}\Z")]
+    [InlineData(@"\G\d+")]
+    [InlineData(@"a\e")]
+    [InlineData("[a-z-[aeiou]]+")]
+    [InlineData("[]a]")]
+    [InlineData("(?i)abc")]
+    [InlineData("(?i:abc)")]
+    [InlineData("a(?#note)b")]
+    [InlineData("(?>a+)")]
+    [InlineData("(?'x'a)")]
+    public void APatternThatDotNetReadsDifferentlyIsIgnored(string pattern)
+    {
+        var settings = Settings(CellKind.Text) with { Pattern = pattern };
+
+        Assert.Null(CellInput.Validate("123", "123", settings, Context));
+        Assert.Null(CellInput.ScriptPattern(pattern));
     }
 
     [Fact]

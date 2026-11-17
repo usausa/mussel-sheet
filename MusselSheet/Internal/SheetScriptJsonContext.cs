@@ -10,4 +10,5 @@ using System.Text.Json.Serialization;
 [JsonSerializable(typeof(CustomEditorResult))]
 [JsonSerializable(typeof(PasteResult))]
 [JsonSerializable(typeof(ClipboardText))]
+[JsonSerializable(typeof(List<ScriptShift>))]
 internal sealed partial class SheetScriptJsonContext : JsonSerializerContext;

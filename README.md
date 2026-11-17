@@ -51,13 +51,13 @@ Create a `Sheet` and show it in an interactive component.
 }
 ```
 
-The `Example` project shows every feature on Server and WebAssembly.  
+The `Example` project shows the main features on Server and WebAssembly, a page for each.  
 
 ## 🎨 Look
 
 | Part | Detail |
 |---|---|
-| Theme | CSS variables shared with MusselChart (`--mussel-primary-text`, `--mussel-grid-line` and more), and `--mussel-sheet-*` for the sheet |
+| Theme | CSS variables shared with the Mussel family (`--mussel-primary-text`, `--mussel-grid-line` and more), and `--mussel-sheet-*` for the sheet |
 | Cell style | Alignment, bold, italic, underline, strikethrough, font size, indent, font and fill colors, `CssClass` |
 | Borders | Thin, medium, thick, dashed, dotted and double lines in any color |
 | Marks | Errors, changed cells, read-only cells and input messages |
@@ -74,7 +74,7 @@ The `Example` project shows every feature on Server and WebAssembly.
 | **Data** | Binding to objects, computed cells, C# callbacks for correcting, formatting and styling, and saving the design as JSON |
 | **Scale** | With a fixed `Width` and `Height`, only visible rows and columns are drawn; tested with 10,000 rows x 50 columns |
 | **Languages** | English and Japanese built in, others as data of the same shape; eras, date forms and character sets |
-| **Hosting** | Interactive Server, WebAssembly (also trimmed) and Auto |
+| **Hosting** | Interactive Server, WebAssembly (also trimmed) and Auto; the core also runs without UI and with Native AOT |
 
 ## 📖 API
 

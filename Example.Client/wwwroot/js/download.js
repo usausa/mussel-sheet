@@ -11,7 +11,13 @@ export async function download(name, type, stream) {
 }
 
 export async function post(url, json, name) {
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json });
+    let response;
+    try {
+        response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json });
+    } catch (error) {
+        return error.message;
+    }
+
     if (!response.ok) {
         return `${response.status} ${response.statusText}`;
     }

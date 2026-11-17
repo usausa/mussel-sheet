@@ -144,8 +144,13 @@ internal static partial class CellInput
         converted = TryConvert(text, settings, context, out value, out var error, out omitsYear);
         if (converted && (correct is not null))
         {
-            value = correct(value);
-            text = value as string ?? text;
+            var corrected = correct(value);
+            if (!Equals(corrected, value))
+            {
+                text = corrected as string ?? text;
+            }
+
+            value = corrected;
         }
 
         error ??= Validate(value, text, settings, context);
@@ -239,7 +244,7 @@ internal static partial class CellInput
     private static Regex? PatternOf(string pattern) =>
         Patterns.GetOrAdd(pattern, static key =>
         {
-            if (HasCategory(key) || (WithScriptSpaces(key) is not { } translated))
+            if (HasCategory(key) || (AsScriptReads(key) is not { } translated))
             {
                 return null;
             }
@@ -254,51 +259,62 @@ internal static partial class CellInput
             }
         });
 
-    // Null when the pattern cannot be read the same way as in the browser: \S in a class
-    private static string? WithScriptSpaces(string pattern)
+    // The pattern as the browser reads it, or null when .NET reads it another way: \S in a class, \A, \z, \Z, \G, \e, [], class subtraction and (? groups other than (?:, (?=, (?! and (?<
+    private static string? AsScriptReads(string pattern)
     {
         var builder = new StringBuilder(pattern.Length);
         var inClass = false;
         for (var i = 0; i < pattern.Length; i++)
         {
             var ch = pattern[i];
-            if ((ch == '\\') && (i + 1 < pattern.Length))
+            var rest = pattern.AsSpan(i + 1);
+            if ((ch == '\\') && !rest.IsEmpty)
             {
                 var next = pattern[++i];
-                if (next == 's')
+                switch (next)
                 {
-                    builder.Append(inClass ? ScriptSpaces : $"[{ScriptSpaces}]");
-                }
-                else if (next == 'S')
-                {
-                    if (inClass)
-                    {
+                    case 's':
+                        builder.Append(inClass ? ScriptSpaces : $"[{ScriptSpaces}]");
+                        break;
+                    case 'S' when !inClass:
+                        builder.Append("[^").Append(ScriptSpaces).Append(']');
+                        break;
+                    case 'S' or 'A' or 'z' or 'Z' or 'G' or 'e':
                         return null;
-                    }
-
-                    builder.Append("[^").Append(ScriptSpaces).Append(']');
-                }
-                else
-                {
-                    builder.Append(ch).Append(next);
+                    default:
+                        builder.Append(ch).Append(next);
+                        break;
                 }
 
                 continue;
             }
 
-            if ((ch == '.') && !inClass)
+            if (inClass)
+            {
+                if ((ch == '-') && rest.StartsWith('['))
+                {
+                    return null;
+                }
+
+                inClass = ch != ']';
+            }
+            else if (ch == '.')
             {
                 builder.Append(ScriptDot);
                 continue;
             }
-
-            if (ch == '[')
+            else if (ch == '[')
             {
+                if (rest.StartsWith(']') || rest.StartsWith("^]"))
+                {
+                    return null;
+                }
+
                 inClass = true;
             }
-            else if (ch == ']')
+            else if ((ch == '(') && rest.StartsWith('?') && ((rest.Length < 2) || (rest[1] is not (':' or '=' or '!' or '<'))))
             {
-                inClass = false;
+                return null;
             }
 
             builder.Append(ch);
@@ -549,14 +565,33 @@ internal static partial class CellInput
         var halfwidth = ToHalfwidth(text);
         foreach (var item in items)
         {
-            if (string.Equals(ToHalfwidth(item.Value), halfwidth, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(ToHalfwidth(item.DisplayText), halfwidth, StringComparison.OrdinalIgnoreCase))
+            if (SameText(ToHalfwidth(item.Value), halfwidth) || SameText(ToHalfwidth(item.DisplayText), halfwidth))
             {
                 return item.Value;
             }
         }
 
         return null;
+    }
+
+    // Letter by letter in lower case, as toLowerCase in the browser
+    private static bool SameText(ReadOnlySpan<char> x, ReadOnlySpan<char> y)
+    {
+        while (!x.IsEmpty && !y.IsEmpty)
+        {
+            var readX = Rune.DecodeFromUtf16(x, out var first, out var lengthX);
+            var readY = Rune.DecodeFromUtf16(y, out var second, out var lengthY);
+            var same = (readX == OperationStatus.Done) && (readY == OperationStatus.Done) ? Rune.ToLowerInvariant(first) == Rune.ToLowerInvariant(second) : x[0] == y[0];
+            if (!same)
+            {
+                return false;
+            }
+
+            x = x[lengthX..];
+            y = y[lengthY..];
+        }
+
+        return x.IsEmpty && y.IsEmpty;
     }
 
     private static bool IsItemValue(string text, ResolvedCellSettings settings)

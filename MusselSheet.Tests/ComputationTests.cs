@@ -128,6 +128,24 @@ public sealed class ComputationTests : BunitContext
     }
 
     [Fact]
+    public void RowsThatReadALongRangeDoNotBuildTheColumnsForEachLine()
+    {
+        var sheet = new Sheet(2001, 5);
+        for (var r = 1; r <= 2000; r++)
+        {
+            sheet.SetValue(r, 3, 1m);
+        }
+
+        using var shares = sheet.ComputeRows("E2:E2001", ["D", "D2:D2001"], x => x.Get<decimal>("D") / x.Values("D2:D2001").OfType<decimal>().Sum());
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        sheet.SetValue(1, 3, 3m);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(3m / 2002m, sheet.GetValue(1, 4));
+        Assert.True(allocated < 256L * 1024 * 1024, $"{allocated} bytes");
+    }
+
+    [Fact]
     public void ChangesInsideAnUpdateMarkEveryRowOnce()
     {
         var sheet = new Sheet(2001, 5);

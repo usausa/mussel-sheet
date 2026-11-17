@@ -13,7 +13,8 @@ public sealed partial class MusselSheetView
 
         customEdit = new CellEditContext(
             Sheet,
-            new CellAddress(row, column),
+            Sheet.Rows[row],
+            Sheet.Columns[column],
             Sheet.GetSettings(row, column).Editor,
             Sheet.GetValue(row, column),
             CommitCustomFromTemplateAsync,
@@ -28,8 +29,19 @@ public sealed partial class MusselSheetView
 
     internal void CancelCustomEditor() => CloseCustom();
 
+    // A cell the app deleted while the editor was open takes nothing
     private async Task<CustomEditorResult> CommitCustomCoreAsync(CellEditContext edit)
     {
+        if (!edit.IsCurrent)
+        {
+            if (ReferenceEquals(edit, customEdit))
+            {
+                CloseCustom();
+            }
+
+            return new CustomEditorResult(true, null);
+        }
+
         var (row, column) = (edit.Address.Row, edit.Address.Column);
         var result = await CommitValueAsync(row, column, edit.Value).ConfigureAwait(true);
         var keepOpen = !result.Stored

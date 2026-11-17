@@ -233,7 +233,11 @@ public sealed partial class JapaneseFormPage
         }
         catch (JSException e)
         {
-            log.Add($"PDF を作成できませんでした: {e.Message}");
+            log.Add($"PDF を作成できませんでした: {e.Message.Split('\n')[0]}");
+        }
+        catch (OperationCanceledException)
+        {
+            log.Add("PDF を作成できませんでした: 時間切れです");
         }
     }
 

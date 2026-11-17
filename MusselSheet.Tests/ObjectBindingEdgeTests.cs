@@ -32,6 +32,18 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     }
 
     [Fact]
+    public void MergingTellsTheBindingsThatTheCoveredValuesAreGone()
+    {
+        var line = new Line { Name = "b" };
+        var sheet = new Sheet(1, 2);
+        using var binding = sheet.Bind(line).Cell("B1", static x => x.Name);
+
+        sheet.Range("A1:B1").Merge();
+
+        Assert.Null(line.Name);
+    }
+
+    [Fact]
     public void AConvertedExpressionStillFindsTheProperty()
     {
         var target = new Target { Count = 3 };
@@ -179,6 +191,78 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         sheet.SetValue(2, 0, "x");
 
         Assert.Equal(["a", "b", "x"], first.Lines.Select(static x => x.Name));
+        Assert.Equal(["c", "d"], second.Lines.Select(static x => x.Name));
+    }
+
+    [Fact]
+    public void ARowInsertedWhereTheUpperListIsEmptyJoinsOnlyThatList()
+    {
+        var first = new ListTarget { Lines = { new Line { Name = "a" } } };
+        var second = new ListTarget { Lines = { new Line { Name = "c" } } };
+        var sheet = new Sheet(2, 1);
+        using var upper = sheet.Bind(first).Rows("A1:A1", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        using var lower = sheet.Bind(second).Rows("A2:A2", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+
+        sheet.DeleteRows(0, 1);
+        sheet.InsertRows(0, 1);
+        sheet.SetValue(0, 0, "x");
+
+        Assert.Equal(["x"], first.Lines.Select(static x => x.Name));
+        Assert.Equal(["c"], second.Lines.Select(static x => x.Name));
+    }
+
+    [Fact]
+    public void ARowInsertedWhereTheLowerListIsEmptyJoinsOnlyTheUpperOne()
+    {
+        var first = new ListTarget { Lines = { new Line { Name = "a" } } };
+        var second = new ListTarget { Lines = { new Line { Name = "c" } } };
+        var sheet = new Sheet(2, 1);
+        using var upper = sheet.Bind(first).Rows("A1:A1", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        using var lower = sheet.Bind(second).Rows("A2:A2", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+
+        sheet.DeleteRows(1, 1);
+        sheet.InsertRows(1, 1);
+        sheet.SetValue(1, 0, "x");
+
+        Assert.Equal(["a", "x"], first.Lines.Select(static x => x.Name));
+        Assert.Empty(second.Lines);
+    }
+
+    [Fact]
+    public void RowsAListAddsForItsElementsStayOutOfTheListAbove()
+    {
+        var first = new ListTarget { Lines = { new Line { Name = "a" } } };
+        var second = new ListTarget { Lines = { new Line { Name = "c" } } };
+        var sheet = new Sheet(2, 1);
+        using var upper = sheet.Bind(first).Rows("A1:A1", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        using var lower = sheet.Bind(second).Rows("A2:A2", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+
+        second.Lines.Insert(0, new Line { Name = "z" });
+
+        Assert.Equal(["a"], first.Lines.Select(static x => x.Name));
+        Assert.Equal(["z", "c"], second.Lines.Select(static x => x.Name));
+        Assert.Equal(["a", "z", "c"], Enumerable.Range(0, 3).Select(r => sheet.GetValue(r, 0) as string));
+    }
+
+    [Fact]
+    public void RowsPutBackReturnOnlyToTheirOwnLists()
+    {
+        var first = new ListTarget { Lines = { new Line { Name = "a" }, new Line { Name = "b" } } };
+        var second = new ListTarget { Lines = { new Line { Name = "c" }, new Line { Name = "d" } } };
+        var sheet = new Sheet(5, 1);
+        using var upper = sheet.Bind(first).Rows("A1:A2", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        using var lower = sheet.Bind(second).Rows("A3:A4", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        var rules = sheet.Rules.ToArray();
+        var head = sheet.Rows[2];
+        var total = sheet.Rows[4];
+
+        sheet.DeleteRows(2, 1);
+        sheet.PutRows(2, [head], rules, []);
+        sheet.DeleteRows(4, 1);
+        sheet.PutRows(4, [total], rules, []);
+        sheet.SetValue(4, 0, "total");
+
+        Assert.Equal(["a", "b"], first.Lines.Select(static x => x.Name));
         Assert.Equal(["c", "d"], second.Lines.Select(static x => x.Name));
     }
 

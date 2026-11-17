@@ -25,10 +25,11 @@ internal static class KeyCombo
     public static string Normalize(string combo)
     {
         var parts = combo.Split('+', StringSplitOptions.TrimEntries);
-        var key = (parts[^1].Length == 0) && (parts.Length > 1) ? "+" : parts[^1];
+        var plus = (parts[^1].Length == 0) && (parts.Length > 1);
+        var key = plus ? "+" : parts[^1];
         var (ctrl, alt, shift) = (false, false, false);
         var others = new List<string>();
-        foreach (var modifier in parts[..^1])
+        foreach (var modifier in plus ? parts[..^2] : parts[..^1])
         {
             switch (modifier.ToUpperInvariant())
             {

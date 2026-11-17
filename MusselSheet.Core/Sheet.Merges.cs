@@ -38,6 +38,7 @@ public sealed partial class Sheet
         merges.Add(range);
         mergeIndex = null;
         Raise(new SheetChangedEventArgs(SheetChangeKind.Merges, range));
+        Raise(new SheetChangedEventArgs(SheetChangeKind.Values, range));
     }
 
     public void Unmerge(CellRange range)

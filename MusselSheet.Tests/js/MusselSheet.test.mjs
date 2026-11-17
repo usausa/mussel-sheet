@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+    shiftCell,
     compileReading,
     normalizeText,
     prepareText,
@@ -40,6 +41,9 @@ import {
     fillTarget,
     frozenIndex,
     SheetMap,
+    lineStartOf,
+    deleteSize,
+    currentItem,
 } from '../../MusselSheet/wwwroot/MusselSheet.js';
 
 // What C# produces for each language: AddedLanguageTests checks that this file is up to date
@@ -828,4 +832,30 @@ test('edit formats keep quoted text and backslash-escaped characters as they are
     assert.equal(formatDate(date, compileReading({ editDate: 'yyyy\\/MM\\/dd' })), '2025/11/05');
     assert.equal(formatDate(date, compileReading({ editDate: "yyyy'/'MM'/'dd" })), '2025/11/05');
     assert.equal(formatDate(date, compileReading({ ...LANGUAGES['ja-JP'], editDate: 'ggge"年"M"月"d"日"' })), '令和7年11月5日');
+});
+
+test('replayed keys find the line start and delete whole characters', () => {
+    const lf = String.fromCharCode(10);
+    assert.equal(lineStartOf(lf + 'abc', 0), 0);
+    assert.equal(lineStartOf('ab' + lf + 'cd', 4), 3);
+    assert.equal(lineStartOf('ab' + lf + 'cd', 2), 0);
+    assert.equal(deleteSize('a𠮷', 3, true), 2);
+    assert.equal(deleteSize('𠮷b', 0, false), 2);
+    assert.equal(deleteSize('ab', 1, true), 1);
+    assert.equal(deleteSize('ab', 0, false), 1);
+});
+
+test('the current list item is found whatever the width of the text', () => {
+    const items = [{ text: 'Osaka', value: 'o' }, { text: 'tokyo', value: 't' }];
+    assert.equal(currentItem(items, 'ｔｏｋｙｏ'), 1);
+    assert.equal(currentItem(items, 'O'), 0);
+    assert.equal(currentItem(items, 'nagoya'), -1);
+});
+
+test('cells follow rows and columns the app inserts or deletes', () => {
+    assert.deepEqual(shiftCell({ r: 4, c: 1 }, { axis: 'row', index: 2, count: 1 }), { r: 5, c: 1 });
+    assert.deepEqual(shiftCell({ r: 4, c: 1 }, { axis: 'row', index: 5, count: 2 }), { r: 4, c: 1 });
+    assert.deepEqual(shiftCell({ r: 4, c: 1 }, { axis: 'row', index: 3, count: -1 }), { r: 3, c: 1 });
+    assert.deepEqual(shiftCell({ r: 4, c: 1 }, { axis: 'row', index: 3, count: -2 }), { r: 3, c: 1, lost: true });
+    assert.deepEqual(shiftCell({ r: 4, c: 3 }, { axis: 'col', index: 0, count: -2 }), { r: 4, c: 1 });
 });

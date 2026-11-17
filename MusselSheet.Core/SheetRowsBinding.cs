@@ -30,6 +30,8 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     // Weak, so undo brings back the same element until the row leaves the undo history
     private readonly ConditionalWeakTable<SheetRow, TItem> remembered = [];
 
+    private readonly ConditionalWeakTable<SheetRow, object> former = [];
+
     private IList<TItem>? list;
 
     // Row count of the detail frame at bind time; kept even when the app removes elements
@@ -115,6 +117,8 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     bool IRowsBinding.Holds(SheetRow row) => members.Contains(row);
 
+    bool IRowsBinding.IsEmptyAt(int index) => (rows.Count == 0) && (emptyTop == index);
+
     void IRowsBinding.OnValues(CellRange range)
     {
         var sheet = sync.Sheet;
@@ -148,7 +152,13 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     void IRowsBinding.OnRowsInserted(int index, int count)
     {
         var sheet = sync.Sheet;
-        var position = InsertPosition(index, count);
+        if (sheet.Rows[index].WasRemoved)
+        {
+            PutBack(index, count);
+            return;
+        }
+
+        var position = sheet.InsertingList is null ? InsertPosition(index, count) : -1;
         if (position < 0)
         {
             if ((rows.Count == 0) && (index <= emptyTop))
@@ -167,12 +177,62 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
         rows.InsertRange(position, inserted);
         members.UnionWith(inserted);
+        BringBackItems(inserted);
+    }
+
+    private void PutBack(int index, int count)
+    {
+        var sheet = sync.Sheet;
+        var returning = new List<SheetRow>(count);
+        for (var r = index; r < index + count; r++)
+        {
+            var row = sheet.Rows[r];
+            if (former.TryGetValue(row, out _))
+            {
+                returning.Add(row);
+                former.Remove(row);
+            }
+        }
+
+        if (returning.Count == 0)
+        {
+            if ((rows.Count == 0) && (index <= emptyTop))
+            {
+                emptyTop += count;
+            }
+
+            return;
+        }
+
+        var position = rows.FindIndex(x => x.Index > returning[0].Index);
+        rows.InsertRange(position < 0 ? rows.Count : position, returning);
+        members.UnionWith(returning);
+        BringBackItems(returning);
+    }
+
+    private void BringBackItems(List<SheetRow> inserted)
+    {
         foreach (var row in inserted)
         {
             if (remembered.TryGetValue(row, out var item) && (list is { IsReadOnly: false }))
             {
                 ChangeList(x => x.Insert(PositionOf(row), item));
                 Bind(row, item);
+            }
+        }
+    }
+
+    // Columns put back by undo show the current values of the elements
+    void IRowsBinding.OnColumnsInserted(int index, int count)
+    {
+        foreach (var link in columns)
+        {
+            if (IsCurrent(link) && (link.Column.Index >= index) && (link.Column.Index < index + count))
+            {
+                foreach (var row in rows)
+                {
+                    ShowCell(row, link);
+                }
             }
         }
     }
@@ -218,6 +278,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
         foreach (var row in rows.Where(x => !sheet.Contains(x)).ToArray())
         {
+            former.AddOrUpdate(row, row);
             if (items.Remove(row, out var item))
             {
                 Unsubscribe(item);
@@ -505,13 +566,21 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     {
         var sheet = sync.Sheet;
         var index = position < rows.Count ? rows[position].Index : rows.Count > 0 ? rows[^1].Index + 1 : emptyTop;
-        if (rows.Count > 0)
+        sheet.InsertingList = this;
+        try
         {
-            sheet.InsertRowsLike(index, count, position > 0 ? rows[position - 1] : rows[0]);
+            if (rows.Count > 0)
+            {
+                sheet.InsertRowsLike(index, count, position > 0 ? rows[position - 1] : rows[0]);
+            }
+            else
+            {
+                sheet.InsertRows(index, count);
+            }
         }
-        else
+        finally
         {
-            sheet.InsertRows(index, count);
+            sheet.InsertingList = null;
         }
 
         var inserted = new List<SheetRow>(count);
@@ -549,7 +618,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         var sheet = sync.Sheet;
         if (rows.Count == 0)
         {
-            return index == emptyTop ? 0 : -1;
+            return (index == emptyTop) && ((index == 0) || !sheet.IsListRow(sheet.Rows[index - 1])) ? 0 : -1;
         }
 
         if (index > 0)
@@ -562,7 +631,8 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
 
         // A row between two lists joins the upper one only
-        return (index + count < sheet.RowCount) && ReferenceEquals(sheet.Rows[index + count], rows[0]) && ((index == 0) || !sheet.IsListRow(sheet.Rows[index - 1])) ? 0 : -1;
+        var between = (index + count < sheet.RowCount) && ReferenceEquals(sheet.Rows[index + count], rows[0]) && ((index == 0) || !sheet.IsListRow(sheet.Rows[index - 1]));
+        return between && !sheet.HasEmptyListAt(index) && !sheet.IsListRow(sheet.Rows[index]) ? 0 : -1;
     }
 
     private int PositionOf(SheetRow row)

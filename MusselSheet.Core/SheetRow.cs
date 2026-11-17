@@ -19,6 +19,9 @@ public sealed class SheetRow
 
     public int Index { get; internal set; }
 
+    // A row that left the sheet comes back only by undo or redo, and then belongs where it was before
+    internal bool WasRemoved { get; set; }
+
     public int? Height
     {
         get => height;

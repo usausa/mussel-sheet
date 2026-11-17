@@ -76,10 +76,12 @@ public sealed partial class MusselSheetView
             }
 
             var map = MapSignature();
-            if (!string.Equals(sentMap, map, StringComparison.Ordinal))
+            if (!string.Equals(sentMap, map, StringComparison.Ordinal) || (pendingShifts.Count > 0))
             {
                 sentMap = map;
-                await current.InvokeVoidAsync("setMap", SheetScriptJson.ToElement(BuildMap())).ConfigureAwait(true);
+                List<ScriptShift> shifts = [.. pendingShifts];
+                pendingShifts.Clear();
+                await current.InvokeVoidAsync("setMap", SheetScriptJson.ToElement(BuildMap()), SheetScriptJson.ToElement(shifts)).ConfigureAwait(true);
             }
         }
         catch (JSDisconnectedException)
@@ -144,6 +146,7 @@ public sealed partial class MusselSheetView
             self ??= DotNetObjectReference.Create(new SheetScriptBridge(this));
             var options = SheetScriptJson.ToElement(ScriptOptions());
             sentMap = MapSignature();
+            pendingShifts.Clear();
             sentLanguage = LanguageSignature();
             sentOptions = options.GetRawText();
             sentThresholds = null;

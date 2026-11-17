@@ -254,6 +254,25 @@ public sealed class ObjectBindingTests : BunitContext
     }
 
     [Fact]
+    public async Task UndoingAColumnDeletionShowsTheCurrentValuesOfTheList()
+    {
+        var order = Order(("ノート", 10m, 120m), ("鉛筆", 5m, 50m));
+        var sheet = DetailSheet(3);
+        using var binding = BindDetails(sheet, order, 3);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowDeleteColumns, true));
+
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteColumns", 3, 2, 3, 2, 3, 2));
+        await cut.InvokeAsync(() =>
+        {
+            order.Lines[0].Price = 200m;
+            order.Lines.Add(new TestLine { Name = "消しゴム", Quantity = 1m, Price = 80m });
+        });
+        await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false));
+
+        Assert.Equal([200m, 50m, 80m], Enumerable.Range(3, 3).Select(r => sheet.GetValue(r, 2)));
+    }
+
+    [Fact]
     public async Task RowsEmptiedByTheAppComeBackEmptyWithUndo()
     {
         var order = Order(("ノート", 10m, 120m), ("鉛筆", 5m, 50m));
@@ -286,8 +305,10 @@ public sealed class ObjectBindingTests : BunitContext
         Assert.False(cut.Instance.CanUndo);
     }
 
-    [Fact]
-    public async Task BindingNewRowsClearsTheHistory()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BindingNewRowsClearsTheHistory(bool empty)
     {
         var sheet = DetailSheet();
         var cut = RenderMenuSheet(sheet);
@@ -295,7 +316,7 @@ public sealed class ObjectBindingTests : BunitContext
         await cut.InvokeAsync(() => bridge.CommitAsync(3, 1, "20", true, null));
         var recorded = cut.Instance.CanUndo;
 
-        using var binding = sheet.Bind(Order(("ノート", 10m, 120m))).Rows(new CellRange(3, 0, 4, 3), x => x.Lines, row => row.Column("A", x => x.Name));
+        using var binding = sheet.Bind(empty ? Order() : Order(("ノート", 10m, 120m))).Rows(new CellRange(3, 0, 4, 3), x => x.Lines, row => row.Column("A", x => x.Name));
 
         Assert.True(recorded);
         Assert.False(cut.Instance.CanUndo);

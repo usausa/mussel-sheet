@@ -24,7 +24,7 @@ public sealed class MergeTests : BunitContext
         Assert.Null(sheet.GetError(1, 1));
         Assert.Equal(CellRange.Parse("A1:B2"), sheet.GetMergeArea(1, 1));
         Assert.Null(sheet.GetMergeArea(2, 2));
-        Assert.Equal([SheetChangeKind.Merges], kinds);
+        Assert.Equal([SheetChangeKind.Merges, SheetChangeKind.Values], kinds);
     }
 
     [Fact]

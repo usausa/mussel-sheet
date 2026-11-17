@@ -305,6 +305,84 @@ public sealed class SheetStructureTests
     }
 
     [Fact]
+    public void ComputationsLetGoOfDeletedRows()
+    {
+        var sheet = new Sheet(4, 2);
+        using var sum = sheet.Compute("B4", ["A1:A3"], static x => x.Values("A1:A3").OfType<decimal>().Sum());
+        using var doubled = sheet.ComputeRows("B1:B3", ["A"], static x => x.Get<decimal?>("A") * 2);
+        var deleted = DeleteRow(sheet, 1);
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        Assert.False(deleted.IsAlive);
+    }
+
+    [Fact]
+    public void ARowPutBackStillCountsInTheComputationsAfterItWasLetGo()
+    {
+        var sheet = new Sheet(4, 2);
+        sheet.Configure(CellRange.All, static c => c.Kind = CellKind.Number);
+        using var sum = sheet.Compute("B4", ["A1:A3"], static x => x.Values("A1:A3").OfType<decimal>().Sum());
+        sheet.SetValues(0, 0, [[1m], [2m], [3m]]);
+        var row = sheet.Rows[1];
+        var rules = sheet.Rules.ToArray();
+
+        sheet.DeleteRows(1, 1);
+        sheet.PutRows(1, [row], rules, []);
+        sheet.SetValue(1, 0, 20m);
+
+        Assert.Equal(24m, sheet.GetValue(3, 1));
+    }
+
+    [Fact]
+    public void RowsJoinTheReadRangeEvenWhenItWasReadDuringTheInsert()
+    {
+        var sheet = new Sheet(4, 1);
+        var observation = MusselSheet.Internal.Observation.Of(sheet, "A1:A3");
+
+        sheet.InsertRows(3, 1);
+        var early = observation.Intersects(sheet, new CellRange(3, 0, 3, 0));
+        observation.OnRowsInserted(sheet, 3, 1);
+
+        Assert.False(early);
+        Assert.True(observation.Intersects(sheet, new CellRange(3, 0, 3, 0)));
+    }
+
+    [Fact]
+    public void MergingTellsTheComputationsThatTheCoveredValuesAreGone()
+    {
+        var sheet = new Sheet(2, 2);
+        sheet.SetValues(0, 0, [[1m, 2m]]);
+        using var sum = sheet.Compute("A2", ["A1:B1"], static x => x.Values("A1:B1").OfType<decimal>().Sum());
+
+        sheet.Range("A1:B1").Merge();
+
+        Assert.Equal(1m, sheet.GetValue(1, 0));
+    }
+
+    [Fact]
+    public void ARowPutBackDoesNotJoinARangeItWasNotIn()
+    {
+        var sheet = new Sheet(8, 4);
+        sheet.Configure(CellRange.All, static c => c.Kind = CellKind.Number);
+        sheet.ComputeRows("D4:D6", ["B"], static x => x.Get<decimal?>("B") * 2);
+        sheet.Compute("D7", ["D4:D6"], static x => x.Values("D4:D6").OfType<decimal>().Sum());
+        sheet.SetValue(3, 1, 1m);
+        sheet.SetValue(4, 1, 2m);
+        sheet.SetValue(5, 1, 3m);
+        var total = sheet.Rows[6];
+        var rules = sheet.Rules.ToArray();
+
+        sheet.DeleteRows(6, 1);
+        sheet.PutRows(6, [total], rules, []);
+        sheet.SetValue(3, 1, 10m);
+
+        Assert.Equal(30m, sheet.GetValue(6, 3));
+    }
+
+    [Fact]
     public void PutRowsRestoresTheSameObjectsWithTheirValues()
     {
         var sheet = new Sheet(3, 2);
@@ -363,5 +441,13 @@ public sealed class SheetStructureTests
         Assert.Equal("印", sheet.GetError(1, 1));
         Assert.Equal("f", sheet.GetValue(1, 2));
         Assert.Equal(CellKind.Number, sheet.GetSettings(0, 1).Kind);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static WeakReference DeleteRow(Sheet sheet, int index)
+    {
+        var row = new WeakReference(sheet.Rows[index]);
+        sheet.DeleteRows(index, 1);
+        return row;
     }
 }

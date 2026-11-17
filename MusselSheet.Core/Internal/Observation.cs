@@ -11,6 +11,8 @@ internal sealed class Observation
 
     private int[] cachedColumns = [];
 
+    private SheetRow[] cachedRows = [];
+
     private (int Top, int Bottom)? cachedSpan;
 
     private Observation(string name, TrackedRows? rows, IReadOnlyList<SheetColumn>? columns)
@@ -52,11 +54,12 @@ internal sealed class Observation
         return new Observation(name ?? column, null, [sheet.Columns[index]]);
     }
 
-    // Null when the observed cells were deleted
+    // Null when the observed cells were deleted, or a column inserted between them would join the saved range
     public string? CurrentText(Sheet sheet)
     {
-        var current = CurrentColumns(sheet).ToArray();
-        if (current.Length == 0)
+        Refresh(sheet);
+        var current = cachedColumns;
+        if ((current.Length == 0) || (current[^1] - current[0] + 1 != current.Length))
         {
             return null;
         }
@@ -81,10 +84,11 @@ internal sealed class Observation
 
     public IEnumerable<CellAddress> Cells(Sheet sheet, SheetRow? row)
     {
-        var lines = rows is null ? ((row is not null) && sheet.Contains(row) ? [row] : []) : rows.Current(sheet);
+        Refresh(sheet);
+        IEnumerable<SheetRow> lines = rows is null ? ((row is not null) && sheet.Contains(row) ? [row] : []) : rows.IsAll ? sheet.Rows : cachedRows;
         foreach (var line in lines)
         {
-            foreach (var column in CurrentColumns(sheet))
+            foreach (var column in cachedColumns)
             {
                 yield return new CellAddress(line.Index, column);
             }
@@ -93,13 +97,7 @@ internal sealed class Observation
 
     public bool Intersects(Sheet sheet, CellRange range)
     {
-        if (cachedVersion != sheet.StructureVersion)
-        {
-            cachedColumns = [.. CurrentColumns(sheet)];
-            cachedSpan = rows?.Span(sheet);
-            cachedVersion = sheet.StructureVersion;
-        }
-
+        Refresh(sheet);
         var hit = false;
         foreach (var column in cachedColumns)
         {
@@ -113,8 +111,31 @@ internal sealed class Observation
         return hit && ((rows is null) || ((cachedSpan is { } span) && (span.Top <= range.Bottom) && (span.Bottom >= range.Top)));
     }
 
-    public void OnRowsInserted(Sheet sheet, int index, int count) => rows?.OnInserted(sheet, index, count, null);
+    // The cache may have been made during the insert, before the rows joined
+    public void OnRowsInserted(Sheet sheet, int index, int count)
+    {
+        rows?.OnInserted(sheet, index, count, null);
+        cachedVersion = -1;
+    }
 
-    private IEnumerable<int> CurrentColumns(Sheet sheet) =>
-        columns?.Where(sheet.Contains).Select(x => x.Index).Order() ?? Enumerable.Range(0, sheet.ColumnCount);
+    public void OnRowsRemoved(Sheet sheet)
+    {
+        rows?.OnRemoved(sheet);
+        cachedRows = [];
+        cachedVersion = -1;
+    }
+
+    // Built once per structure version, as every computed row reads the same cells
+    private void Refresh(Sheet sheet)
+    {
+        if (cachedVersion == sheet.StructureVersion)
+        {
+            return;
+        }
+
+        cachedColumns = columns is null ? [.. Enumerable.Range(0, sheet.ColumnCount)] : [.. columns.Where(sheet.Contains).Select(static x => x.Index).Order()];
+        cachedRows = (rows is null) || rows.IsAll ? [] : [.. rows.Current(sheet)];
+        cachedSpan = rows?.Span(sheet);
+        cachedVersion = sheet.StructureVersion;
+    }
 }

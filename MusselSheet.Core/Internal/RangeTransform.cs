@@ -136,7 +136,7 @@ internal static class RangeTransform
         result.Add(rule with { Range = WithSpan(rule.Range, axis, index + count, end + count) });
     }
 
-    // The copy goes right after the original rule, which preserves the priority order
+    // Lines inserted next to the rule extend it; elsewhere a copy goes right after it, which keeps the priority order
     private static void AddInherited(List<SettingsRule> result, SettingsRule rule, Axis axis, int index, int count, int? source)
     {
         if (source is not { } from)

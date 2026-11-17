@@ -25,8 +25,20 @@ public sealed class CellComputeContext
 
     public IReadOnlyList<object?> Values(string observed)
     {
-        var observation = observations.FirstOrDefault(x => string.Equals(x.Name, observed, StringComparison.OrdinalIgnoreCase))
-            ?? throw new ArgumentException($"'{observed}' is not one of the observed cells.", nameof(observed));
-        return [.. observation.Cells(Sheet, row).Select(x => Sheet.GetValue(x.Row, x.Column))];
+        foreach (var observation in observations)
+        {
+            if (string.Equals(observation.Name, observed, StringComparison.OrdinalIgnoreCase))
+            {
+                var values = new List<object?>();
+                foreach (var cell in observation.Cells(Sheet, row))
+                {
+                    values.Add(Sheet.GetValue(cell.Row, cell.Column));
+                }
+
+                return values;
+            }
+        }
+
+        throw new ArgumentException($"'{observed}' is not one of the observed cells.", nameof(observed));
     }
 }

@@ -6,9 +6,13 @@ public sealed class CellEditContext
 
     private readonly Func<Task> cancel;
 
+    private readonly SheetRow row;
+
+    private readonly SheetColumn column;
+
     public Sheet Sheet { get; }
 
-    public CellAddress Address { get; }
+    public CellAddress Address => new(row.Index, column.Index);
 
     public string? Name { get; }
 
@@ -16,15 +20,18 @@ public sealed class CellEditContext
 
     public string? Error { get; internal set; }
 
-    internal CellEditContext(Sheet sheet, CellAddress address, string? name, object? value, Func<CellEditContext, Task<bool>> commit, Func<Task> cancel)
+    internal CellEditContext(Sheet sheet, SheetRow row, SheetColumn column, string? name, object? value, Func<CellEditContext, Task<bool>> commit, Func<Task> cancel)
     {
         Sheet = sheet;
-        Address = address;
+        this.row = row;
+        this.column = column;
         Name = name;
         Value = value;
         this.commit = commit;
         this.cancel = cancel;
     }
+
+    internal bool IsCurrent => Sheet.Contains(row) && Sheet.Contains(column);
 
     public Task<bool> CommitAsync() => commit(this);
 

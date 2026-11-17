@@ -9,6 +9,8 @@ internal interface ISheetBinding
     BoundProperty? FindProperty(int row, int column);
 
     bool HoldsRow(SheetRow row);
+
+    bool HasEmptyListAt(int index);
 }
 
 internal interface IRowsBinding
@@ -19,11 +21,15 @@ internal interface IRowsBinding
 
     void OnRowsRemoved(int index, int count);
 
+    void OnColumnsInserted(int index, int count);
+
     void OnSourceChanged(string? name, bool reload);
 
     BoundProperty? FindProperty(int row, int column);
 
     bool Holds(SheetRow row);
+
+    bool IsEmptyAt(int index);
 
     void Detach();
 }

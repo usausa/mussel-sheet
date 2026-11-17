@@ -10,6 +10,8 @@ public sealed partial class Sheet
 
     internal event EventHandler? Rebound;
 
+    internal IRowsBinding? InsertingList { get; set; }
+
     public SheetBinding<T> Bind<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(T source)
         where T : class
     {
@@ -27,6 +29,19 @@ public sealed partial class Sheet
         foreach (var binding in bindings)
         {
             if (binding.HoldsRow(row))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal bool HasEmptyListAt(int index)
+    {
+        foreach (var binding in bindings)
+        {
+            if (binding.HasEmptyListAt(index))
             {
                 return true;
             }

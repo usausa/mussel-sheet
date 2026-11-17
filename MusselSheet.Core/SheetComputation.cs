@@ -100,7 +100,19 @@ public sealed class SheetComputation : IDisposable
                 }
 
                 break;
-            case SheetChangeKind.RowsDeleted when !PerRow || watchesOtherRows:
+            case SheetChangeKind.RowsDeleted:
+                foreach (var observation in Observations)
+                {
+                    observation.OnRowsRemoved(sheet);
+                }
+
+                rows.OnRemoved(sheet);
+                if (!PerRow || watchesOtherRows)
+                {
+                    MarkAll();
+                }
+
+                break;
             case SheetChangeKind.ColumnsInserted or SheetChangeKind.ColumnsDeleted:
                 MarkAll();
                 break;

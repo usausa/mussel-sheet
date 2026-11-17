@@ -5,15 +5,8 @@ using System.Text.Json;
 using Microsoft.JSInterop;
 
 // The only object the script can call, so that these entry points stay out of the public API of the view
-internal sealed class SheetScriptBridge
+internal sealed class SheetScriptBridge(MusselSheetView view)
 {
-    private readonly MusselSheetView view;
-
-    public SheetScriptBridge(MusselSheetView view)
-    {
-        this.view = view;
-    }
-
     [JSInvokable]
     public void OnViewportChanged(int top, int height, int left, int width)
     {
@@ -114,8 +107,8 @@ internal sealed class SheetScriptBridge
     public Task<string> GetEditTextAsync(int row, int column) => RunAsync(() => Task.FromResult(view.GetEditText(row, column)));
 
     [JSInvokable]
-    public async Task<string[]?> GetSuggestionsAsync(int row, int column, string text) =>
-        view.IsDisposed ? null : (await view.ReportAsync(view.GetSuggestionsAsync(row, column, text)).ConfigureAwait(true))?.ToArray();
+    public Task<string[]?> GetSuggestionsAsync(int row, int column, string text) =>
+        view.IsDisposed ? Task.FromCanceled<string[]?>(new CancellationToken(true)) : SuggestionsAsync(row, column, text);
 
     [JSInvokable]
     public Task<bool> OpenCustomEditorAsync(int row, int column) => RunAsync(() => Task.FromResult(view.OpenCustomEditor(row, column)));
@@ -132,10 +125,13 @@ internal sealed class SheetScriptBridge
             return Task.CompletedTask;
         });
 
-    // Calls that arrive after the view is disposed, or wait in line until then, do nothing
+    private async Task<string[]?> SuggestionsAsync(int row, int column, string text) =>
+        (await view.ReportAsync(view.GetSuggestionsAsync(row, column, text)).ConfigureAwait(true))?.ToArray();
+
+    // Calls that arrive after the view is disposed, or wait in line until then, do nothing: those that return a value are canceled
     private Task<T> RunAsync<T>(Func<Task<T>> operation) =>
         view.ReportAsync(view.RunInTurnAsync(() => view.IsDisposed ? Task.FromCanceled<T>(new CancellationToken(true)) : operation()));
 
     private Task RunAsync(Func<Task> operation) =>
-        view.ReportAsync(view.RunInTurnAsync(() => view.IsDisposed ? Task.FromCanceled(new CancellationToken(true)) : operation()));
+        view.ReportAsync(view.RunInTurnAsync(() => view.IsDisposed ? Task.CompletedTask : operation()));
 }

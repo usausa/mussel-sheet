@@ -11,7 +11,6 @@ public static class Styles
             Primary = Colors.Blue.Darken2,
             AppbarBackground = Colors.Blue.Darken2
         },
-        PaletteDark = new PaletteDark(),
         LayoutProperties = new LayoutProperties { DrawerWidthLeft = "200px" },
 
         Typography = new Typography

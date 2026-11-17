@@ -10,5 +10,6 @@ public static class SheetOptionsSetup
         options.Menu.Items.Add(new SheetMenuItem { Name = "log-selection", Text = "Log the selection", Texts = { ["ja"] = "選択範囲を記録に出す" } });
 
         options.Cultures[string.Empty] = new SheetCulture { Texts = SheetTexts.English with { Required = "This cell is required." } };
+        options.Cultures["ja"].Texts = JapaneseTexts.Default with { Required = "このセルは必ず入力してください。" };
     }
 }

@@ -70,6 +70,10 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     private string? sentMap;
 
+    private readonly List<ScriptShift> pendingShifts = [];
+
+    private int ownStructure;
+
     private string? sentLanguage;
 
     private string? sentOptions;
@@ -473,7 +477,14 @@ public sealed partial class MusselSheetView : IAsyncDisposable
     private bool IsEditable(int row, int column) =>
         IsInSheet(row, column) && !Sheet.GetSettings(row, column).IsInputDisabled && !Sheet.IsCovered(row, column);
 
-    private void OnSheetChanged(object? sender, SheetChangedEventArgs e) =>
+    // Rows and columns the app inserts or deletes move the active cell in JS; the view's own changes send their selection instead
+    private void OnSheetChanged(object? sender, SheetChangedEventArgs e)
+    {
+        if ((ownStructure == 0) && (ShiftOf(e) is { } shift))
+        {
+            pendingShifts.Add(shift);
+        }
+
         _ = InvokeAsync(() =>
         {
             if (!IsDisposed)
@@ -483,6 +494,16 @@ public sealed partial class MusselSheetView : IAsyncDisposable
                 StateHasChanged();
             }
         });
+    }
+
+    private static ScriptShift? ShiftOf(SheetChangedEventArgs e) => e.Kind switch
+    {
+        SheetChangeKind.RowsInserted => new ScriptShift("row", e.Index, e.Count),
+        SheetChangeKind.RowsDeleted => new ScriptShift("row", e.Index, -e.Count),
+        SheetChangeKind.ColumnsInserted => new ScriptShift("col", e.Index, e.Count),
+        SheetChangeKind.ColumnsDeleted => new ScriptShift("col", e.Index, -e.Count),
+        _ => null
+    };
 
     private void OnSheetRebound(object? sender, EventArgs e) => _ = InvokeAsync(history.Clear);
 

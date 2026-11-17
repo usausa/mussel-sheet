@@ -52,6 +52,58 @@ public sealed class RangeTests : BunitContext
     }
 
     [Fact]
+    public async Task AHandlerThatDeletesARowDuringAPasteLeavesAnUndoStep()
+    {
+        var sheet = NumberSheet(3, 1);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitting, e =>
+        {
+            if ((e.Address.Row == 1) && (sheet.RowCount == 3))
+            {
+                sheet.DeleteRows(2, 1);
+            }
+        }));
+
+        await Paste(cut, new CellRange(1, 0, 2, 0), "1\r\n2\r\n");
+
+        Assert.Equal(1m, sheet.GetValue(1, 0));
+        Assert.True(cut.Instance.CanUndo);
+    }
+
+    [Fact]
+    public async Task FillDownUsesTheSourceAsItWasWhenAHandlerInsertsRows()
+    {
+        var sheet = NumberSheet(4, 1);
+        sheet.SetValue(0, 0, 7m);
+        var inserted = false;
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, _ =>
+        {
+            if (!inserted)
+            {
+                inserted = true;
+                sheet.InsertRows(0, 1);
+            }
+        }));
+
+        await cut.InvokeAsync(() => cut.Instance.FillDownAsync(0, 0, 3, 0));
+
+        Assert.Equal(new object?[] { null, 7m, 7m, 7m, 7m }, Values(sheet));
+    }
+
+    [Fact]
+    public async Task DeletingRowsTakesTheSelectedRowsEvenWhenAHandlerInsertsAbove()
+    {
+        var sheet = NumberSheet(3, 1);
+        sheet.SetValue(0, 0, 1m);
+        sheet.SetValue(1, 0, 2m);
+        sheet.SetValue(2, 0, 3m);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowDeleteRows, true).Add(x => x.RowsDeleting, _ => sheet.InsertRows(0, 1)));
+
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 1, 0, 1, 0, 1, 0));
+
+        Assert.Equal(new object?[] { null, 1m, 3m }, Values(sheet));
+    }
+
+    [Fact]
     public async Task TableStartsAtTheTopLeftAndIsTruncatedAtTheSheetEdge()
     {
         var sheet = NumberSheet(3, 2);

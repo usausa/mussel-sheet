@@ -122,12 +122,15 @@ public sealed partial class MusselSheetView
             return new PasteResult(source.Top, source.Left, source.Bottom, source.Right, null);
         }
 
+        var (sourceRows, sourceColumns, targetRows, targetColumns) = (RowsOf(source), ColumnsOf(source), RowsOf(target), ColumnsOf(target));
         var filling = new SheetFillingEventArgs(Sheet, source, target);
         await HandleAsync(Filling, filling).ConfigureAwait(true);
-        if (filling.Cancel)
+        if (filling.Cancel || (Relocate(sourceRows, sourceColumns) is not { } movedSource) || (Relocate(targetRows, targetColumns) is not { } movedTarget))
         {
             return new PasteResult(source.Top, source.Left, source.Bottom, source.Right, null);
         }
+
+        (source, target) = (movedSource, movedTarget);
 
         whole = new CellRange(Math.Min(source.Top, target.Top), Math.Min(source.Left, target.Left), Math.Max(source.Bottom, target.Bottom), Math.Max(source.Right, target.Right));
         var count = vertical ? source.Bottom - source.Top + 1 : source.Right - source.Left + 1;

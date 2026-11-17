@@ -502,6 +502,19 @@ function checkPattern(rule, text, messages) {
     return regex.test(text) ? null : messages.pattern;
 }
 
+export function lineStartOf(value, caret) {
+    return caret === 0 ? 0 : value.lastIndexOf('\n', caret - 1) + 1;
+}
+
+export function deleteSize(value, caret, back) {
+    return (back ? value.codePointAt(caret - 2) : value.codePointAt(caret)) > 0xFFFF ? 2 : 1;
+}
+
+export function currentItem(items, text) {
+    const key = toHalfwidth(text);
+    return items.findIndex(x => sameText(toHalfwidth(x.text), key) || sameText(toHalfwidth(x.value), key));
+}
+
 export function countBytes(text) {
     let count = 0;
     for (const ch of text) {
@@ -1398,6 +1411,21 @@ function createButton(className, text, label) {
 }
 
 // Must produce the same notation as C# KeyCombo
+// A cell in deleted rows or columns goes to where they were, marked lost
+export function shiftCell(cell, { axis, index, count }) {
+    const key = axis === 'row' ? 'r' : 'c';
+    const value = cell[key];
+    if (value < index) {
+        return cell;
+    }
+
+    if (count > 0) {
+        return { ...cell, [key]: value + count };
+    }
+
+    return value < index - count ? { ...cell, [key]: index, lost: true } : { ...cell, [key]: value + count };
+}
+
 export function comboOf(k) {
     const key = k.key === ' ' ? 'Space' : k.key.length === 1 ? k.key.toUpperCase() : k.key;
     return `${k.ctrl ? 'Ctrl+' : ''}${k.alt ? 'Alt+' : ''}${k.shift ? 'Shift+' : ''}${key}`;
@@ -1566,13 +1594,29 @@ class SheetController {
 
     // ---- Called from C# ----
 
-    setMap(map) {
+    // Rows and columns the app inserted or deleted move the active cell, the selection and the text being typed
+    setMap(map, shifts = []) {
         this.closeMenu();
         this.map = new SheetMap(map, this.language);
         if (this.map.isEmpty) {
             this.finishEdit();
             this.place();
             return;
+        }
+
+        let lost = false;
+        for (const shift of shifts) {
+            const active = shiftCell({ r: this.row, c: this.col }, shift);
+            lost ||= Boolean(active.lost);
+            this.row = active.r;
+            this.col = active.c;
+            const anchor = shiftCell(this.anchor, shift);
+            const extent = shiftCell(this.extent, shift);
+            this.anchor = { r: anchor.r, c: anchor.c };
+            this.extent = { r: extent.r, c: extent.c };
+        }
+        if (lost && this.isEditing()) {
+            this.finishEdit();
         }
 
         this.row = clamp(this.row, 0, this.map.rows - 1);
@@ -1778,7 +1822,7 @@ class SheetController {
             return;
         }
 
-        // While C# commits, typed keys (Ctrl+Z and Ctrl+Y included) wait in the queue with the calls from C#, and run after the move
+        // While the sheet waits for C#, typed keys (Ctrl+Z and Ctrl+Y included) wait in the queue with the calls from C#, and run when it answers
         if (this.state === COMMITTING) {
             const k = keyInfo(e);
             const history = k.ctrl && !k.alt && (k.key.toLowerCase() === 'z' || k.key.toLowerCase() === 'y');
@@ -1907,15 +1951,26 @@ class SheetController {
         return () => this.sendChange('CutAsync', row, col);
     }
 
-    // A cut clears the cells only after the clipboard took them
-    cutWhenWritten(written, cut) {
-        if (cut) {
-            written.then(ok => {
-                if (ok && !this.disposed) {
-                    cut();
-                }
-            });
+    // A cut clears the cells only after the clipboard took them, and keys wait until then
+    async cutWhenWritten(written, cut) {
+        if (!cut) {
+            return;
         }
+
+        this.setState(COMMITTING);
+        this.updateSink();
+        const ok = await written;
+        if (this.disposed) {
+            return;
+        }
+
+        if (ok) {
+            cut();
+        }
+
+        this.setState(READY);
+        this.updateSink();
+        this.replay();
     }
 
     onPaste(e) {
@@ -1967,7 +2022,7 @@ class SheetController {
         return this.writeClipboard(data, true);
     }
 
-    // Rows outside the rendered window, and every row while a change is on its way, are read from C#
+    // Rows outside the rendered window are read from C#, and so is every row while a change is on its way if the async clipboard can wait
     copyRange(e) {
         const range = this.selectionRange();
         const values = this.renderedValues(range, !hasAsyncClipboard());
@@ -2268,6 +2323,10 @@ class SheetController {
                 }
                 return true;
             case 'Tab':
+                if (k.replay && this.leavesOnTab(k.shift)) {
+                    this.focusOutside(k.shift);
+                    return true;
+                }
                 return this.tabMove(k.shift);
             case 'Home':
                 this.moveTo(this.row, 0);
@@ -2363,6 +2422,10 @@ class SheetController {
                 if (this.leavesOnTab(k.shift)) {
                     // Leaving the sheet: send the commit without waiting and let the browser move focus
                     this.commit(null, true);
+                    if (k.replay) {
+                        this.focusOutside(k.shift);
+                        return true;
+                    }
                     return false;
                 }
                 this.commit(() => this.tabMove(k.shift));
@@ -2385,6 +2448,10 @@ class SheetController {
                             this.arrow(dir);
                         }
                     });
+                    return true;
+                }
+                if (k.replay) {
+                    this.replayCaret(k);
                     return true;
                 }
                 return false;
@@ -2427,9 +2494,9 @@ class SheetController {
         if (start !== end) {
             sink.setRangeText('', start, end, 'end');
         } else if (back && (start > 0)) {
-            sink.setRangeText('', start - 1, start, 'end');
+            sink.setRangeText('', start - deleteSize(sink.value, start, true), start, 'end');
         } else if (!back && (end < sink.value.length)) {
-            sink.setRangeText('', end, end + 1, 'end');
+            sink.setRangeText('', end, end + deleteSize(sink.value, end, false), 'end');
         } else {
             return;
         }
@@ -2444,7 +2511,7 @@ class SheetController {
         const backward = sink.selectionDirection === 'backward';
         const anchor = backward ? sink.selectionEnd : sink.selectionStart;
         const focus = backward ? sink.selectionStart : sink.selectionEnd;
-        const lineStart = value.lastIndexOf('\n', focus - 1) + 1;
+        const lineStart = lineStartOf(value, focus);
         const next = value.indexOf('\n', focus);
         const lineEnd = next < 0 ? value.length : next;
         let caret;
@@ -2775,16 +2842,23 @@ class SheetController {
         this.fillRange(text);
     }
 
-    async fillWithActive() {
+    fillWithActive() {
         if (!this.hasRange()) {
             return;
         }
 
         const range = this.selectionRange();
-        const text = await this.holdForText(this.row, this.col);
-        if (!this.disposed) {
+        const text = this.textAtOnce(this.row, this.col);
+        if (text !== null) {
             this.fillRange(text, range);
+            return;
         }
+
+        this.holdForText(this.row, this.col).then((read) => {
+            if (!this.disposed) {
+                this.fillRange(read, range);
+            }
+        });
     }
 
     fillRange(text, range = this.selectionRange()) {
@@ -3223,14 +3297,24 @@ class SheetController {
         this.sink.setSelectionRange(text.length, text.length);
     }
 
-    async startEdit() {
+    // Editing starts at once when the text is at hand, so replayed keys that follow go to the editor
+    startEdit(then = null) {
         const row = this.row;
         const col = this.col;
-        const text = await this.holdForText(row, col);
-        if (this.disposed) {
+        const text = this.textAtOnce(row, col);
+        if (text !== null) {
+            this.enterEdit(row, col, text, then);
             return;
         }
 
+        this.holdForText(row, col).then((read) => {
+            if (!this.disposed) {
+                this.enterEdit(row, col, read, then);
+            }
+        });
+    }
+
+    enterEdit(row, col, text, then) {
         if ((row === this.row) && (col === this.col) && (this.state === READY)) {
             this.setState(EDIT);
             this.sink.value = text;
@@ -3240,14 +3324,20 @@ class SheetController {
                 this.openCalendar(false);
             }
         }
+        then?.();
         this.replay();
+    }
+
+    textAtOnce(row, col) {
+        const cell = this.cellElement(row, col);
+        return cell && (this.changing === 0) ? (cell.dataset.edit ?? cell.textContent) : null;
     }
 
     // Keys and calls that arrive while C# answers wait as during a commit
     async holdForText(row, col) {
-        const cell = this.cellElement(row, col);
-        if (cell && (this.changing === 0)) {
-            return cell.dataset.edit ?? cell.textContent;
+        const ready = this.textAtOnce(row, col);
+        if (ready !== null) {
+            return ready;
         }
 
         this.setState(COMMITTING);
@@ -3503,7 +3593,7 @@ class SheetController {
         };
 
         if (this.state === READY) {
-            this.startEdit().then(() => {
+            this.startEdit(() => {
                 if (this.isEditing()) {
                     open();
                 }
@@ -3522,7 +3612,7 @@ class SheetController {
             return;
         }
 
-        const current = shown.findIndex(x => sameText(x.text, text) || sameText(x.value, text));
+        const current = currentItem(shown, text);
         this.popupKind = 'list';
         this.popupItems = shown;
         this.popupIndex = all ? current : Math.max(current, 0);

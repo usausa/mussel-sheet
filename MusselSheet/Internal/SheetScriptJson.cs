@@ -18,4 +18,6 @@ internal static class SheetScriptJson
     public static JsonElement ToElement(PasteResult value) => JsonSerializer.SerializeToElement(value, SheetScriptJsonContext.Default.PasteResult);
 
     public static JsonElement ToElement(ClipboardText value) => JsonSerializer.SerializeToElement(value, SheetScriptJsonContext.Default.ClipboardText);
+
+    public static JsonElement ToElement(List<ScriptShift> value) => JsonSerializer.SerializeToElement(value, SheetScriptJsonContext.Default.ListScriptShift);
 }

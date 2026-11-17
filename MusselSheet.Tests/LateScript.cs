@@ -39,12 +39,12 @@ internal sealed class LateModule : IJSObjectReference
         Calls.Add(identifier);
         if (identifier == Fail)
         {
-            throw new JSException("The call failed.");
+            return ValueTask.FromException<TValue>(new JSException("The call failed."));
         }
 
         if (identifier == Hold)
         {
-            return new ValueTask<TValue>(Resume.Task.ContinueWith(static _ => default(TValue)!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
+            return new ValueTask<TValue>(Resume.Task.ContinueWith(_ => typeof(TValue) == typeof(IJSObjectReference) ? (TValue)(object)this : default!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
         }
 
         return typeof(TValue) == typeof(IJSObjectReference) ? new ValueTask<TValue>((TValue)(object)this) : default;
@@ -56,12 +56,12 @@ internal sealed class LateModule : IJSObjectReference
         Calls.Add(identifier);
         if (identifier == Fail)
         {
-            throw new JSException("The call failed.");
+            return ValueTask.FromException<TValue>(new JSException("The call failed."));
         }
 
         if (identifier == Hold)
         {
-            return new ValueTask<TValue>(Resume.Task.ContinueWith(static _ => default(TValue)!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
+            return new ValueTask<TValue>(Resume.Task.ContinueWith(_ => typeof(TValue) == typeof(IJSObjectReference) ? (TValue)(object)this : default!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
         }
 
         return typeof(TValue) == typeof(IJSObjectReference) ? new ValueTask<TValue>((TValue)(object)this) : default;

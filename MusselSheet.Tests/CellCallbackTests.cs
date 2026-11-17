@@ -144,6 +144,44 @@ public sealed class CellCallbackTests : BunitContext
         };
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ACustomEditorCommitsToItsCellAfterTheAppChangesTheRows(bool removed)
+    {
+        var sheet = new Sheet(3, 1);
+        sheet.Range("A:A").Configure(static c =>
+        {
+            c.Kind = CellKind.Custom;
+            c.Editor = "color";
+        });
+        CellEditContext? opened = null;
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CustomEditor, Editor));
+
+        await cut.InvokeAsync(() => cut.Instance.OpenCustomEditor(1, 0));
+        await cut.InvokeAsync(() =>
+        {
+            if (removed)
+            {
+                sheet.DeleteRows(1, 1);
+            }
+            else
+            {
+                sheet.InsertRows(0, 1);
+            }
+        });
+        opened!.Value = "#00ff00";
+        await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync());
+
+        Assert.Equal(removed ? [null, null] : [null, null, "#00ff00", null], Enumerable.Range(0, sheet.RowCount).Select(r => sheet.GetValue(r, 0)));
+
+        RenderFragment Editor(CellEditContext context) => builder =>
+        {
+            opened = context;
+            builder.AddContent(0, context.Name);
+        };
+    }
+
     [Fact]
     public void FormatterChangesOnlyTheDisplayText()
     {

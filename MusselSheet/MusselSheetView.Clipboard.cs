@@ -116,12 +116,15 @@ public sealed partial class MusselSheetView
         var cutColumns = Math.Max(0, right - (Sheet.ColumnCount - 1));
         var range = new CellRange(selection.Top, selection.Left, bottom - cutRows, right - cutColumns);
 
+        var (pasteRows, pasteColumns) = (RowsOf(range), ColumnsOf(range));
         var pasting = new SheetPastingEventArgs(Sheet, range, values);
         await HandleAsync(Pasting, pasting).ConfigureAwait(true);
-        if (pasting.Cancel)
+        if (pasting.Cancel || (Relocate(pasteRows, pasteColumns) is not { } moved))
         {
             return new PasteResult(selection.Top, selection.Left, selection.Bottom, selection.Right, null);
         }
+
+        range = moved;
 
         // Cells beyond the end of a short row are left unchanged
         var (marked, rejected) = await InputCellsAsync(
@@ -143,14 +146,26 @@ public sealed partial class MusselSheetView
         var (marked, rejected) = (0, 0);
         var generation = history.Generation;
         var (rows, columns) = (RowsOf(range), ColumnsOf(range));
+        var edited = AreaOf(area ?? range);
+
+        // Handlers can change the sheet while cells are entered, so every text is read first
+        var texts = new string?[rows.Length * columns.Length];
+        for (var r = 0; r < rows.Length; r++)
+        {
+            for (var c = 0; c < columns.Length; c++)
+            {
+                texts[(r * columns.Length) + c] = textAt(range.Top + r, range.Left + c);
+            }
+        }
+
         using (Sheet.BeginUpdate())
         {
-            for (var r = range.Top; r <= range.Bottom; r++)
+            for (var r = 0; r < rows.Length; r++)
             {
-                for (var c = range.Left; c <= range.Right; c++)
+                for (var c = 0; c < columns.Length; c++)
                 {
-                    var (sheetRow, sheetColumn) = (rows[r - range.Top], columns[c - range.Left]);
-                    if ((textAt(r, c) is not { } text) || !Sheet.Contains(sheetRow) || !Sheet.Contains(sheetColumn) || !IsEditable(sheetRow.Index, sheetColumn.Index))
+                    var (sheetRow, sheetColumn) = (rows[r], columns[c]);
+                    if ((texts[(r * columns.Length) + c] is not { } text) || !Sheet.Contains(sheetRow) || !Sheet.Contains(sheetColumn) || !IsEditable(sheetRow.Index, sheetColumn.Index))
                     {
                         continue;
                     }
@@ -170,7 +185,7 @@ public sealed partial class MusselSheetView
 
         if ((batch.Count > 0) && (generation == history.Generation))
         {
-            history.Record(new CellsEdited(batch, AreaOf(area ?? range)));
+            history.Record(new CellsEdited(batch, edited));
         }
 
         return (marked, rejected);
@@ -187,6 +202,7 @@ public sealed partial class MusselSheetView
         var batch = new List<CellChange>();
         var generation = history.Generation;
         var (rows, columns) = (RowsOf(range), ColumnsOf(range));
+        var edited = AreaOf(range);
         using (Sheet.BeginUpdate())
         {
             foreach (var sheetRow in rows)
@@ -203,8 +219,38 @@ public sealed partial class MusselSheetView
 
         if ((batch.Count > 0) && (generation == history.Generation))
         {
-            history.Record(new CellsEdited(batch, AreaOf(range)));
+            history.Record(new CellsEdited(batch, edited));
         }
+    }
+
+    // A handler can insert or delete rows and columns, so a range is found again by its rows and columns
+    private CellRange? Relocate(SheetRow[] rows, SheetColumn[] columns) =>
+        (Span(rows) is { } vertical) && (Span(columns) is { } horizontal) ? new CellRange(vertical.First, horizontal.First, vertical.Last, horizontal.Last) : null;
+
+    private (int First, int Last)? Span(SheetRow[] rows)
+    {
+        for (var i = 0; i < rows.Length; i++)
+        {
+            if (!Sheet.Contains(rows[i]) || (rows[i].Index != rows[0].Index + i))
+            {
+                return null;
+            }
+        }
+
+        return (rows[0].Index, rows[^1].Index);
+    }
+
+    private (int First, int Last)? Span(SheetColumn[] columns)
+    {
+        for (var i = 0; i < columns.Length; i++)
+        {
+            if (!Sheet.Contains(columns[i]) || (columns[i].Index != columns[0].Index + i))
+            {
+                return null;
+            }
+        }
+
+        return (columns[0].Index, columns[^1].Index);
     }
 
     private SheetRow[] RowsOf(CellRange range)

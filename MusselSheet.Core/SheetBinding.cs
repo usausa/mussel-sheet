@@ -127,6 +127,11 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
                 break;
             case SheetChangeKind.ColumnsInserted:
                 ShowRestored(e.Index, e.Count, false);
+                foreach (var list in lists.ToArray())
+                {
+                    list.OnColumnsInserted(e.Index, e.Count);
+                }
+
                 break;
             case SheetChangeKind.RowsDeleted:
                 foreach (var list in lists.ToArray())
@@ -165,6 +170,8 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
     }
 
     bool ISheetBinding.HoldsRow(SheetRow row) => !disposed && lists.Exists(x => x.Holds(row));
+
+    bool ISheetBinding.HasEmptyListAt(int index) => !disposed && lists.Exists(x => x.IsEmptyAt(index));
 
     private void OnSourceChanged(object? sender, PropertyChangedEventArgs e)
     {

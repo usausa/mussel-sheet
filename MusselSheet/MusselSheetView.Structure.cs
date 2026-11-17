@@ -62,17 +62,23 @@ public sealed partial class MusselSheetView
     private async Task<(CellRange Range, CellAddress Active)?> InsertRowsAsync(CellRange selection, CellAddress active, bool below)
     {
         var count = selection.Bottom - selection.Top + 1;
-        var index = below ? selection.Bottom + 1 : selection.Top;
-        var inserting = new SheetRowsInsertingEventArgs(Sheet, index, count);
-        await HandleAsync(RowsInserting, inserting).ConfigureAwait(true);
         var template = below ? selection.Bottom : selection.Top;
-        if (inserting.Cancel || (template >= Sheet.RowCount))
+        if (template >= Sheet.RowCount)
         {
             return null;
         }
 
+        var anchor = Sheet.Rows[template];
+        var inserting = new SheetRowsInsertingEventArgs(Sheet, below ? template + 1 : template, count);
+        await HandleAsync(RowsInserting, inserting).ConfigureAwait(true);
+        if (inserting.Cancel || !Sheet.Contains(anchor))
+        {
+            return null;
+        }
+
+        var index = below ? anchor.Index + 1 : anchor.Index;
         var after = new CellRange(index, selection.Left, index + count - 1, selection.Right);
-        var entry = new RowsEdited(true, index > 0 ? Sheet.Rows[index - 1] : null, Sheet.CreateRows(count, Sheet.Rows[template].Height), index, !below, selection, after);
+        var entry = new RowsEdited(true, index > 0 ? Sheet.Rows[index - 1] : null, Sheet.CreateRows(count, anchor.Height), index, !below, selection, after);
         PutBack(entry, after);
         history.Record(entry);
         return (after, active with { Row = index });
@@ -86,14 +92,15 @@ public sealed partial class MusselSheetView
             return null;
         }
 
+        var rows = RowsOf(selection);
         var deleting = new SheetRowsDeletingEventArgs(Sheet, selection.Top, count);
         await HandleAsync(RowsDeleting, deleting).ConfigureAwait(true);
-        if (deleting.Cancel || (selection.Bottom >= Sheet.RowCount) || (count >= Sheet.RowCount))
+        if (deleting.Cancel || (Span(rows) is not { } span) || (count >= Sheet.RowCount))
         {
             return null;
         }
 
-        var rows = Sheet.Rows.Skip(selection.Top).Take(count).ToArray();
+        selection = new CellRange(span.First, selection.Left, span.Last, selection.Right);
         var entry = new RowsEdited(false, selection.Top > 0 ? Sheet.Rows[selection.Top - 1] : null, rows, selection.Top, false, selection, selection) { Present = true };
         TakeAway(entry, selection);
         history.Record(entry);
@@ -103,17 +110,23 @@ public sealed partial class MusselSheetView
     private async Task<(CellRange Range, CellAddress Active)?> InsertColumnsAsync(CellRange selection, CellAddress active, bool right)
     {
         var count = selection.Right - selection.Left + 1;
-        var index = right ? selection.Right + 1 : selection.Left;
-        var inserting = new SheetColumnsInsertingEventArgs(Sheet, index, count);
-        await HandleAsync(ColumnsInserting, inserting).ConfigureAwait(true);
         var template = right ? selection.Right : selection.Left;
-        if (inserting.Cancel || (template >= Sheet.ColumnCount))
+        if (template >= Sheet.ColumnCount)
         {
             return null;
         }
 
+        var anchor = Sheet.Columns[template];
+        var inserting = new SheetColumnsInsertingEventArgs(Sheet, right ? template + 1 : template, count);
+        await HandleAsync(ColumnsInserting, inserting).ConfigureAwait(true);
+        if (inserting.Cancel || !Sheet.Contains(anchor))
+        {
+            return null;
+        }
+
+        var index = right ? anchor.Index + 1 : anchor.Index;
         var after = new CellRange(selection.Top, index, selection.Bottom, index + count - 1);
-        var entry = new ColumnsEdited(true, index > 0 ? Sheet.Columns[index - 1] : null, Sheet.CreateColumns(count, Sheet.Columns[template].Width), index, !right, selection, after);
+        var entry = new ColumnsEdited(true, index > 0 ? Sheet.Columns[index - 1] : null, Sheet.CreateColumns(count, anchor.Width), index, !right, selection, after);
         PutBack(entry, after);
         history.Record(entry);
         return (after, active with { Column = index });
@@ -127,14 +140,15 @@ public sealed partial class MusselSheetView
             return null;
         }
 
+        var columns = ColumnsOf(selection);
         var deleting = new SheetColumnsDeletingEventArgs(Sheet, selection.Left, count);
         await HandleAsync(ColumnsDeleting, deleting).ConfigureAwait(true);
-        if (deleting.Cancel || (selection.Right >= Sheet.ColumnCount) || (count >= Sheet.ColumnCount))
+        if (deleting.Cancel || (Span(columns) is not { } span) || (count >= Sheet.ColumnCount))
         {
             return null;
         }
 
-        var columns = Sheet.Columns.Skip(selection.Left).Take(count).ToArray();
+        selection = new CellRange(selection.Top, span.First, selection.Bottom, span.Last);
         var entry = new ColumnsEdited(false, selection.Left > 0 ? Sheet.Columns[selection.Left - 1] : null, columns, selection.Left, false, selection, selection) { Present = true };
         TakeAway(entry, selection);
         history.Record(entry);
@@ -153,6 +167,19 @@ public sealed partial class MusselSheetView
         };
     }
 
+    private void OwnStructure(Action change)
+    {
+        ownStructure++;
+        try
+        {
+            change();
+        }
+        finally
+        {
+            ownStructure--;
+        }
+    }
+
     // Null if the rows are already in or the row above is gone; otherwise target shifted to where they went
     private CellRange? PutBack(RowsEdited entry, CellRange target)
     {
@@ -165,7 +192,7 @@ public sealed partial class MusselSheetView
         var before = Sheet.Rules.ToArray();
         var rules = RulesToPut(entry, Axis.Row, index, entry.Rows.Count, Sheet.RowCount);
         var (merges, mergesBefore) = MergesToPut(entry, Axis.Row, index, entry.Rows.Count);
-        Sheet.PutRows(index, entry.Rows, rules, merges);
+        OwnStructure(() => Sheet.PutRows(index, entry.Rows, rules, merges));
         (entry.RulesWith, entry.RulesWithout, entry.Present) = (rules, before, true);
         (entry.MergesWith, entry.MergesWithout) = (merges, mergesBefore);
         return Shift(target, Axis.Row, index - entry.Index);
@@ -183,7 +210,7 @@ public sealed partial class MusselSheetView
         var before = Sheet.Rules.ToArray();
         var rules = RulesToTake(entry, Axis.Row, index, count);
         var (merges, mergesBefore) = MergesToTake(entry, Axis.Row, index, count);
-        Sheet.TakeRows(index, count, rules, merges);
+        OwnStructure(() => Sheet.TakeRows(index, count, rules, merges));
         (entry.RulesWith, entry.RulesWithout, entry.Present) = (before, rules, false);
         (entry.MergesWith, entry.MergesWithout) = (mergesBefore, merges);
         return Shift(target, Axis.Row, index - entry.Index);
@@ -200,7 +227,7 @@ public sealed partial class MusselSheetView
         var before = Sheet.Rules.ToArray();
         var rules = RulesToPut(entry, Axis.Column, index, entry.Columns.Count, Sheet.ColumnCount);
         var (merges, mergesBefore) = MergesToPut(entry, Axis.Column, index, entry.Columns.Count);
-        Sheet.PutColumns(index, entry.Columns, entry.Cells, rules, merges);
+        OwnStructure(() => Sheet.PutColumns(index, entry.Columns, entry.Cells, rules, merges));
         (entry.RulesWith, entry.RulesWithout, entry.Present, entry.Cells) = (rules, before, true, null);
         (entry.MergesWith, entry.MergesWithout) = (merges, mergesBefore);
         return Shift(target, Axis.Column, index - entry.Index);
@@ -217,7 +244,7 @@ public sealed partial class MusselSheetView
         var before = Sheet.Rules.ToArray();
         var rules = RulesToTake(entry, Axis.Column, index, count);
         var (merges, mergesBefore) = MergesToTake(entry, Axis.Column, index, count);
-        entry.Cells = Sheet.TakeColumns(index, count, rules, merges);
+        OwnStructure(() => entry.Cells = Sheet.TakeColumns(index, count, rules, merges));
         (entry.RulesWith, entry.RulesWithout, entry.Present) = (before, rules, false);
         (entry.MergesWith, entry.MergesWithout) = (mergesBefore, merges);
         return Shift(target, Axis.Column, index - entry.Index);

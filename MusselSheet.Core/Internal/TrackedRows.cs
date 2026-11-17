@@ -1,13 +1,19 @@
 namespace MusselSheet.Internal;
 
-// Tracks rows by object and keeps removed ones for undo; a growing region also takes rows inserted next to it
+using System.Runtime.CompilerServices;
+
+// Tracks rows by object and remembers removed ones weakly for undo; a growing region also takes rows inserted next to it
 internal sealed class TrackedRows
 {
+    private static readonly object Removed = new();
+
     private readonly List<SheetRow> rows;
 
     private readonly HashSet<SheetRow> set;
 
     private readonly bool region;
+
+    private ConditionalWeakTable<SheetRow, object>? removed;
 
     private TrackedRows(List<SheetRow> rows, bool region, bool all)
     {
@@ -69,6 +75,7 @@ internal sealed class TrackedRows
             return;
         }
 
+        PutBack(sheet, index, count);
         if (!region || (Span(sheet) is not { } span))
         {
             return;
@@ -84,10 +91,53 @@ internal sealed class TrackedRows
         for (var r = index; r < index + count; r++)
         {
             var row = sheet.Rows[r];
-            if (set.Add(row))
+            if (!row.WasRemoved && set.Add(row))
             {
                 rows.Add(row);
                 joined?.Add(row);
+            }
+        }
+    }
+
+    // Only the undo history keeps a removed row alive, so the rows it lets go of are not held here
+    public void OnRemoved(Sheet sheet)
+    {
+        if (IsAll)
+        {
+            return;
+        }
+
+        var kept = 0;
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            if (sheet.Contains(row))
+            {
+                rows[kept++] = row;
+            }
+            else
+            {
+                set.Remove(row);
+                (removed ??= new()).AddOrUpdate(row, Removed);
+            }
+        }
+
+        rows.RemoveRange(kept, rows.Count - kept);
+    }
+
+    private void PutBack(Sheet sheet, int index, int count)
+    {
+        if (removed is null)
+        {
+            return;
+        }
+
+        for (var r = index; r < index + count; r++)
+        {
+            var row = sheet.Rows[r];
+            if (removed.Remove(row) && set.Add(row))
+            {
+                rows.Add(row);
             }
         }
     }

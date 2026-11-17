@@ -45,13 +45,20 @@ public sealed class SamplePage(IBrowserContext context, IPage page) : IAsyncDisp
         page.EvaluateAsync(
             """
             () => {
-                window.fakeClipboard = { text: '', deny: false };
+                window.fakeClipboard = { text: '', deny: false, denyWrite: false };
+                const refuse = () => {
+                    if (window.fakeClipboard.denyWrite) {
+                        throw new DOMException('denied', 'NotAllowedError');
+                    }
+                };
                 const fake = {
                     write: async items => {
+                        refuse();
                         const blob = await items[0].getType('text/plain');
                         window.fakeClipboard.text = await blob.text();
                     },
                     writeText: async text => {
+                        refuse();
                         window.fakeClipboard.text = text;
                     },
                     readText: async () => {

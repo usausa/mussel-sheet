@@ -5,6 +5,8 @@ window.exampleCulture = () => {
     return /(?:^|\|)c=([^|]*)/.exec(value)?.[1] ?? null;
 };
 
+document.documentElement.lang = (window.exampleCulture() ?? 'en').split('-')[0];
+
 window.exampleSaveCulture = name => {
     const value = encodeURIComponent(`c=${name}|uic=${name}`);
     document.cookie = `.AspNetCore.Culture=${value}; path=${new URL(document.baseURI).pathname}; max-age=2592000; samesite=lax`;

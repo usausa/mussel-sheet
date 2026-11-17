@@ -29,7 +29,7 @@ public sealed partial class LanguageSwitch
             {
                 await Runtime.InvokeVoidAsync("exampleSaveCulture", culture);
             }
-            catch (JSDisconnectedException)
+            catch (JSException)
             {
             }
         }

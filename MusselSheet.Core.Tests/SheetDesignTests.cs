@@ -179,6 +179,19 @@ public sealed class SheetDesignTests
     }
 
     [Fact]
+    public void AComputationWhoseReadColumnsWereSplitIsNotSaved()
+    {
+        var functions = new SheetFunctions();
+        functions.AddComputation("合計", x => x.Values("A1:B1").OfType<decimal>().Sum());
+        var sheet = new Sheet(2, 3);
+        sheet.Compute("A2", ["A1:B1"], functions.Computation("合計"));
+
+        sheet.InsertColumns(1, 1);
+
+        Assert.Null(sheet.ToDesign(functions).Computations);
+    }
+
+    [Fact]
     public void InvariantCultureIsKept()
     {
         // Invariant culture is saved as an empty name; leaving it out would load as the default culture
