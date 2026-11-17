@@ -15,7 +15,13 @@ internal sealed class SheetScriptBridge
     }
 
     [JSInvokable]
-    public void OnViewportChanged(int top, int height, int left, int width) => view.OnViewportChanged(top, height, left, width);
+    public void OnViewportChanged(int top, int height, int left, int width)
+    {
+        if (!view.IsDisposed)
+        {
+            view.OnViewportChanged(top, height, left, width);
+        }
+    }
 
     [JSInvokable]
     public Task OnMenuItemAsync(string name, int top, int left, int bottom, int right, int row, int column) =>
@@ -23,7 +29,11 @@ internal sealed class SheetScriptBridge
 
     [JSInvokable]
     public Task<JsonElement> CommitAsync(int row, int column, string? text, bool optimistic, IJSStreamReference? data) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.CommitAsync(row, column, text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true), optimistic).ConfigureAwait(true)));
+        RunAsync(async () =>
+        {
+            var value = text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true);
+            return SheetScriptJson.ToElement(value is null ? view.RefuseLargeText(row, column, optimistic) : await view.CommitAsync(row, column, value, optimistic).ConfigureAwait(true));
+        });
 
     [JSInvokable]
     public Task<JsonElement> ClearAsync(int row, int column) =>
@@ -31,7 +41,11 @@ internal sealed class SheetScriptBridge
 
     [JSInvokable]
     public Task<JsonElement> PasteAsync(int row, int column, string? text, bool optimistic, IJSStreamReference? data) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.PasteAsync(row, column, text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true), optimistic).ConfigureAwait(true)));
+        RunAsync(async () =>
+        {
+            var value = text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true);
+            return SheetScriptJson.ToElement(value is null ? view.RefuseLargeText(row, column, optimistic) : await view.PasteAsync(row, column, value, optimistic).ConfigureAwait(true));
+        });
 
     [JSInvokable]
     public Task<JsonElement> CutAsync(int row, int column) =>
@@ -53,7 +67,11 @@ internal sealed class SheetScriptBridge
 
     [JSInvokable]
     public Task<JsonElement> FillAsync(int top, int left, int bottom, int right, string? text, IJSStreamReference? data) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.FillAsync(top, left, bottom, right, text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true)).ConfigureAwait(true)));
+        RunAsync(async () =>
+        {
+            var value = text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true);
+            return SheetScriptJson.ToElement(value is null ? view.RefuseLargeText(top, left, bottom, right) : await view.FillAsync(top, left, bottom, right, value).ConfigureAwait(true));
+        });
 
     [JSInvokable]
     public Task<JsonElement> FillDownAsync(int top, int left, int bottom, int right) =>
@@ -90,14 +108,14 @@ internal sealed class SheetScriptBridge
 
     [JSInvokable]
     public Task OnActiveCellChangedAsync(int row, int column, int top, int left, int bottom, int right) =>
-        view.ReportAsync(view.OnActiveCellChangedAsync(row, column, top, left, bottom, right));
+        view.IsDisposed ? Task.CompletedTask : view.ReportAsync(view.OnActiveCellChangedAsync(row, column, top, left, bottom, right));
 
     [JSInvokable]
     public Task<string> GetEditTextAsync(int row, int column) => RunAsync(() => Task.FromResult(view.GetEditText(row, column)));
 
     [JSInvokable]
     public async Task<string[]?> GetSuggestionsAsync(int row, int column, string text) =>
-        (await view.ReportAsync(view.GetSuggestionsAsync(row, column, text)).ConfigureAwait(true))?.ToArray();
+        view.IsDisposed ? null : (await view.ReportAsync(view.GetSuggestionsAsync(row, column, text)).ConfigureAwait(true))?.ToArray();
 
     [JSInvokable]
     public Task<bool> OpenCustomEditorAsync(int row, int column) => RunAsync(() => Task.FromResult(view.OpenCustomEditor(row, column)));
@@ -107,9 +125,17 @@ internal sealed class SheetScriptBridge
         RunAsync(async () => SheetScriptJson.ToElement(await view.CommitCustomEditorAsync().ConfigureAwait(true)));
 
     [JSInvokable]
-    public void CancelCustomEditor() => view.CancelCustomEditor();
+    public Task CancelCustomEditorAsync() =>
+        RunAsync(() =>
+        {
+            view.CancelCustomEditor();
+            return Task.CompletedTask;
+        });
 
-    private Task<T> RunAsync<T>(Func<Task<T>> operation) => view.ReportAsync(view.RunInTurnAsync(operation));
+    // Calls that arrive after the view is disposed, or wait in line until then, do nothing
+    private Task<T> RunAsync<T>(Func<Task<T>> operation) =>
+        view.ReportAsync(view.RunInTurnAsync(() => view.IsDisposed ? Task.FromCanceled<T>(new CancellationToken(true)) : operation()));
 
-    private Task RunAsync(Func<Task> operation) => view.ReportAsync(view.RunInTurnAsync(operation));
+    private Task RunAsync(Func<Task> operation) =>
+        view.ReportAsync(view.RunInTurnAsync(() => view.IsDisposed ? Task.FromCanceled(new CancellationToken(true)) : operation()));
 }

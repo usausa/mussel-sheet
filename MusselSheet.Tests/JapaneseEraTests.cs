@@ -19,6 +19,7 @@ public sealed class JapaneseEraTests : BunitContext
     [InlineData(2019, 4, 30, "ggge年M月d日", "平成31年4月30日")]
     [InlineData(1989, 1, 7, "ggge年M月d日", "昭和64年1月7日")]
     [InlineData(1989, 1, 8, "ggge年M月d日", "平成元年1月8日")]
+    [InlineData(1868, 10, 23, "ggge年M月d日", "明治元年10月23日")]
     [InlineData(2025, 11, 5, "ge.M.d", "R7.11.5")]
     [InlineData(2025, 11, 5, "gge年", "令7年")]
     [InlineData(2025, 1, 5, "ggg ee/MM/dd", "令和 07/01/05")]
@@ -35,6 +36,7 @@ public sealed class JapaneseEraTests : BunitContext
     public void DatesBeforeTheFirstEraUseTheShortDateFormat()
     {
         Assert.Equal("1800/01/01", CellText.FormatDate(new DateOnly(1800, 1, 1), "ggge年M月d日", Japanese, Context.Dates));
+        Assert.Equal("1868/10/22", CellText.FormatDate(new DateOnly(1868, 10, 22), "ggge年M月d日", Japanese, Context.Dates));
         Assert.Equal("2025/11/05", CellText.FormatDate(new DateOnly(2025, 11, 5), "yyyy/MM/dd", Japanese, Context.Dates));
     }
 
@@ -65,6 +67,7 @@ public sealed class JapaneseEraTests : BunitContext
 
     [Theory]
     [InlineData("令和1年4月30日")]
+    [InlineData("明治元年10月22日")]
     [InlineData("令1年4月30日")]
     [InlineData("令和100年1月1日")]
     [InlineData("R0.1.1")]

@@ -7,6 +7,12 @@ internal sealed class Observation
 
     private readonly IReadOnlyList<SheetColumn>? columns;
 
+    private int cachedVersion = -1;
+
+    private int[] cachedColumns = [];
+
+    private (int Top, int Bottom)? cachedSpan;
+
     private Observation(string name, TrackedRows? rows, IReadOnlyList<SheetColumn>? columns)
     {
         Name = name;
@@ -46,12 +52,13 @@ internal sealed class Observation
         return new Observation(name ?? column, null, [sheet.Columns[index]]);
     }
 
-    public string CurrentText(Sheet sheet)
+    // Null when the observed cells were deleted
+    public string? CurrentText(Sheet sheet)
     {
         var current = CurrentColumns(sheet).ToArray();
         if (current.Length == 0)
         {
-            return Name;
+            return null;
         }
 
         if (rows is null)
@@ -66,7 +73,7 @@ internal sealed class Observation
 
         if (rows.Span(sheet) is not { } span)
         {
-            return Name;
+            return null;
         }
 
         return columns is null ? CellRange.Rows(span.Top, span.Bottom).ToString() : new CellRange(span.Top, current[0], span.Bottom, current[^1]).ToString();
@@ -86,12 +93,24 @@ internal sealed class Observation
 
     public bool Intersects(Sheet sheet, CellRange range)
     {
-        if (!CurrentColumns(sheet).Any(x => (x >= range.Left) && (x <= range.Right)))
+        if (cachedVersion != sheet.StructureVersion)
         {
-            return false;
+            cachedColumns = [.. CurrentColumns(sheet)];
+            cachedSpan = rows?.Span(sheet);
+            cachedVersion = sheet.StructureVersion;
         }
 
-        return (rows is null) || ((rows.Span(sheet) is { } span) && (span.Top <= range.Bottom) && (span.Bottom >= range.Top));
+        var hit = false;
+        foreach (var column in cachedColumns)
+        {
+            if ((column >= range.Left) && (column <= range.Right))
+            {
+                hit = true;
+                break;
+            }
+        }
+
+        return hit && ((rows is null) || ((cachedSpan is { } span) && (span.Top <= range.Bottom) && (span.Bottom >= range.Top)));
     }
 
     public void OnRowsInserted(Sheet sheet, int index, int count) => rows?.OnInserted(sheet, index, count, null);

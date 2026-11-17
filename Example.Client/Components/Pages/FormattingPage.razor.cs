@@ -38,7 +38,6 @@ public sealed partial class FormattingPage
                 c.Style.FontColor = "#57606a";
             });
 
-            // A right-aligned value is indented from the right
             sheet.Range("A5:A6").Configure(static c =>
             {
                 c.Style.Bold = false;
@@ -55,6 +54,8 @@ public sealed partial class FormattingPage
                 c.Format = "N0";
                 c.Minimum = 0;
             });
+
+            // A right-aligned value is indented from the right
             sheet.Range("B6").Configure(static c => c.Style.IndentLevel = 2);
             sheet.Range("A7:B7").Configure(static c => c.Style.Strikethrough = true);
             sheet.Range("A8:B8").Configure(static c =>

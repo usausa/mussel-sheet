@@ -1,8 +1,10 @@
 # MusselSheet API reference
 
+The components, their event arguments, `CellEditContext`, `CellDisplayContext` and `AddMusselSheet` are in `MusselSheet`. Everything else is in `MusselSheet.Core`, which has no UI and also works on a server.
+
 ## 📋 MusselSheetView
 
-The sheet component. `Sheet` is required, and other attributes such as `class` and `id` go to the root element.  
+The sheet component. `Sheet` is required, and other attributes such as `class` and `id` go to the root element, except `style`, which the view sets. The root gets `data-attached` once its script is attached and the calls made before are applied, and loses it when the script is disposed.  
 
 | Name | Type | Default | Description |
 |---|---|---|---|
@@ -33,7 +35,7 @@ The sheet component. `Sheet` is required, and other attributes such as `class` a
 | `CellCommitting` | `CellCommittingEventArgs` | Before a value is stored; can change `Value` and `Error`, or `Cancel` |
 | `CellCommitted` | `CellCommittedEventArgs` | After a value is stored, with `OldValue` and `Reason` |
 | `RowsInserting`, `RowsDeleting`, `ColumnsInserting`, `ColumnsDeleting` | `Sheet…EventArgs` | Before the user changes the structure; `Cancel` stops it |
-| `Pasting`, `Filling` | `SheetPastingEventArgs`, `SheetFillingEventArgs` | Before a paste or a fill; `Cancel` stops it |
+| `Pasting`, `Filling` | `SheetPastingEventArgs`, `SheetFillingEventArgs` | Before a range is pasted, and before the fill handle fills; `Cancel` stops it |
 | `ActiveCellChanged`, `SelectionChanged` | `CellAddress`, `CellRange` | The active cell and the selection |
 | `MenuItemClicked` | `SheetMenuItemClickedEventArgs` | An item registered in `MusselSheetOptions.Menu` |
 
@@ -92,7 +94,7 @@ A `Cell` or `SheetRange` holds a fixed address, so get it again after inserting 
 | Type | Members |
 |---|---|
 | `CellAddress` | `Row`, `Column`, `Parse`, `TryParse`, `ColumnName`, `TryParseColumn`, `TryParseRow` |
-| `CellRange` | `Top`, `Left`, `Bottom`, `Right`, `All`, `Cell`, `Rows`, `Columns`, `Parse`, `TryParse`, `Contains`, `Intersects`, `TryClip`, `IsEntireColumns`, `IsEntireRows` |
+| `CellRange` | `Top`, `Left`, `Bottom`, `Right`, `End` (an open end, `*`), `All`, `Cell`, `Rows`, `Columns`, `Parse`, `TryParse`, `Contains`, `Intersects`, `TryClip`, `IsEntireColumns`, `IsEntireRows` |
 
 ## ⚙️ CellSettings
 
@@ -106,7 +108,7 @@ Everything is optional, and later settings win item by item. `Sheet.GetSettings`
 | `WrapText` | Alt+Enter adds a line break, and the text wraps in the cell |
 | `MoveGroup` | Enter and Tab cycle inside cells of the same name |
 | `Required`, `Minimum`, `Maximum`, `MaxLength`, `MaxByteLength`, `Pattern` | Input rules; the limits (`CellBound`) take a number, a `DateOnly` or a `TimeOnly` |
-| `Items`, `SuggestionProvider` | The items of a list (`CellListItem` with `Value` and `Text`), and the candidates of an auto complete |
+| `Items`, `SuggestionProvider` | The items of a list or an auto complete (`CellListItem` with `Value` and `Text`; the display text is stored as the `Value`), and candidates of an auto complete from a function |
 | `ErrorMessage`, `InputMessage` | The message of an error, and the note shown when the cell is selected |
 | `ValidationMode` | Overrides the mode of the view |
 | `Validator` | A function that returns an error message |
@@ -137,7 +139,7 @@ Everything is optional, and later settings win item by item. `Sheet.GetSettings`
 | `FontSize`, `IndentLevel` | Size in pixels, and indent levels |
 | `FontColor`, `FillColor` | CSS colors |
 | `CssClass` | An additional class |
-| `Borders` | `CellBorders` with `Top`, `Right`, `Bottom` and `Left`; a `CellBorder` has a `BorderLineStyle` (`Thin`, `Medium`, `Thick`, `Dashed`, `Dotted`, `DoubleLine`) and a color |
+| `Borders` | `CellBorders` with `Top`, `Right`, `Bottom` and `Left`; a `CellBorder` has a `BorderLineStyle` (`None`, `Thin`, `Medium`, `Thick`, `Dashed`, `Dotted`, `DoubleLine`) and a color, and `CellBorder.None` draws no line |
 
 ## 🧷 Binding
 
@@ -172,7 +174,7 @@ var json = SheetDesignJson.Write(sheet.ToDesign(functions));
 var copy = Sheet.FromDesign(SheetDesignJson.Read(json), functions);
 ```
 
-`ToDesign` keeps sizes, frozen rows and columns, rules in order, merged cells, labels and computed cells, and `includeValues` adds the input values. Functions are saved by the name in `SheetFunctions`.  
+`ToDesign` keeps sizes, frozen rows and columns, rules in order, merged cells, labels and computed cells, and `includeValues` adds all values. Functions are saved by the name in `SheetFunctions`, so attach the delegates it returns (`functions.Computation("Total")`): a computation with another delegate is not saved.  
 `SheetFunctions` has `AddValidator`, `AddCorrector`, `AddFormatter`, `AddStyleProvider`, `AddSuggestionProvider`, `AddComputation` and `AddCharacterSet`, and gets them back by name with `Validator`, `Corrector`, `Formatter`, `StyleProvider`, `SuggestionProvider`, `Computation` and `CharacterSet`. `SheetDesign` and the `…Design` types are the shape of the JSON.  
 
 ## 🌐 Options
@@ -194,7 +196,7 @@ English and Japanese are built in. `JapaneseLanguage`, `JapaneseTexts` and `Japa
 
 Link `_content/MusselSheet/MusselSheet.css` in the page head; the sheet needs it. Colors come from CSS variables, and an app changes them by setting the variables, from any selector and in any file order.
 
-These are shared with MusselChart. Set them on any container to theme both libraries.
+These are shared with the other Mussel libraries. Set them on any container to theme them together.
 
 | Variable | Use |
 |---|---|
@@ -221,7 +223,7 @@ These are for the sheet only. Set them on the sheet itself: on `.mussel-sheet`, 
 | `--mussel-sheet-note-bg`, `--mussel-sheet-note-color`, `--mussel-sheet-note-border` | The note of `InputMessage` |
 | `--mussel-sheet-sticky-top` | Where the column headers stop when the page scrolls a sheet without `Height`. Under a fixed page header, set its height here and as `scroll-padding-top` of `html` |
 
-There is no dark theme yet, so the shared variables do not reach a sheet inside a `mussel-dark` container of MusselChart, and the sheet stays light there. To make a sheet dark, set both groups on the sheet itself.
+There is no dark theme yet, so the shared variables do not reach a sheet inside a `mussel-dark` container of the other Mussel libraries, and the sheet stays light there. To make a sheet dark, set both groups on the sheet itself.
 
 ## ⚠️ Limits
 
@@ -230,7 +232,7 @@ There is no dark theme yet, so the shared variables do not reach a sheet inside 
 | Render mode | Needs an interactive render mode (Server, WebAssembly or Auto). Static rendering only shows the values |
 | Content Security Policy | `style-src` needs `'unsafe-inline'`: the layout is written in `style` attributes and a `<style>` element, and the cells lose their size without it. `script-src 'self'` is enough for the script |
 | Size | Tested up to 10,000 rows x 50 columns with a fixed `Width` and `Height`. With `auto`, every row and column is drawn |
-| Paste | Up to 16 MB of text |
+| Paste | Up to 16 MB of text. A longer text pastes nothing, and a longer edit is not committed |
 | Suggestions | The first 50 candidates of `SuggestionProvider` |
 | Focus | Focus moving out of the sheet commits the edit, so a button calling `CommitEditAsync` or `CancelEditAsync` must keep the focus (`@onmousedown:preventDefault`) |
 | Paste from the context menu | Uses the browser's clipboard permission. When it is refused, a message asks for Ctrl+V |

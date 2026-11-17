@@ -9,6 +9,8 @@ using System.Text.RegularExpressions;
 // Must stay in step with normalizeText and checkInput in MusselSheet.js: change both together
 internal static partial class CellInput
 {
+    private const string ScriptDot = "[^\\n\\r\\u2028\\u2029]";
+
     // What the width step changes or drops: full-width ASCII, U+3000, U+2212, bidi marks and other scripts' digits
     private static readonly SearchValues<char> WidthCharacters = SearchValues.Create(
         string.Concat(Enumerable.Range(0xFF01, 0xFF5E - 0xFF01 + 1).Select(static x => (char)x)) + "\u3000\u2212\u200E\u200F\u061C" +
@@ -191,6 +193,9 @@ internal static partial class CellInput
                 return false;
             case CellKind.List:
                 return TryMatchItem(text, settings.Items, context.Texts, out value, out error);
+            case CellKind.AutoComplete:
+                value = FindItem(text, settings.Items) ?? text;
+                return true;
             default:
                 value = text;
                 return true;
@@ -205,7 +210,8 @@ internal static partial class CellInput
             return settings.Required ? texts.Required : null;
         }
 
-        return CheckRange(value, settings, context) ?? CheckLength(value, settings, texts) ?? CheckCharacters(value, settings, texts) ?? CheckPattern(text, settings.Pattern, texts);
+        return CheckRange(value, settings, context) ?? CheckLength(value, settings, texts) ?? CheckCharacters(value, settings, texts) ??
+            CheckPattern(text, settings.Kind == CellKind.Checkbox ? null : settings.Pattern, texts);
     }
 
     public static string? FormatBound(CellBound? bound, ResolvedCellSettings settings, CultureInfo culture, string dateFormat, DateRules dates)
@@ -233,14 +239,14 @@ internal static partial class CellInput
     private static Regex? PatternOf(string pattern) =>
         Patterns.GetOrAdd(pattern, static key =>
         {
-            if (HasCategory(key))
+            if (HasCategory(key) || (WithScriptSpaces(key) is not { } translated))
             {
                 return null;
             }
 
             try
             {
-                return new Regex($"^(?:{WithScriptSpaces(key)})$(?![\\s\\S])", RegexOptions.ECMAScript, PatternTimeout);
+                return new Regex($"^(?:{translated})$(?![\\s\\S])", RegexOptions.ECMAScript, PatternTimeout);
             }
             catch (ArgumentException)
             {
@@ -248,7 +254,8 @@ internal static partial class CellInput
             }
         });
 
-    private static string WithScriptSpaces(string pattern)
+    // Null when the pattern cannot be read the same way as in the browser: \S in a class
+    private static string? WithScriptSpaces(string pattern)
     {
         var builder = new StringBuilder(pattern.Length);
         var inClass = false;
@@ -262,8 +269,13 @@ internal static partial class CellInput
                 {
                     builder.Append(inClass ? ScriptSpaces : $"[{ScriptSpaces}]");
                 }
-                else if ((next == 'S') && !inClass)
+                else if (next == 'S')
                 {
+                    if (inClass)
+                    {
+                        return null;
+                    }
+
                     builder.Append("[^").Append(ScriptSpaces).Append(']');
                 }
                 else
@@ -271,6 +283,12 @@ internal static partial class CellInput
                     builder.Append(ch).Append(next);
                 }
 
+                continue;
+            }
+
+            if ((ch == '.') && !inClass)
+            {
+                builder.Append(ScriptDot);
                 continue;
             }
 
@@ -511,18 +529,51 @@ internal static partial class CellInput
             return true;
         }
 
+        value = FindItem(text, items);
+        if (value is null)
+        {
+            error = texts.List;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string? FindItem(string text, IReadOnlyList<CellListItem> items)
+    {
+        if (items.Count == 0)
+        {
+            return null;
+        }
+
         var halfwidth = ToHalfwidth(text);
         foreach (var item in items)
         {
             if (string.Equals(ToHalfwidth(item.Value), halfwidth, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(ToHalfwidth(item.DisplayText), halfwidth, StringComparison.OrdinalIgnoreCase))
             {
-                value = item.Value;
+                return item.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsItemValue(string text, ResolvedCellSettings settings)
+    {
+        if (settings.Kind != CellKind.AutoComplete)
+        {
+            return false;
+        }
+
+        foreach (var item in settings.Items)
+        {
+            if (string.Equals(item.Value, text, StringComparison.Ordinal))
+            {
                 return true;
             }
         }
 
-        error = texts.List;
         return false;
     }
 
@@ -574,7 +625,7 @@ internal static partial class CellInput
 
     private static string? CheckCharacters(object value, ResolvedCellSettings settings, SheetTexts texts)
     {
-        if ((value is not string text) || (settings.Kind is not (CellKind.Text or CellKind.Mask or CellKind.AutoComplete)))
+        if ((value is not string text) || (settings.Kind is not (CellKind.Text or CellKind.Mask or CellKind.AutoComplete)) || IsItemValue(text, settings))
         {
             return null;
         }

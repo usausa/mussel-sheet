@@ -1,6 +1,7 @@
 namespace MusselSheet;
 
 using System.Text;
+using System.Text.Json;
 
 using Microsoft.JSInterop;
 
@@ -27,6 +28,26 @@ public sealed class RangeTests : BunitContext
         int[] range = [0, 0, 2, 1];
         Assert.Equal(range, await Undo(cut));
         Assert.All(Values(sheet), Assert.Null);
+        Assert.False(cut.Instance.CanUndo);
+    }
+
+    [Fact]
+    public async Task ARebindDuringARangeOperationRecordsNoStep()
+    {
+        var sheet = NumberSheet(2, 1);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, e =>
+        {
+            if (e.Address.Row == 0)
+            {
+                sheet.OnRebound();
+            }
+        }));
+
+        await Paste(cut, new CellRange(0, 0, 1, 0), "1\r\n2\r\n");
+        var pasted = cut.Instance.CanUndo;
+        await cut.InvokeAsync(() => cut.Instance.ClearRangeAsync(0, 0, 1, 0));
+
+        Assert.False(pasted);
         Assert.False(cut.Instance.CanUndo);
     }
 
@@ -131,6 +152,31 @@ public sealed class RangeTests : BunitContext
     }
 
     [Fact]
+    public async Task TextsOverTheSizeLimitAreRefusedWithAMessage()
+    {
+        const string message = "16 MiB を超える文字は入力できません";
+        var sheet = NumberSheet(1, 2);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var bridge = new SheetScriptBridge(cut.Instance);
+
+        var range = await SendOversized(cut, x => bridge.PasteRangeAsync(0, 0, 0, 1, x));
+        var fill = await SendOversized(cut, x => bridge.FillAsync(0, 0, 0, 1, null, x));
+        var commit = await SendOversized(cut, x => bridge.CommitAsync(0, 0, null, false, x));
+        var paste = await SendOversized(cut, x => bridge.PasteAsync(0, 0, null, false, x));
+        var optimistic = await SendOversized(cut, x => bridge.CommitAsync(0, 1, null, true, x));
+
+        Assert.Equal(message, range.GetProperty("message").GetString());
+        Assert.Equal(1, range.GetProperty("right").GetInt32());
+        Assert.Equal(message, fill.GetProperty("message").GetString());
+        Assert.All([commit, paste, optimistic], x => Assert.False(x.GetProperty("ok").GetBoolean()));
+        Assert.All([commit, paste, optimistic], x => Assert.Equal(message, x.GetProperty("error").GetString()));
+        Assert.Null(sheet.GetError(0, 0));
+        Assert.Equal(message, sheet.GetError(0, 1));
+        Assert.All(Values(sheet), Assert.Null);
+        Assert.False(Renderer.UnhandledException.IsCompleted);
+    }
+
+    [Fact]
     public async Task ClearAndCutSkipInputDisabledCellsAndAreOneUndo()
     {
         var sheet = NumberSheet(2, 2);
@@ -227,6 +273,37 @@ public sealed class RangeTests : BunitContext
 
     private static Task<int[]?> Undo(IRenderedComponent<MusselSheetView> cut) =>
         cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false));
+
+    private static async Task<JsonElement> SendOversized(IRenderedComponent<MusselSheetView> cut, Func<IJSStreamReference, Task<JsonElement>> send)
+    {
+        var data = new OversizedStream();
+        try
+        {
+            var result = await cut.InvokeAsync(() => send(data)).ConfigureAwait(true);
+            Assert.True(data.Disposed);
+            return result;
+        }
+        finally
+        {
+            await data.DisposeAsync().ConfigureAwait(true);
+        }
+    }
+
+    private sealed class OversizedStream : IJSStreamReference
+    {
+        public bool Disposed { get; private set; }
+
+        public long Length => (16 * 1024 * 1024) + 1;
+
+        public ValueTask<Stream> OpenReadStreamAsync(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) =>
+            Length > maxAllowedSize ? throw new ArgumentOutOfRangeException(nameof(maxAllowedSize)) : ValueTask.FromResult<Stream>(new MemoryStream());
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
+    }
 
     private sealed class TextStream(string text) : IJSStreamReference
     {

@@ -40,6 +40,8 @@ public sealed record SheetTexts
 
     public string Canceled { get; init; } = "The value could not be entered.";
 
+    public string TextTooLarge { get; init; } = "Text over 16 MiB cannot be entered.";
+
     public string PasteMarked { get; init; } = "{0} cell(s) did not match their rules and were marked as errors.";
 
     public string PasteRejected { get; init; } = "{0} cell(s) did not match their rules and were not pasted.";

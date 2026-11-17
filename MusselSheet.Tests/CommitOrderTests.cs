@@ -38,6 +38,148 @@ public sealed class CommitOrderTests : BunitContext
     }
 
     [Fact]
+    public async Task CancelingTheCustomEditorWaitsForItsCommit()
+    {
+        var sheet = new Sheet(2, 1);
+        sheet["A2"].Configure(c => c.Kind = CellKind.Custom);
+        var held = new TaskCompletionSource();
+        CellEditContext? edit = null;
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.CustomEditor, context =>
+            {
+                edit = context;
+                return static _ => { };
+            })
+            .Add(x => x.CellCommitting, e => e.Address.Row == 0 ? held.Task : Task.CompletedTask));
+        var bridge = new SheetScriptBridge(cut.Instance);
+        await cut.InvokeAsync(() => bridge.OpenCustomEditorAsync(1, 0));
+        edit!.Value = "red";
+        Task[] calls = [];
+
+        await cut.InvokeAsync(() =>
+        {
+            calls = [bridge.CommitAsync(0, 0, "5", true, null), bridge.CommitCustomEditorAsync(), bridge.CancelCustomEditorAsync()];
+        });
+        await cut.InvokeAsync(held.SetResult);
+        await Task.WhenAll(calls).WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
+
+        Assert.Equal("red", sheet.GetValue(1, 0));
+    }
+
+    [Fact]
+    public async Task CancelingFromTheTemplateWaitsForTheCommitBeforeIt()
+    {
+        var sheet = new Sheet(2, 1);
+        sheet["A2"].Configure(c => c.Kind = CellKind.Custom);
+        var held = new TaskCompletionSource();
+        CellEditContext? edit = null;
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.CustomEditor, context =>
+            {
+                edit = context;
+                return static _ => { };
+            })
+            .Add(x => x.CellCommitting, e => e.Address.Row == 0 ? held.Task : Task.CompletedTask));
+        var bridge = new SheetScriptBridge(cut.Instance);
+        await cut.InvokeAsync(() => bridge.OpenCustomEditorAsync(1, 0));
+        edit!.Value = "red";
+        Task[] calls = [];
+
+        await cut.InvokeAsync(() =>
+        {
+            calls = [bridge.CommitAsync(0, 0, "5", true, null), bridge.CommitCustomEditorAsync(), edit.CancelAsync()];
+        });
+        await cut.InvokeAsync(held.SetResult);
+        await Task.WhenAll(calls).WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
+
+        Assert.Equal("red", sheet.GetValue(1, 0));
+    }
+
+    [Fact]
+    public async Task AnInsertInTheCommittingHandlerKeepsTheValueInItsCell()
+    {
+        var sheet = new Sheet(3, 1);
+        var inserted = false;
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitting, _ => InsertOnce(sheet, ref inserted)));
+        var bridge = new SheetScriptBridge(cut.Instance);
+
+        await cut.InvokeAsync(() => bridge.CommitAsync(1, 0, "x", true, null));
+
+        Assert.Null(sheet.GetValue(1, 0));
+        Assert.Equal("x", sheet.GetValue(2, 0));
+    }
+
+    [Fact]
+    public async Task AnInsertWhileARangeIsPastedKeepsTheValuesInTheirCells()
+    {
+        var sheet = new Sheet(3, 1);
+        var inserted = false;
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitting, _ => InsertOnce(sheet, ref inserted)));
+
+        await cut.InvokeAsync(() => cut.Instance.PasteTextAsync(new CellRange(1, 0, 2, 0), "a\r\nb\r\n"));
+
+        Assert.Null(sheet.GetValue(1, 0));
+        Assert.Equal("a", sheet.GetValue(2, 0));
+        Assert.Equal("b", sheet.GetValue(3, 0));
+    }
+
+    [Fact]
+    public async Task TwoViewsOfOneSheetShareTheGate()
+    {
+        var sheet = new Sheet(2, 1);
+        var held = new TaskCompletionSource();
+        var first = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitting, _ => held.Task));
+        var second = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var a = new SheetScriptBridge(first.Instance);
+        var b = new SheetScriptBridge(second.Instance);
+        Task? commit = null;
+        Task<string>? text = null;
+
+        await first.InvokeAsync(() =>
+        {
+            commit = a.CommitAsync(0, 0, "5", true, null);
+            text = b.GetEditTextAsync(0, 0);
+        });
+        Assert.False(text!.IsCompleted);
+
+        await first.InvokeAsync(held.SetResult);
+        await commit!.WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
+
+        Assert.Equal("5", await text.WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task TheGateOpensAgainAfterAHandlerThrows()
+    {
+        var sheet = new Sheet(2, 1);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitting, e => e.Address.Row == 0 ? throw new InvalidOperationException("app") : Task.CompletedTask));
+        var bridge = new SheetScriptBridge(cut.Instance);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => cut.InvokeAsync(() => bridge.CommitAsync(0, 0, "1", true, null)));
+        await cut.InvokeAsync(() => bridge.CommitAsync(1, 0, "2", true, null)).WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
+
+        Assert.Equal("2", sheet.GetValue(1, 0));
+    }
+
+    [Fact]
+    public async Task CallsFromTheScriptAfterDisposingDoNothing()
+    {
+        var sheet = new Sheet(1, 1);
+        var committed = 0;
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, _ => committed++));
+        var bridge = new SheetScriptBridge(cut.Instance);
+        await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cut.InvokeAsync(() => bridge.CommitAsync(0, 0, "5", true, null)));
+        await cut.InvokeAsync(() => bridge.OnActiveCellChangedAsync(0, 0, 0, 0, 0, 0));
+
+        Assert.Null(sheet.GetValue(0, 0));
+        Assert.Equal(0, committed);
+    }
+
+    [Fact]
     public async Task CommitsApplyInTheOrderTheyArrive()
     {
         var sheet = new Sheet(2, 1);
@@ -105,5 +247,14 @@ public sealed class CommitOrderTests : BunitContext
         await commit!.WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
 
         Assert.Null(sheet.GetValue(0, 0));
+    }
+
+    private static void InsertOnce(Sheet sheet, ref bool inserted)
+    {
+        if (!inserted)
+        {
+            inserted = true;
+            sheet.InsertRows(0, 1);
+        }
     }
 }

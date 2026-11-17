@@ -2,7 +2,7 @@
 
 /* :where keeps the specificity at zero, so an app can override these from any selector in any file order */
 :where(.mussel-sheet) {
-    /* Shared with MusselChart: set them on any container to theme both libraries */
+    /* Shared with the other Mussel libraries: set them on any container to theme them together */
     --mussel-sheet-text-color: var(--mussel-primary-text, #1f2328);
     --mussel-sheet-header-color: var(--mussel-secondary-text, #57606a);
     --mussel-sheet-readonly-color: var(--mussel-secondary-text, #57606a);
@@ -40,7 +40,7 @@
     --mussel-sheet-changed-color: #1a73e8;
 }
 
-/* No dark theme yet: inside MusselChart's .mussel-dark the sheet keeps its light colors */
+/* No dark theme yet: inside the .mussel-dark of the other Mussel libraries the sheet keeps its light colors */
 :where(.mussel-dark) :where(.mussel-sheet) {
     --mussel-primary-text: initial;
     --mussel-secondary-text: initial;

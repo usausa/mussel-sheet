@@ -44,6 +44,44 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Fact]
+    public async Task AViewDisposedWhileItsScriptAttachesStops()
+    {
+        var runtime = new LateRuntime { Module = { Hold = "attach" } };
+        Services.AddSingleton<IJSRuntime>(runtime);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(3, 3)));
+        await cut.InvokeAsync(() => runtime.Import.SetResult(runtime.Module));
+        await cut.WaitForAssertionAsync(() => Assert.Contains("attach", runtime.Module.Calls));
+
+        await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+        await cut.InvokeAsync(runtime.Module.Resume.SetResult);
+        var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
+
+        Assert.NotSame(Renderer.UnhandledException, ended);
+        Assert.DoesNotContain("timezoneOffset", runtime.Module.Calls);
+    }
+
+    [Fact]
+    public async Task AViewDisposedWhileTheLanguageIsSentStops()
+    {
+        var runtime = new LateRuntime { Module = { Hold = "setLanguage" } };
+        Services.AddSingleton<IJSRuntime>(runtime);
+        var sheet = new Sheet(3, 3);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        await cut.InvokeAsync(() => runtime.Import.SetResult(runtime.Module));
+        await cut.WaitForAssertionAsync(() => Assert.Contains("ready", runtime.Module.Calls));
+
+        await cut.InvokeAsync(() => sheet.Culture = CultureInfo.GetCultureInfo("fr-FR"));
+        await cut.WaitForAssertionAsync(() => Assert.Contains("setLanguage", runtime.Module.Calls));
+        var calls = runtime.Module.Calls.Count;
+        await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+        await cut.InvokeAsync(runtime.Module.Resume.SetResult);
+        var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
+
+        Assert.NotSame(Renderer.UnhandledException, ended);
+        Assert.DoesNotContain("setMap", runtime.Module.Calls.Skip(calls));
+    }
+
+    [Fact]
     public async Task CallsBeforeTheScriptIsAttachedAreAppliedInOrder()
     {
         var runtime = new LateRuntime();
@@ -56,6 +94,22 @@ public sealed class MusselSheetViewRenderTests : BunitContext
         await cut.InvokeAsync(() => runtime.Import.SetResult(runtime.Module));
 
         await cut.WaitForAssertionAsync(() => Assert.Equal(["attach", "setActiveCell", "focus", "beginEdit"], runtime.Module.Calls.Where(static x => x is "attach" or "setActiveCell" or "focus" or "beginEdit")));
+    }
+
+    [Fact]
+    public async Task AFailedCallBeforeTheScriptIsAttachedDoesNotStopTheOthers()
+    {
+        var runtime = new LateRuntime { Module = { Fail = "focus" } };
+        Services.AddSingleton<IJSRuntime>(runtime);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(3, 3)));
+
+        await cut.InvokeAsync(cut.Instance.FocusAsync);
+        await cut.InvokeAsync(() => cut.Instance.SetActiveCellAsync(1, 2));
+        await cut.InvokeAsync(() => runtime.Import.SetResult(runtime.Module));
+        await cut.WaitForAssertionAsync(() => Assert.Contains("ready", runtime.Module.Calls));
+        await cut.InvokeAsync(() => cut.Instance.SetActiveCellAsync(2, 2));
+
+        Assert.Equal(["focus", "setActiveCell", "ready", "setActiveCell"], runtime.Module.Calls.Where(static x => x is "focus" or "setActiveCell" or "ready"));
     }
 
     [Fact]

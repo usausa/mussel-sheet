@@ -21,6 +21,8 @@ internal sealed class LateModule : IJSObjectReference
 
     public string? Hold { get; set; }
 
+    public string? Fail { get; set; }
+
     public TaskCompletionSource Resume { get; } = new();
 
     public bool Released { get; private set; }
@@ -35,6 +37,11 @@ internal sealed class LateModule : IJSObjectReference
     {
         ObjectDisposedException.ThrowIf(Released, this);
         Calls.Add(identifier);
+        if (identifier == Fail)
+        {
+            throw new JSException("The call failed.");
+        }
+
         if (identifier == Hold)
         {
             return new ValueTask<TValue>(Resume.Task.ContinueWith(static _ => default(TValue)!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
@@ -47,6 +54,11 @@ internal sealed class LateModule : IJSObjectReference
     {
         ObjectDisposedException.ThrowIf(Released, this);
         Calls.Add(identifier);
+        if (identifier == Fail)
+        {
+            throw new JSException("The call failed.");
+        }
+
         if (identifier == Hold)
         {
             return new ValueTask<TValue>(Resume.Task.ContinueWith(static _ => default(TValue)!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));

@@ -7,6 +7,8 @@ internal interface ISheetBinding
     void OnSheetChanged(SheetChangedEventArgs e);
 
     BoundProperty? FindProperty(int row, int column);
+
+    bool HoldsRow(SheetRow row);
 }
 
 internal interface IRowsBinding
@@ -20,6 +22,8 @@ internal interface IRowsBinding
     void OnSourceChanged(string? name, bool reload);
 
     BoundProperty? FindProperty(int row, int column);
+
+    bool Holds(SheetRow row);
 
     void Detach();
 }

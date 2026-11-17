@@ -73,6 +73,56 @@ public sealed class SheetDesignTests
     }
 
     [Fact]
+    public void RulesWithOpenEndsAreSavedAndRead()
+    {
+        var sheet = new Sheet(4, 3);
+        sheet.Range("2:*").Configure(c => c.Kind = CellKind.Number);
+        sheet.Cells.Configure(c => c.ReadOnly = true);
+
+        var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(sheet.ToDesign())));
+        copy.AddRows(1);
+
+        Assert.Equal(CellKind.Number, copy.GetSettings(4, 2).Kind);
+        Assert.NotEqual(CellKind.Number, copy.GetSettings(0, 0).Kind);
+        Assert.True(copy.GetSettings(4, 2).ReadOnly);
+    }
+
+    [Fact]
+    public void ValuesThatTheDesignCannotHoldAreSavedAsText()
+    {
+        var sheet = new Sheet(1, 5);
+        sheet.SetValue(0, 0, TimeSpan.FromHours(26));
+        sheet.SetValue(0, 1, TimeSpan.FromHours(-1));
+        sheet.SetValue(0, 2, double.NaN);
+        sheet.SetValue(0, 3, 1e30);
+        sheet.SetValue(0, 4, 0.1f);
+
+        var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(sheet.ToDesign(includeValues: true))));
+
+        Assert.Equal("1.02:00:00", copy.GetValue(0, 0));
+        Assert.Equal("-01:00:00", copy.GetValue(0, 1));
+        Assert.Equal("NaN", copy.GetValue(0, 2));
+        Assert.Equal("1E+30", copy.GetValue(0, 3));
+        Assert.Equal(0.1m, copy.GetValue(0, 4));
+    }
+
+    [Fact]
+    public void ComputationsWhoseCellsWereDeletedAreNotSaved()
+    {
+        var functions = new SheetFunctions();
+        functions.AddComputation("写し", x => x.Get<decimal?>("B"));
+        functions.AddComputation("写し2", x => x.Get<decimal?>("C"));
+        var sheet = new Sheet(4, 5);
+        sheet.ComputeRows("D2:D4", ["B"], functions.Computation("写し"));
+        sheet.ComputeRows("E2:E4", ["C"], functions.Computation("写し2"));
+
+        sheet.DeleteColumns(2, 2);
+        var design = sheet.ToDesign(functions);
+
+        Assert.Empty(design.Computations ?? []);
+    }
+
+    [Fact]
     public void FunctionsAreSavedByName()
     {
         var functions = new SheetFunctions();

@@ -118,11 +118,15 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
 
                 break;
             case SheetChangeKind.RowsInserted:
+                ShowRestored(e.Index, e.Count, true);
                 foreach (var list in lists.ToArray())
                 {
                     list.OnRowsInserted(e.Index, e.Count);
                 }
 
+                break;
+            case SheetChangeKind.ColumnsInserted:
+                ShowRestored(e.Index, e.Count, false);
                 break;
             case SheetChangeKind.RowsDeleted:
                 foreach (var list in lists.ToArray())
@@ -160,6 +164,8 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
         return null;
     }
 
+    bool ISheetBinding.HoldsRow(SheetRow row) => !disposed && lists.Exists(x => x.Holds(row));
+
     private void OnSourceChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (disposed)
@@ -179,6 +185,19 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
         foreach (var link in cells.ToArray())
         {
             if (IsCurrent(link) && (string.IsNullOrEmpty(name) || (link.Property.Name == name)))
+            {
+                sync.Show(Source, link.Property, link.Row.Index, link.Column.Index);
+            }
+        }
+    }
+
+    // Undo puts deleted rows and columns back with their old values, so the cells show the source again
+    private void ShowRestored(int index, int count, bool rows)
+    {
+        foreach (var link in cells.ToArray())
+        {
+            var position = rows ? link.Row.Index : link.Column.Index;
+            if (IsCurrent(link) && (position >= index) && (position < index + count))
             {
                 sync.Show(Source, link.Property, link.Row.Index, link.Column.Index);
             }

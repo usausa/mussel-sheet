@@ -264,6 +264,27 @@ public sealed class CommitPipelineTests : BunitContext
     }
 
     [Fact]
+    public async Task ConfirmingTheTextOfAnAutoCompleteItemKeepsItsValue()
+    {
+        var sheet = new Sheet(1, 1);
+        sheet["A1"].Configure(c =>
+        {
+            c.Kind = CellKind.AutoComplete;
+            c.Items = [new CellListItem("13", "東京")];
+        });
+        sheet.SetValue(0, 0, "13");
+        var committed = new List<CellCommittedEventArgs>();
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, committed.Add));
+
+        var result = await Commit(cut, 0, 0, "東京", true);
+
+        Assert.True(result.Ok);
+        Assert.Equal("13", sheet.GetValue(0, 0));
+        Assert.Empty(committed);
+        Assert.False(cut.Instance.CanUndo);
+    }
+
+    [Fact]
     public async Task ActiveCellChangeIsReported()
     {
         var sheet = NumberSheet();

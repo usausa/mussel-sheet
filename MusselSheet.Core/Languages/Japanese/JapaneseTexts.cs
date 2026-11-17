@@ -31,6 +31,7 @@ public static class JapaneseTexts
         },
         NotEditable = "入力できないセルです",
         Canceled = "入力できませんでした",
+        TextTooLarge = "16 MiB を超える文字は入力できません",
         PasteMarked = "{0} セルは規則に合わないため、エラーの印を付けました",
         PasteRejected = "{0} セルは規則に合わないため、貼り付けませんでした",
         PasteTruncatedRows = "シートからはみ出した分({0} 行)は貼り付けませんでした",

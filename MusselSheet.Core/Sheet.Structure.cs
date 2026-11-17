@@ -8,6 +8,11 @@ public sealed partial class Sheet
 
     public void InsertRows(int index, int count, bool inheritSettings = true)
     {
+        if (count == 0)
+        {
+            return;
+        }
+
         var template = index > 0 ? rowList[index - 1] : rowList.FirstOrDefault();
         var source = InheritSource(index, count, inheritSettings && (template is not null));
         var rows = CreateRows(count, inheritSettings ? template?.Height : null);
@@ -16,6 +21,11 @@ public sealed partial class Sheet
 
     public void DeleteRows(int index, int count)
     {
+        if (count == 0)
+        {
+            return;
+        }
+
         TakeRows(index, count, RangeTransform.Remove(settings.Rules, Axis.Row, index, count), RangeTransform.RemoveMerges(merges, Axis.Row, index, count));
     }
 
@@ -23,6 +33,11 @@ public sealed partial class Sheet
 
     public void InsertColumns(int index, int count, bool inheritSettings = true)
     {
+        if (count == 0)
+        {
+            return;
+        }
+
         var template = index > 0 ? columnList[index - 1] : columnList.FirstOrDefault();
         var source = InheritSource(index, count, inheritSettings && (template is not null));
         var columns = CreateColumns(count, inheritSettings ? template?.Width : null);
@@ -31,6 +46,11 @@ public sealed partial class Sheet
 
     public void DeleteColumns(int index, int count)
     {
+        if (count == 0)
+        {
+            return;
+        }
+
         TakeColumns(index, count, RangeTransform.Remove(settings.Rules, Axis.Column, index, count), RangeTransform.RemoveMerges(merges, Axis.Column, index, count));
     }
 

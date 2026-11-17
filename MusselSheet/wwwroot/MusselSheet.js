@@ -39,9 +39,15 @@ const INLINE_TEXT_LIMIT = 4096;
 // Nudges the IME toward direct input; on Windows, inputmode becomes the IME input scope
 const HALFWIDTH_INPUT_MODE = 'url';
 
+// Option types a character on a Mac
+const IS_MAC = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '');
+const REPLAYED_CARET_KEYS = new Set(['Home', 'End', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 const QUEUED_KEYS = new Set(['Enter', 'Tab', 'Escape', 'Backspace', 'Delete', 'F2', 'Home', 'End', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+const READY_CTRL_KEYS = new Set(['a', 'd', 'r', ';']);
 
 const FOCUSABLE = 'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const TABBABLE = 'a[href], area[href], button, input, select, textarea, iframe, summary, [contenteditable]:not([contenteditable="false"]), [tabindex]';
 
 const SUPPORTS_POPOVER = typeof HTMLElement !== 'undefined' && typeof HTMLElement.prototype.showPopover === 'function';
 
@@ -355,6 +361,7 @@ function findError(rule, text, messages, reading) {
     }
 
     let value = text;
+    let fromItem = false;
     switch (rule.kind) {
         case 'number':
             value = parseNumber(text, reading);
@@ -382,9 +389,20 @@ function findError(rule, text, messages, reading) {
         case 'check':
             return /^(true|false)$/i.test(text) ? null : messages.check;
         case 'list': {
-            const halfwidth = toHalfwidth(text);
-            if (!rule.corrects && rule.items?.length && !rule.items.some(x => sameText(toHalfwidth(x.value), halfwidth) || sameText(toHalfwidth(x.text), halfwidth))) {
-                return messages.list;
+            if (rule.items?.length) {
+                const item = findItem(rule.items, text);
+                if (!item) {
+                    return messages.list;
+                }
+                value = item.value;
+            }
+            break;
+        }
+        case 'autocomplete': {
+            const item = findItem(rule.items, text);
+            if (item) {
+                value = item.value;
+                fromItem = true;
             }
             break;
         }
@@ -397,9 +415,14 @@ function findError(rule, text, messages, reading) {
     }
 
     return checkRange(rule, value, messages)
-        ?? checkLength(rule, text, messages)
-        ?? checkCharacters(rule, text, messages)
+        ?? checkLength(rule, (rule.kind === 'list') || fromItem ? value : text, messages)
+        ?? (fromItem ? null : checkCharacters(rule, text, messages))
         ?? checkPattern(rule, text, messages);
+}
+
+function findItem(items, text) {
+    const halfwidth = toHalfwidth(text);
+    return items?.find(x => sameText(toHalfwidth(x.value), halfwidth) || sameText(toHalfwidth(x.text), halfwidth));
 }
 
 function checkRange(rule, value, messages) {
@@ -515,8 +538,9 @@ function sameText(a, b) {
 
 // ---- Suggestions and calendar ----
 
+// Width and case do not matter, the same as the match when the value is committed
 export function filterItems(items, text) {
-    const key = text.trim().toLowerCase();
+    const key = toHalfwidth(text.trim()).toLowerCase();
     if (!key) {
         return items.slice();
     }
@@ -524,8 +548,8 @@ export function filterItems(items, text) {
     const head = [];
     const rest = [];
     for (const item of items) {
-        const label = item.text.toLowerCase();
-        const value = item.value.toLowerCase();
+        const label = toHalfwidth(item.text).toLowerCase();
+        const value = toHalfwidth(item.value).toLowerCase();
         if (label.startsWith(key) || value.startsWith(key)) {
             head.push(item);
         } else if (label.includes(key) || value.includes(key)) {
@@ -974,6 +998,12 @@ export function indexAt(totals, offset) {
     return low;
 }
 
+// PageUp and PageDown move by the height of the view, counting each row at its own height
+export function pageTarget(tops, row, step, height) {
+    const target = indexAt(tops, step > 0 ? tops[row] + height : Math.max(0, tops[row] - height));
+    return clamp(step > 0 ? Math.max(target, row + 1) : Math.min(target, row - 1), 0, tops.length - 2);
+}
+
 // Same as C# ClipboardFormat.Parse: one trailing newline is dropped, as Excel writes one
 export function parseClipboard(text) {
     if (!text) {
@@ -1040,6 +1070,10 @@ function readQuoted(text, index) {
 export function clipboardCell(text, multiline = false) {
     const rows = parseClipboard(text);
     return rows.length ? normalizeLines(rows[0][0], multiline) : '';
+}
+
+function hasAsyncClipboard() {
+    return Boolean(globalThis.navigator?.clipboard?.write || globalThis.navigator?.clipboard?.writeText);
 }
 
 function textArgs(text) {
@@ -1369,8 +1403,10 @@ export function comboOf(k) {
     return `${k.ctrl ? 'Ctrl+' : ''}${k.alt ? 'Alt+' : ''}${k.shift ? 'Shift+' : ''}${key}`;
 }
 
+// AltGr arrives as Ctrl+Alt, but it types a character
 function keyInfo(e) {
-    return { key: e.key, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, alt: e.altKey, replay: false };
+    const altGraph = e.getModifierState?.('AltGraph') ?? false;
+    return { key: e.key, shift: e.shiftKey, ctrl: (e.ctrlKey || e.metaKey) && !altGraph, alt: e.altKey && !altGraph, replay: false };
 }
 
 function showFloating(element) {
@@ -1415,6 +1451,7 @@ class SheetController {
         this.viewBusy = false;
         this.viewPending = false;
         this.changing = 0;
+        this.historySelection = null;
 
         this.popupKind = null;
         this.popupItems = [];
@@ -1508,7 +1545,12 @@ class SheetController {
         this.listen(this.menu, 'mouseover', e => this.onMenuMouseOver(e));
         this.listen(document, 'mousedown', e => this.onDocumentMouseDown(e), true);
         this.listen(window, 'blur', () => this.closeMenu());
-        this.listen(window, 'scroll', () => this.placeFloatings(), { capture: true, passive: true });
+        // The viewport's own scroll is handled by onScroll
+        this.listen(window, 'scroll', e => {
+            if (e.target !== this.viewport) {
+                this.placeFloatings();
+            }
+        }, { capture: true, passive: true });
         this.listen(window, 'resize', () => {
             this.closeMenu();
             this.placeFloatings();
@@ -1537,6 +1579,15 @@ class SheetController {
         this.col = clamp(this.col, 0, this.map.cols - 1);
         this.anchor = this.clampCell(this.anchor);
         this.extent = this.clampCell(this.extent);
+        // A merge added by the app can cover the active cell; it moves to the merge's top left
+        if (this.map.isCovered(this.row, this.col)) {
+            if (this.isEditing()) {
+                this.finishEdit();
+            }
+            this.moveTo(this.row, this.col, { scroll: false });
+            return;
+        }
+
         if (this.isEditing() && this.map.isDisabled(this.row, this.col)) {
             this.finishEdit();
         }
@@ -1570,6 +1621,10 @@ class SheetController {
         return new Date().getTimezoneOffset();
     }
 
+    ready() {
+        this.root.dataset.attached = '';
+    }
+
     setActiveCell(row, col) {
         if (this.map.isEmpty) {
             return;
@@ -1577,7 +1632,9 @@ class SheetController {
 
         const r = clamp(row, 0, this.map.rows - 1);
         const c = clamp(col, 0, this.map.cols - 1);
-        if (this.state === CUSTOM) {
+        if ((this.state === CUSTOM) && this.customBusy) {
+            this.queue.push({ call: () => this.setActiveCell(row, col) });
+        } else if (this.state === CUSTOM) {
             this.commitCustom(() => this.moveTo(r, c));
         } else if (this.isEditing()) {
             this.commit(() => this.moveTo(r, c));
@@ -1594,7 +1651,9 @@ class SheetController {
         }
 
         const apply = () => this.select({ r: top, c: left }, { r: bottom, c: right });
-        if (this.state === CUSTOM) {
+        if ((this.state === CUSTOM) && this.customBusy) {
+            this.queue.push({ call: () => this.setSelection(top, left, bottom, right) });
+        } else if (this.state === CUSTOM) {
             this.commitCustom(apply);
         } else if (this.isEditing()) {
             this.commit(apply);
@@ -1606,6 +1665,10 @@ class SheetController {
     }
 
     beginEdit() {
+        if (this.map.isEmpty) {
+            return;
+        }
+
         if (this.state === COMMITTING) {
             this.queue.push({ call: () => this.beginEdit() });
             return;
@@ -1628,6 +1691,8 @@ class SheetController {
             this.commitCustom(null);
         } else if (this.isEditing()) {
             this.commit(null);
+        } else if (this.state === COMMITTING) {
+            this.queue.push({ call: () => this.commitEdit() });
         }
     }
 
@@ -1636,6 +1701,8 @@ class SheetController {
             this.cancelCustom();
         } else if (this.isEditing()) {
             this.finishEdit();
+        } else if (this.state === COMMITTING) {
+            this.queue.push({ call: () => this.cancelEdit() });
         }
     }
 
@@ -1664,6 +1731,7 @@ class SheetController {
         this.capTop.remove();
         this.capLeft.remove();
         this.popup.remove();
+        delete this.root.dataset.attached;
     }
 
     // ---- Input sink ----
@@ -1710,13 +1778,15 @@ class SheetController {
             return;
         }
 
-        // Keys typed while C# commits are queued and replayed after the move, Ctrl+Z and Ctrl+Y included
+        // While C# commits, typed keys (Ctrl+Z and Ctrl+Y included) wait in the queue with the calls from C#, and run after the move
         if (this.state === COMMITTING) {
             const k = keyInfo(e);
             const history = k.ctrl && !k.alt && (k.key.toLowerCase() === 'z' || k.key.toLowerCase() === 'y');
-            if (QUEUED_KEYS.has(k.key) || (k.key.length === 1 && !k.ctrl && !k.alt) || history) {
+            if (QUEUED_KEYS.has(k.key) || (k.key.length === 1 && !k.ctrl && (!k.alt || IS_MAC)) || history) {
                 e.preventDefault();
                 this.queue.push(k);
+            } else if (this.takesReadyKey(k)) {
+                e.preventDefault();
             }
             return;
         }
@@ -1775,6 +1845,7 @@ class SheetController {
     // Composition can start while ready: only switch state, as recreating or refocusing would break it
     onCompositionStart() {
         if (this.state === READY && this.canEdit(this.currentRule())) {
+            this.hideTip();
             this.setState(INPUT);
             this.showEditor();
         }
@@ -1816,20 +1887,34 @@ class SheetController {
         }
 
         e.preventDefault();
-        if (this.hasRange()) {
-            this.copyRange(e);
-        } else {
-            this.copyCell(e);
-        }
-        this.cutSelection();
+        const cut = this.cutAction();
+        const written = this.hasRange() ? this.copyRange(e) : this.copyCell(e);
+        this.cutWhenWritten(written, cut);
     }
 
-    cutSelection() {
+    cutAction() {
         if (this.hasRange()) {
             const range = this.selectionRange();
-            this.sendChange('CutRangeAsync', range.top, range.left, range.bottom, range.right);
-        } else if (!this.currentRule().disabled) {
-            this.sendChange('CutAsync', this.row, this.col);
+            return () => this.sendChange('CutRangeAsync', range.top, range.left, range.bottom, range.right);
+        }
+
+        if (this.currentRule().disabled) {
+            return null;
+        }
+
+        const row = this.row;
+        const col = this.col;
+        return () => this.sendChange('CutAsync', row, col);
+    }
+
+    // A cut clears the cells only after the clipboard took them
+    cutWhenWritten(written, cut) {
+        if (cut) {
+            written.then(ok => {
+                if (ok && !this.disposed) {
+                    cut();
+                }
+            });
         }
     }
 
@@ -1869,30 +1954,30 @@ class SheetController {
     copyCell(e) {
         const range = { top: this.row, left: this.col };
         const cell = this.cellElement(this.row, this.col);
-        if (cell && (this.changing === 0)) {
+        if (cell && ((this.changing === 0) || !hasAsyncClipboard())) {
             const text = cell.dataset.edit ?? cell.textContent;
             e.clipboardData.setData('text/plain', quoteCell(text));
             e.clipboardData.setData('text/html', this.htmlOf([[text]], range));
-            return;
+            return Promise.resolve(true);
         }
 
         const data = this.editText(this.row, this.col)
             .then(text => ({ text: quoteCell(text), html: this.htmlOf([[text]], range) }))
             .catch(() => ({ text: '', html: '' }));
-        this.writeClipboard(data, true);
+        return this.writeClipboard(data, true);
     }
 
-    // Rows outside the rendered window exist only in C#, so the text is fetched from it
+    // Rows outside the rendered window, and every row while a change is on its way, are read from C#
     copyRange(e) {
         const range = this.selectionRange();
-        const values = this.renderedValues(range);
+        const values = this.renderedValues(range, !hasAsyncClipboard());
         if (values) {
             e.clipboardData.setData('text/plain', toTsv(values));
             e.clipboardData.setData('text/html', this.htmlOf(values, range));
-            return;
+            return Promise.resolve(true);
         }
 
-        this.writeClipboard(this.rangeText(range), true);
+        return this.writeClipboard(this.rangeText(range), true);
     }
 
     htmlOf(values, range) {
@@ -1903,8 +1988,8 @@ class SheetController {
         return this.dotnet.invokeMethodAsync('GetRangeTextAsync', range.top, range.left, range.bottom, range.right).catch(() => ({ text: '', html: '' }));
     }
 
-    renderedValues(range) {
-        if (this.changing > 0) {
+    renderedValues(range, stale = false) {
+        if ((this.changing > 0) && !stale) {
             return null;
         }
 
@@ -1936,10 +2021,10 @@ class SheetController {
             if (html) {
                 item['text/html'] = data.then(d => new Blob([d.html], { type: 'text/html' }));
             }
-            navigator.clipboard.write([new ClipboardItem(item)]).catch(() => { });
-        } else {
-            data.then(d => navigator.clipboard?.writeText(d.text)).catch(() => { });
+            return navigator.clipboard.write([new ClipboardItem(item)]).then(() => true, () => false);
         }
+
+        return data.then(d => navigator.clipboard.writeText(d.text)).then(() => true, () => false);
     }
 
     // Sent as a stream so tables over the Interactive Server's 32 KB message limit still go through
@@ -2059,6 +2144,10 @@ class SheetController {
 
     // App keys (ReadyKeys, EditingKeys) come first; a null assignment leaves the key to the browser
     handleKey(k) {
+        if (this.map.isEmpty) {
+            return false;
+        }
+
         const table = this.state === READY ? this.opts.readyKeys : this.opts.editingKeys;
         const combo = comboOf(k);
         if (table && Object.hasOwn(table, combo)) {
@@ -2069,7 +2158,21 @@ class SheetController {
         return this.builtinKey(k);
     }
 
+    takesReadyKey(k) {
+        const table = this.opts.readyKeys;
+        const combo = comboOf(k);
+        if (table && Object.hasOwn(table, combo)) {
+            return Boolean(table[combo]);
+        }
+
+        return (k.ctrl && !k.alt && READY_CTRL_KEYS.has(k.key.toLowerCase())) || (k.shift && !k.alt && (k.key === 'F10')) || (k.key === 'ContextMenu');
+    }
+
     builtinKey(k) {
+        if (this.state === CUSTOM) {
+            return true;
+        }
+
         if (this.popupKind && this.isEditing() && this.popupKey(k)) {
             return true;
         }
@@ -2212,7 +2315,7 @@ class SheetController {
                 break;
         }
 
-        if (k.replay && k.key.length === 1 && !k.ctrl && !k.alt) {
+        if (k.replay && k.key.length === 1 && !k.ctrl && (!k.alt || IS_MAC)) {
             // Replayed characters never reached the sink, so start input with them explicitly
             if (this.canEdit(rule)) {
                 this.startInput(k.key);
@@ -2257,7 +2360,7 @@ class SheetController {
                 this.commit(() => this.enterMove(k.shift));
                 return true;
             case 'Tab':
-                if (!this.hasRange() && this.currentGroup() === null && this.tabTarget(k.shift) === null && this.opts.rowEnd === 'leave') {
+                if (this.leavesOnTab(k.shift)) {
                     // Leaving the sheet: send the commit without waiting and let the browser move focus
                     this.commit(null, true);
                     return false;
@@ -2296,7 +2399,17 @@ class SheetController {
                 break;
         }
 
-        if (k.replay && k.key.length === 1 && !k.ctrl && !k.alt) {
+        if (k.replay && !k.ctrl && !k.alt && ((k.key === 'Backspace') || (k.key === 'Delete'))) {
+            this.replayDelete(k.key === 'Backspace');
+            return true;
+        }
+
+        if (k.replay && !k.ctrl && !k.alt && REPLAYED_CARET_KEYS.has(k.key)) {
+            this.replayCaret(k);
+            return true;
+        }
+
+        if (k.replay && k.key.length === 1 && !k.ctrl && (!k.alt || IS_MAC)) {
             this.sink.setRangeText(k.key, this.sink.selectionStart, this.sink.selectionEnd, 'end');
             this.fit();
             this.onEditorInput(null);
@@ -2304,6 +2417,60 @@ class SheetController {
         }
 
         return false;
+    }
+
+    // A replayed key gets no default action from the browser, so these keys are done here
+    replayDelete(back) {
+        const sink = this.sink;
+        const start = sink.selectionStart;
+        const end = sink.selectionEnd;
+        if (start !== end) {
+            sink.setRangeText('', start, end, 'end');
+        } else if (back && (start > 0)) {
+            sink.setRangeText('', start - 1, start, 'end');
+        } else if (!back && (end < sink.value.length)) {
+            sink.setRangeText('', end, end + 1, 'end');
+        } else {
+            return;
+        }
+
+        this.fit();
+        this.onEditorInput(null);
+    }
+
+    replayCaret(k) {
+        const sink = this.sink;
+        const value = sink.value;
+        const backward = sink.selectionDirection === 'backward';
+        const anchor = backward ? sink.selectionEnd : sink.selectionStart;
+        const focus = backward ? sink.selectionStart : sink.selectionEnd;
+        const lineStart = value.lastIndexOf('\n', focus - 1) + 1;
+        const next = value.indexOf('\n', focus);
+        const lineEnd = next < 0 ? value.length : next;
+        let caret;
+        if (!k.shift && (sink.selectionStart !== sink.selectionEnd) && ((k.key === 'ArrowLeft') || (k.key === 'ArrowRight'))) {
+            caret = k.key === 'ArrowLeft' ? sink.selectionStart : sink.selectionEnd;
+        } else if (k.key === 'Home') {
+            caret = lineStart;
+        } else if (k.key === 'End') {
+            caret = lineEnd;
+        } else if (k.key === 'ArrowLeft') {
+            caret = Math.max(0, focus - 1);
+        } else if (k.key === 'ArrowRight') {
+            caret = Math.min(value.length, focus + 1);
+        } else if (k.key === 'ArrowUp') {
+            const previous = value.lastIndexOf('\n', lineStart - 2) + 1;
+            caret = lineStart === 0 ? 0 : Math.min(previous + (focus - lineStart), lineStart - 1);
+        } else {
+            const following = value.indexOf('\n', next + 1);
+            caret = next < 0 ? value.length : Math.min(next + 1 + (focus - lineStart), following < 0 ? value.length : following);
+        }
+
+        if (k.shift) {
+            sink.setSelectionRange(Math.min(anchor, caret), Math.max(anchor, caret), caret < anchor ? 'backward' : 'forward');
+        } else {
+            sink.setSelectionRange(caret, caret);
+        }
     }
 
     // Returns true when handled; Enter and Tab only insert the value and fall through to the normal commit
@@ -2452,7 +2619,7 @@ class SheetController {
         this.updateSink();
         let added = false;
         try {
-            // Wait for the previous commit (sent without awaiting) so undo sees the commit first, then the row add
+            // C# runs this after the commits sent before it, so undo sees the commit first, then the row add
             added = await this.dotnet.invokeMethodAsync('AddRowFromScriptAsync', row, col);
         } catch {
             added = false;
@@ -2500,6 +2667,22 @@ class SheetController {
         }
     }
 
+    leavesOnTab(back) {
+        return !this.hasRange() && this.currentGroup() === null && this.tabTarget(back) === null && this.opts.rowEnd === 'leave';
+    }
+
+    // The browser's Tab cannot follow the asynchronous commit of a custom editor, so the element is found in document order
+    focusOutside(back) {
+        const position = back ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
+        const targets = [...document.querySelectorAll(TABBABLE)].filter(x => x.tabIndex >= 0 && !this.root.contains(x) && (this.root.compareDocumentPosition(x) & position));
+        for (const target of back ? targets.reverse() : targets) {
+            target.focus();
+            if (document.activeElement === target) {
+                return;
+            }
+        }
+    }
+
     // Returns false at the row end when set to leave the sheet, so the browser's default Tab moves focus out
     tabMove(back) {
         if (this.hasRange()) {
@@ -2534,12 +2717,12 @@ class SheetController {
             return;
         }
 
-        this.moveTo(clamp(this.row + step * this.pageRows(), 0, this.map.rows - 1), this.col);
+        this.moveTo(pageTarget(this.map.rowTops, this.row, step, this.pageHeight()), this.col);
     }
 
-    pageRows() {
+    pageHeight() {
         const height = (this.opts.autosize ? window.innerHeight : this.viewport.clientHeight - this.map.headerHeight) - this.frozenHeight;
-        return Math.max(1, Math.floor(height / this.map.defaultRowHeight) - 1);
+        return Math.max(this.map.defaultRowHeight, height - this.map.defaultRowHeight);
     }
 
     moveTo(row, col, { scroll = true, keep = false } = {}) {
@@ -2597,14 +2780,14 @@ class SheetController {
             return;
         }
 
-        const text = await this.editText(this.row, this.col);
-        if (!this.disposed && this.state === READY) {
-            this.fillRange(text);
+        const range = this.selectionRange();
+        const text = await this.holdForText(this.row, this.col);
+        if (!this.disposed) {
+            this.fillRange(text, range);
         }
     }
 
-    fillRange(text) {
-        const range = this.selectionRange();
+    fillRange(text, range = this.selectionRange()) {
         this.runRange('FillAsync', range.top, range.left, range.bottom, range.right, ...textArgs(text));
     }
 
@@ -2744,7 +2927,7 @@ class SheetController {
                 c = this.map.cols - 1;
                 break;
             default:
-                r += (key === 'PageUp' ? -1 : 1) * this.pageRows();
+                r = pageTarget(this.map.rowTops, clamp(r, 0, this.map.rows - 1), key === 'PageUp' ? -1 : 1, this.pageHeight());
                 break;
         }
         this.extendTo(r, c);
@@ -3043,18 +3226,38 @@ class SheetController {
     async startEdit() {
         const row = this.row;
         const col = this.col;
-        const text = await this.editText(row, col);
-        if (this.disposed || row !== this.row || col !== this.col || this.state !== READY) {
+        const text = await this.holdForText(row, col);
+        if (this.disposed) {
             return;
         }
 
-        this.setState(EDIT);
-        this.sink.value = text;
-        this.showEditor();
-        this.sink.setSelectionRange(text.length, text.length);
-        if (this.currentRule().kind === 'date') {
-            this.openCalendar(false);
+        if ((row === this.row) && (col === this.col) && (this.state === READY)) {
+            this.setState(EDIT);
+            this.sink.value = text;
+            this.showEditor();
+            this.sink.setSelectionRange(text.length, text.length);
+            if (this.currentRule().kind === 'date') {
+                this.openCalendar(false);
+            }
         }
+        this.replay();
+    }
+
+    // Keys and calls that arrive while C# answers wait as during a commit
+    async holdForText(row, col) {
+        const cell = this.cellElement(row, col);
+        if (cell && (this.changing === 0)) {
+            return cell.dataset.edit ?? cell.textContent;
+        }
+
+        this.setState(COMMITTING);
+        this.updateSink();
+        const text = await this.editText(row, col);
+        if (!this.disposed) {
+            this.setState(READY);
+            this.updateSink();
+        }
+        return text;
     }
 
     editText(row, col) {
@@ -3119,6 +3322,13 @@ class SheetController {
         this.queue = [];
         this.setState(previous);
         this.updateSink();
+        // Focus that left the sheet while C# answered stores the edit with a mark, as leaving does
+        const active = document.activeElement;
+        if (active && (active !== document.body) && !this.root.contains(active)) {
+            this.commit(null, true);
+            return;
+        }
+
         this.showError(response.error);
     }
 
@@ -3149,9 +3359,11 @@ class SheetController {
             this.changing--;
         }
 
-        // If the user selected another cell while waiting, keep that selection instead
-        if (target && !this.disposed && this.state === READY && this.selectionKey() === before) {
+        // If the user selected another cell while waiting, keep that selection instead; an earlier undo's selection is not the user's
+        const current = this.selectionKey();
+        if (target && !this.disposed && this.state === READY && ((current === before) || (current === this.historySelection))) {
             this.select({ r: target[0], c: target[1] }, { r: target[2], c: target[3] });
+            this.historySelection = this.selectionKey();
         }
     }
 
@@ -3334,6 +3546,11 @@ class SheetController {
         }
 
         if (!force && !text.trim()) {
+            this.closePopup();
+            return;
+        }
+
+        if (rule.suggest && (text.length > INLINE_TEXT_LIMIT)) {
             this.closePopup();
             return;
         }
@@ -3728,7 +3945,7 @@ class SheetController {
                 break;
             case 'Tab':
                 e.preventDefault();
-                this.commitCustom(() => this.tabMove(back));
+                this.commitCustom(this.leavesOnTab(back) ? () => this.focusOutside(back) : () => this.tabMove(back));
                 break;
             default:
                 break;
@@ -3762,11 +3979,17 @@ class SheetController {
             this.customBusy = false;
         }
 
-        if (this.disposed || this.state !== CUSTOM) {
+        if (this.disposed) {
+            return;
+        }
+
+        if (this.state !== CUSTOM) {
+            this.replay();
             return;
         }
 
         if (!result.closed) {
+            this.queue = [];
             this.custom?.classList.add('mussel-sheet-invalid');
             (this.custom?.querySelector(FOCUSABLE) ?? this.custom)?.focus({ preventScroll: true });
             return;
@@ -3774,14 +3997,15 @@ class SheetController {
 
         this.finishCustom();
         moveAction?.();
+        this.replay();
     }
 
     cancelCustom() {
-        if (this.state !== CUSTOM) {
+        if ((this.state !== CUSTOM) || this.customBusy) {
             return;
         }
 
-        this.send('CancelCustomEditor');
+        this.send('CancelCustomEditorAsync');
         this.finishCustom();
     }
 
@@ -4072,16 +4296,16 @@ class SheetController {
         }
 
         const range = this.selectionRange();
+        const action = cut ? this.cutAction() : null;
+        let written;
         if (this.hasRange()) {
             const values = this.renderedValues(range);
-            this.writeClipboard(values ? Promise.resolve({ text: toTsv(values), html: this.htmlOf(values, range) }) : this.rangeText(range), true);
+            written = this.writeClipboard(values ? Promise.resolve({ text: toTsv(values), html: this.htmlOf(values, range) }) : this.rangeText(range), true);
         } else {
-            this.writeClipboard(this.editText(this.row, this.col).then(text => ({ text: quoteCell(text) })), false);
+            written = this.writeClipboard(this.editText(this.row, this.col).then(text => ({ text: quoteCell(text) })), false);
         }
 
-        if (cut) {
-            this.cutSelection();
-        }
+        this.cutWhenWritten(written, action);
     }
 
     // Reading the clipboard needs permission; when it cannot be read, the user is told to press Ctrl+V
@@ -4389,7 +4613,7 @@ class SheetController {
         }
     }
 
-    // ---- Row virtualization ----
+    // ---- Row and column virtualization ----
 
     onScroll() {
         this.checkViewport(false);

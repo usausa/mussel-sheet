@@ -22,6 +22,19 @@ public sealed partial class Sheet
 
     internal void OnRebound() => Rebound?.Invoke(this, EventArgs.Empty);
 
+    internal bool IsListRow(SheetRow row)
+    {
+        foreach (var binding in bindings)
+        {
+            if (binding.HoldsRow(row))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     internal BoundProperty? FindBinding(int row, int column)
     {
         foreach (var binding in bindings)

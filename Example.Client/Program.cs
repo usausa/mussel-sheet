@@ -21,11 +21,11 @@ try
 {
     name = await host.Services.GetRequiredService<IJSRuntime>().InvokeAsync<string?>("exampleCulture");
 }
-catch (JSDisconnectedException)
+catch (JSException)
 {
 }
 
-var culture = CultureInfo.GetCultureInfo(name ?? "en-US");
+var culture = CultureInfo.GetCultureInfo(SupportedCultures.Names.FirstOrDefault(x => string.Equals(x, name, StringComparison.Ordinal)) ?? SupportedCultures.Names[0]);
 CultureInfo.DefaultThreadCurrentCulture = culture;
 CultureInfo.DefaultThreadCurrentUICulture = culture;
 

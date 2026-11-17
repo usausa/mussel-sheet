@@ -247,7 +247,7 @@ internal static class FillSeries
     private static DateOnly? AddMonths(DateOnly date, long months)
     {
         var index = MonthIndex(date) + months;
-        if ((index < 0) || (index >= 9999 * 12))
+        if ((index < 12) || (index >= 10000 * 12))
         {
             return null;
         }

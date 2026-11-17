@@ -75,8 +75,8 @@
             </MudSelect>
         </div>
         <div class="sample-row mb-1">
-            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Disabled="@(!(view?.CanUndo ?? false))" OnClick="UndoAsync">Undo</MudButton>
-            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Disabled="@(!(view?.CanRedo ?? false))" OnClick="RedoAsync">Redo</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="UndoAsync">Undo</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="RedoAsync">Redo</MudButton>
             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddRow">Add a row</MudButton>
             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="InsertRow">Insert at row 2</MudButton>
             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="DeleteFirstRow">Delete the first row</MudButton>

@@ -37,6 +37,10 @@ public sealed class OptionsCustomizationTests : BunitContext
     [InlineData("Alt+arrowdown", "Alt+ArrowDown")]
     [InlineData("space", "Space")]
     [InlineData("Ctrl+;", "Ctrl+;")]
+    [InlineData("Control+D", "Ctrl+D")]
+    [InlineData("Meta+Shift+z", "Ctrl+Shift+Z")]
+    [InlineData("cmd+d", "Ctrl+D")]
+    [InlineData("Hyper+D", "Hyper+D")]
     public void KeysAreWrittenTheSameWayAsTheScript(string combo, string expected)
     {
         Assert.Equal(expected, KeyCombo.Normalize(combo));

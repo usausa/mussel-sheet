@@ -128,6 +128,62 @@ public sealed class ComputationTests : BunitContext
     }
 
     [Fact]
+    public void ChangesInsideAnUpdateMarkEveryRowOnce()
+    {
+        var sheet = new Sheet(2001, 5);
+        for (var r = 1; r <= 2000; r++)
+        {
+            sheet.SetValue(r, 3, 1m);
+        }
+
+        using var shares = sheet.ComputeRows("E2:E2001", ["D", "D2:D2001"], x => x.Get<decimal>("D") / x.Values("D2:D2001").OfType<decimal>().Sum());
+        using (sheet.BeginUpdate())
+        {
+            sheet.SetValue(1, 3, 3m);
+        }
+
+        long allocated;
+        using (sheet.BeginUpdate())
+        {
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var r = 1; r <= 1000; r++)
+            {
+                sheet.SetValue(r, 3, 2m);
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+
+        Assert.Equal(2m / 3000m, sheet.GetValue(1, 4));
+        Assert.True(allocated < 1024 * 1024, $"{allocated} bytes");
+    }
+
+    [Fact]
+    public async Task UndoingARangeOperationComputesAndTellsOnce()
+    {
+        var sheet = new Sheet(10, 3);
+        sheet.SetValues(0, 0, [[1m], [2m], [3m], [4m]]);
+        var runs = 0;
+        using var total = sheet.Compute("B1", ["A1:A4"], x =>
+        {
+            runs++;
+            return x.Values("A1:A4").OfType<decimal>().Sum();
+        });
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        await cut.InvokeAsync(() => cut.Instance.ClearRangeAsync(0, 0, 3, 0));
+        Assert.Equal(0m, sheet.GetValue(0, 1));
+        var kinds = new List<SheetChangeKind>();
+        sheet.Changed += (_, e) => kinds.Add(e.Kind);
+        var before = runs;
+
+        await cut.InvokeAsync(() => cut.Instance.UndoFromScriptAsync(false));
+
+        Assert.Equal(10m, sheet.GetValue(0, 1));
+        Assert.Equal([SheetChangeKind.Values, SheetChangeKind.Reset], kinds);
+        Assert.Equal(before + 1, runs);
+    }
+
+    [Fact]
     public async Task RowComputationsOverARangeFollowDeletedRowsAndUndo()
     {
         var sheet = new Sheet(10, 3);

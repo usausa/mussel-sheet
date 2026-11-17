@@ -208,6 +208,26 @@ public sealed class StructureMenuTests : BunitContext
         Assert.Equal(2, sheet.ColumnCount);
     }
 
+    [Fact]
+    public async Task RestoredCellsShowTheCurrentValueOfTheirBinding()
+    {
+        var sheet = FormSheet();
+        var target = new ObjectBindingEdgeTests.Line { Name = "りんご" };
+        using var binding = sheet.Bind(target).Cell("A2", static x => x.Name);
+        var cut = RenderSheet(sheet);
+
+        await Change(cut, "deleteRows", new CellRange(1, 0, 1, 1), 1, 1);
+        target.Name = "ぶどう";
+        await Undo(cut, false);
+        var restoredRow = sheet.GetValue(1, 0);
+        await Change(cut, "deleteColumns", new CellRange(0, 0, 3, 0), 0, 0);
+        target.Name = "もも";
+        await Undo(cut, false);
+
+        Assert.Equal("ぶどう", restoredRow);
+        Assert.Equal("もも", sheet.GetValue(1, 0));
+    }
+
     private static Sheet FormSheet()
     {
         var sheet = new Sheet(4, 2);

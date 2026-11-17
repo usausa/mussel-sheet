@@ -18,9 +18,11 @@ public sealed partial class MusselSheetView
 
     // JS sends the text as a stream: it can be large, and Interactive Server limits a message to 32 KB
     internal async Task<PasteResult> PasteRangeAsync(int top, int left, int bottom, int right, IJSStreamReference data) =>
-        await PasteTextAsync(new CellRange(top, left, bottom, right), await ReadTextAsync(data).ConfigureAwait(true)).ConfigureAwait(true);
+        await ReadTextAsync(data).ConfigureAwait(true) is { } text
+            ? await PasteTextAsync(new CellRange(top, left, bottom, right), text).ConfigureAwait(true)
+            : RefuseLargeText(top, left, bottom, right);
 
-    internal static async Task<string> ReadTextAsync(IJSStreamReference? data)
+    internal static async Task<string?> ReadTextAsync(IJSStreamReference? data)
     {
         if (data is null)
         {
@@ -29,6 +31,11 @@ public sealed partial class MusselSheetView
 
         try
         {
+            if (data.Length > MaxPasteBytes)
+            {
+                return null;
+            }
+
             var stream = await data.OpenReadStreamAsync(MaxPasteBytes).ConfigureAwait(true);
             await using (stream.ConfigureAwait(true))
             {
@@ -41,6 +48,25 @@ public sealed partial class MusselSheetView
             await data.DisposeAsync().ConfigureAwait(true);
         }
     }
+
+    // As for a cancel, nothing is applied, and an optimistic cell is marked so the failure stays visible
+    internal CommitResult RefuseLargeText(int row, int column, bool optimistic)
+    {
+        if (!IsEditable(row, column))
+        {
+            return Rejected;
+        }
+
+        if (optimistic)
+        {
+            Sheet.SetError(row, column, Texts.TextTooLarge);
+        }
+
+        return new CommitResult(false, Texts.TextTooLarge, false);
+    }
+
+    internal PasteResult RefuseLargeText(int top, int left, int bottom, int right) =>
+        new(top, left, bottom, right, Texts.TextTooLarge);
 
     internal Task ClearRangeAsync(int top, int left, int bottom, int right) =>
         ClearCellsAsync(new CellRange(top, left, bottom, right), CellChangeReason.ClearContents);
@@ -115,18 +141,21 @@ public sealed partial class MusselSheetView
     {
         var batch = new List<CellChange>();
         var (marked, rejected) = (0, 0);
+        var generation = history.Generation;
+        var (rows, columns) = (RowsOf(range), ColumnsOf(range));
         using (Sheet.BeginUpdate())
         {
             for (var r = range.Top; r <= range.Bottom; r++)
             {
                 for (var c = range.Left; c <= range.Right; c++)
                 {
-                    if ((textAt(r, c) is not { } text) || !IsEditable(r, c))
+                    var (sheetRow, sheetColumn) = (rows[r - range.Top], columns[c - range.Left]);
+                    if ((textAt(r, c) is not { } text) || !Sheet.Contains(sheetRow) || !Sheet.Contains(sheetColumn) || !IsEditable(sheetRow.Index, sheetColumn.Index))
                     {
                         continue;
                     }
 
-                    var result = await ApplyAsync(r, c, Draft(r, c, text), true, reason, batch).ConfigureAwait(true);
+                    var result = await ApplyAsync(sheetRow.Index, sheetColumn.Index, Draft(sheetRow.Index, sheetColumn.Index, text), true, reason, batch).ConfigureAwait(true);
                     if (!result.Ok && result.Stored)
                     {
                         marked++;
@@ -139,7 +168,7 @@ public sealed partial class MusselSheetView
             }
         }
 
-        if (batch.Count > 0)
+        if ((batch.Count > 0) && (generation == history.Generation))
         {
             history.Record(new CellsEdited(batch, AreaOf(area ?? range)));
         }
@@ -156,24 +185,48 @@ public sealed partial class MusselSheetView
 
         range = ClipToSheet(range);
         var batch = new List<CellChange>();
+        var generation = history.Generation;
+        var (rows, columns) = (RowsOf(range), ColumnsOf(range));
         using (Sheet.BeginUpdate())
         {
-            for (var r = range.Top; r <= range.Bottom; r++)
+            foreach (var sheetRow in rows)
             {
-                for (var c = range.Left; c <= range.Right; c++)
+                foreach (var sheetColumn in columns)
                 {
-                    if (IsEditable(r, c))
+                    if (Sheet.Contains(sheetRow) && Sheet.Contains(sheetColumn) && IsEditable(sheetRow.Index, sheetColumn.Index))
                     {
-                        await ApplyAsync(r, c, CommitDraft.Clear, true, reason, batch).ConfigureAwait(true);
+                        await ApplyAsync(sheetRow.Index, sheetColumn.Index, CommitDraft.Clear, true, reason, batch).ConfigureAwait(true);
                     }
                 }
             }
         }
 
-        if (batch.Count > 0)
+        if ((batch.Count > 0) && (generation == history.Generation))
         {
             history.Record(new CellsEdited(batch, AreaOf(range)));
         }
+    }
+
+    private SheetRow[] RowsOf(CellRange range)
+    {
+        var rows = new SheetRow[range.Bottom - range.Top + 1];
+        for (var i = 0; i < rows.Length; i++)
+        {
+            rows[i] = Sheet.Rows[range.Top + i];
+        }
+
+        return rows;
+    }
+
+    private SheetColumn[] ColumnsOf(CellRange range)
+    {
+        var columns = new SheetColumn[range.Right - range.Left + 1];
+        for (var i = 0; i < columns.Length; i++)
+        {
+            columns[i] = Sheet.Columns[range.Left + i];
+        }
+
+        return columns;
     }
 
     private string? PasteMessage(int marked, int rejected, int cutRows, int cutColumns)

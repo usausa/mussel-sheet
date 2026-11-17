@@ -46,7 +46,6 @@ public sealed partial class JapaneseFormPage
                 sheet.Columns[c].Width = widths[c];
             }
 
-            // 表題
             sheet.Rows[0].Height = 44;
             sheet.Range("A1:F1").Merge();
             sheet.Range("A1:F1").Configure(static c =>
@@ -57,7 +56,6 @@ public sealed partial class JapaneseFormPage
                 c.Style.HorizontalAlignment = HorizontalAlignment.Center;
             });
 
-            // 請求の情報と宛先
             foreach (var label in new[] { "A2", "D2", "A3", "D3", "A4", "D4", "A5", "A6", "A7" })
             {
                 sheet.Range(label).Configure(Label);
@@ -107,7 +105,6 @@ public sealed partial class JapaneseFormPage
             });
             sheet.Range("B6").Configure(static c => c.Required = true);
 
-            // 明細: 品名は 3 列を結合する
             sheet.Range("A8:F8").Configure(static c =>
             {
                 Label(c);
@@ -127,7 +124,6 @@ public sealed partial class JapaneseFormPage
                 c.ImeMode = ImeMode.Off;
             });
 
-            // 小計・消費税・合計
             sheet.Range("A14:E16").Configure(static c =>
             {
                 Label(c);
@@ -145,7 +141,6 @@ public sealed partial class JapaneseFormPage
             });
             sheet.Range("F16").Configure(static c => c.Style.Bold = true);
 
-            // 備考
             sheet.Range("A17:A18").Merge();
             sheet.Range("B17:F18").Merge();
             sheet.Range("A17").Configure(Label);
@@ -155,7 +150,6 @@ public sealed partial class JapaneseFormPage
                 c.Style.VerticalAlignment = VerticalAlignment.Top;
             });
 
-            // 罫線
             sheet.Range("A2:F18").Configure(static c => c.Style.Borders = CellBorders.All(CellBorder.Thin));
             sheet.Range("A2:F7").BorderAround(CellBorder.Medium);
             sheet.Range("A8:F16").BorderAround(CellBorder.Medium);
@@ -191,7 +185,7 @@ public sealed partial class JapaneseFormPage
             sheet["A17"].Value = "備考";
             sheet["B17"].Value = "お振込手数料はご負担ください。\n納品書は別途お送りします。";
 
-            // 計算するセルは自動で読み取り専用になる
+            // Computed cells become read-only by themselves
             sheet.ComputeRows("F9:F13", ["D", "E"], static x => x.Get<decimal?>("D") * x.Get<decimal?>("E"));
             sheet.Compute("F14", ["F9:F13"], static x => x.Values("F9:F13").OfType<decimal>().Sum());
             sheet.Compute("F15", ["F14"], static x => Math.Floor(x.Get<decimal>("F14") * TaxRate));
@@ -237,6 +231,10 @@ public sealed partial class JapaneseFormPage
         catch (JSDisconnectedException)
         {
         }
+        catch (JSException e)
+        {
+            log.Add($"PDF を作成できませんでした: {e.Message}");
+        }
     }
 
 #if EXAMPLE_STANDALONE
@@ -261,7 +259,7 @@ public sealed partial class JapaneseFormPage
             await module.InvokeVoidAsync("download", "請求書.pdf", "application/pdf", stream);
             return null;
         }
-        catch (HttpRequestException e)
+        catch (Exception e) when (e is not (JSDisconnectedException or JSException or OperationCanceledException))
         {
             return e.Message;
         }

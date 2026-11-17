@@ -25,6 +25,19 @@ public sealed class CellCallbackTests : BunitContext
     }
 
     [Fact]
+    public async Task AnExceptionInTheActiveCellHandlerReachesTheRenderer()
+    {
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(2, 2)).Add(x => x.ActiveCellChanged, static _ => throw new InvalidOperationException("app")));
+        var bridge = new SheetScriptBridge(cut.Instance);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => cut.InvokeAsync(() => bridge.OnActiveCellChangedAsync(1, 1, 1, 1, 1, 1)));
+        var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
+
+        Assert.Same(Renderer.UnhandledException, ended);
+        Assert.Same(thrown, await Renderer.UnhandledException.ConfigureAwait(true));
+    }
+
+    [Fact]
     public async Task TheValidatorAndCommittingGetTheCorrectedText()
     {
         string? validated = null;

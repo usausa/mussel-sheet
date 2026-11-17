@@ -21,15 +21,37 @@ internal static class KeyCombo
         return normalized;
     }
 
+    // Control, Meta and Cmd are Ctrl; another modifier is kept, so the key never matches
     public static string Normalize(string combo)
     {
         var parts = combo.Split('+', StringSplitOptions.TrimEntries);
         var key = (parts[^1].Length == 0) && (parts.Length > 1) ? "+" : parts[^1];
-        var modifiers = parts[..^1].Select(x => x.ToUpperInvariant()).ToHashSet();
+        var (ctrl, alt, shift) = (false, false, false);
+        var others = new List<string>();
+        foreach (var modifier in parts[..^1])
+        {
+            switch (modifier.ToUpperInvariant())
+            {
+                case "CTRL" or "CONTROL" or "META" or "CMD":
+                    ctrl = true;
+                    break;
+                case "ALT":
+                    alt = true;
+                    break;
+                case "SHIFT":
+                    shift = true;
+                    break;
+                default:
+                    others.Add(modifier + "+");
+                    break;
+            }
+        }
+
         var name = key.Length == 1 ? key.ToUpperInvariant() : Names.FirstOrDefault(x => x.Equals(key, StringComparison.OrdinalIgnoreCase)) ?? key;
-        return (modifiers.Contains("CTRL") ? "Ctrl+" : string.Empty)
-            + (modifiers.Contains("ALT") ? "Alt+" : string.Empty)
-            + (modifiers.Contains("SHIFT") ? "Shift+" : string.Empty)
+        return string.Concat(others)
+            + (ctrl ? "Ctrl+" : string.Empty)
+            + (alt ? "Alt+" : string.Empty)
+            + (shift ? "Shift+" : string.Empty)
             + name;
     }
 }

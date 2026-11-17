@@ -69,16 +69,17 @@ public sealed partial class MusselSheetView
             return result.Closed && (result.Error is null);
         });
 
-    private async Task CancelCustomFromTemplateAsync()
-    {
-        if (customEdit is null)
+    private Task CancelCustomFromTemplateAsync() =>
+        RunInTurnAsync(async () =>
         {
-            return;
-        }
+            if (customEdit is null)
+            {
+                return;
+            }
 
-        CloseCustom();
-        await InvokeScriptAsync("finishCustom").ConfigureAwait(true);
-    }
+            CloseCustom();
+            await InvokeScriptAsync("finishCustom").ConfigureAwait(true);
+        });
 
     private void CloseCustom()
     {

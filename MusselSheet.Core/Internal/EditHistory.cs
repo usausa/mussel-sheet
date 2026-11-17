@@ -13,6 +13,8 @@ internal sealed class EditHistory
 
     public bool CanRedo => redo.Count > 0;
 
+    public int Generation { get; private set; }
+
     public void Record(EditEntry entry)
     {
         undo.AddLast(entry);
@@ -49,6 +51,7 @@ internal sealed class EditHistory
 
     public void Clear()
     {
+        Generation++;
         undo.Clear();
         redo.Clear();
     }

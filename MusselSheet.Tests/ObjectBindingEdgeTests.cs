@@ -2,6 +2,8 @@ namespace MusselSheet;
 
 using System.Collections.ObjectModel;
 
+using MusselSheet.Internal;
+
 public sealed class ObjectBindingEdgeTests : BunitContext
 {
     public enum Status
@@ -104,6 +106,28 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     }
 
     [Fact]
+    public void ChangingOneCellOfManyRowsDoesNotCopyTheRows()
+    {
+        const int count = 20_000;
+        var target = new ListTarget();
+        for (var i = 0; i < count; i++)
+        {
+            target.Lines.Add(new Line { Name = "x" });
+        }
+
+        var sheet = new Sheet(count, 2);
+        using var binding = sheet.Bind(target).Rows($"A1:B{count}", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        sheet.SetValue(0, 0, "warm");
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        sheet.SetValue(count - 1, 0, "y");
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal("y", target.Lines[^1].Name);
+        Assert.True(allocated < 32 * 1024, $"{allocated} bytes");
+    }
+
+    [Fact]
     public void AColumnAddedAfterBindingIsShown()
     {
         var target = new ListTarget { Lines = { new Line { Name = "a", Note = "b" } } };
@@ -119,6 +143,43 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         rows!.Column("B", static y => y.Note);
 
         Assert.Equal("b", sheet.GetValue(0, 1));
+    }
+
+    [Fact]
+    public async Task AColumnAddedAfterBindingClearsTheHistory()
+    {
+        var target = new ListTarget { Lines = { new Line { Name = "a", Note = "b" } } };
+        var sheet = new Sheet(2, 2);
+        SheetRowsBinding<Line>? rows = null;
+        using var binding = sheet.Bind(target).Rows("A1:B2", static x => x.Lines, x =>
+        {
+            rows = x;
+            x.Column("A", static y => y.Name);
+        });
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var bridge = new SheetScriptBridge(cut.Instance);
+        await cut.InvokeAsync(() => bridge.CommitAsync(0, 1, "typed", true, null));
+        Assert.True(cut.Instance.CanUndo);
+
+        await cut.InvokeAsync(() => rows!.Column("B", static y => y.Note));
+
+        Assert.False(cut.Instance.CanUndo);
+    }
+
+    [Fact]
+    public void ARowInsertedBetweenTwoListsJoinsOnlyTheUpperOne()
+    {
+        var first = new ListTarget { Lines = { new Line { Name = "a" }, new Line { Name = "b" } } };
+        var second = new ListTarget { Lines = { new Line { Name = "c" }, new Line { Name = "d" } } };
+        var sheet = new Sheet(4, 1);
+        using var upper = sheet.Bind(first).Rows("A1:A2", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        using var lower = sheet.Bind(second).Rows("A3:A4", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+
+        sheet.InsertRows(2, 1);
+        sheet.SetValue(2, 0, "x");
+
+        Assert.Equal(["a", "b", "x"], first.Lines.Select(static x => x.Name));
+        Assert.Equal(["c", "d"], second.Lines.Select(static x => x.Name));
     }
 
     [Fact]

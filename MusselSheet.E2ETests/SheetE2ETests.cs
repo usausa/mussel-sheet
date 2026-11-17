@@ -228,6 +228,32 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
+    public async Task ALongCommitReachesTheServer()
+    {
+        var sample = await OpenAsync("cell-kinds", "server");
+        var text = new string('a', 40000);
+
+        await sample.Cell(1, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("a");
+        await sample.Keyboard.InsertTextAsync(text[1..]);
+        await sample.Keyboard.PressAsync("Enter");
+
+        await Expect(sample.Cell(1, 1)).ToHaveTextAsync(text);
+    }
+
+    [Fact]
+    public async Task MenuCopyOfOneCellQuotesItsLineBreaks()
+    {
+        var sample = await OpenAsync("cell-kinds", "server");
+        await sample.FakeAsyncClipboardAsync();
+
+        await SamplePage.RightClickAsync(sample.Cell(17, 1));
+        await sample.MenuItem("copy").ClickAsync();
+
+        await sample.WaitForClipboardAsync("\"First line\nThe second line is long and wraps to the width of the cell\"");
+    }
+
+    [Fact]
     public async Task ALongPasteIntoOneCellReachesTheServer()
     {
         var sample = await OpenAsync("cell-kinds", "server");
@@ -248,6 +274,8 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Cell(17, 1).ClickAsync();
         var copied = await sample.DispatchClipboardAsync("copy", null);
         Assert.Equal($"\"{text}\"", copied);
+        await sample.Keyboard.PressAsync("Delete");
+        await Expect(sample.Cell(17, 1)).ToHaveTextAsync(string.Empty);
 
         await sample.DispatchClipboardAsync("paste", copied);
         await Expect(sample.Cell(17, 1)).ToHaveTextAsync(text);
@@ -1062,6 +1090,153 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
+    public async Task SheetKeysWhileCSharpAnswersStayWithTheSheet()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.HoldCommitsAsync("FillRightAsync");
+        await sample.Page.EvaluateAsync(
+            """
+            () => {
+                window.keys = [];
+                window.addEventListener('keydown', e => {
+                    if (e.ctrlKey && (e.key !== 'Control')) {
+                        window.keys.push(`${e.key}:${e.defaultPrevented}`);
+                    }
+                });
+            }
+            """);
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.PressAsync("Control+r");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Keyboard.PressAsync("Control+r");
+        await sample.Keyboard.PressAsync("Control+d");
+        await sample.Keyboard.PressAsync("Control+f");
+        await sample.ReleaseCommitAsync(0);
+
+        Assert.Equal(["r:true", "r:true", "d:true", "f:false"], await sample.Page.EvaluateAsync<string[]>("() => window.keys"));
+    }
+
+    [Fact]
+    public async Task KeysTypedWhileTheEditTextIsReadAreKept()
+    {
+        var sample = await OpenAsync("playground", "wasm");
+        await sample.HoldCommitsAsync();
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("7");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Keyboard.PressAsync("ArrowUp");
+        await sample.Keyboard.PressAsync("F2");
+        await sample.Keyboard.TypeAsync("8");
+        await sample.ReleaseCommitAsync(0);
+
+        await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync("78");
+    }
+
+    [Fact]
+    public async Task RepeatedUndosSelectTheCellsOfTheLastUndo()
+    {
+        var sample = await OpenAsync("playground", "wasm");
+        var original = await sample.Cell(0, 1).TextContentAsync() ?? string.Empty;
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("41");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.Cell(4, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("42");
+        await sample.Keyboard.PressAsync("Enter");
+        await Expect(sample.Cell(4, 1)).ToHaveTextAsync("42");
+        await sample.HoldCommitsAsync("UndoFromScriptAsync");
+
+        await sample.Keyboard.PressAsync("Control+z");
+        await sample.Keyboard.PressAsync("Control+z");
+        await sample.WaitForHeldCommitsAsync(2);
+        await sample.ReleaseCommitAsync(0);
+        await sample.ReleaseCommitAsync(1);
+
+        await Expect(sample.Cell(0, 1)).ToHaveTextAsync(original);
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B1");
+    }
+
+    [Fact]
+    public async Task EditingKeysTypedWhileACommitWaitsAreReplayed()
+    {
+        var sample = await OpenHoldingCommitsAsync();
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("12");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Keyboard.TypeAsync("34");
+        await sample.Keyboard.PressAsync("Backspace");
+        await sample.Keyboard.PressAsync("Home");
+        await sample.Keyboard.TypeAsync("5");
+        await sample.ReleaseCommitAsync(0);
+
+        await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync("53");
+    }
+
+    [Fact]
+    public async Task QueuedKeysDoNotCommitACustomCellBeforeItsEditorOpens()
+    {
+        var sample = await OpenAsync("customization", "server");
+        var editor = sample.Page.Locator(".mussel-sheet-custom.mussel-sheet-open");
+        await sample.HoldCommitsAsync("PasteRangeAsync");
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.DispatchClipboardAsync("paste", "x\ty");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Keyboard.PressAsync("ArrowDown");
+        await sample.Keyboard.PressAsync("F2");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.ReleaseCommitAsync(0);
+
+        await Expect(editor).ToBeVisibleAsync();
+        await sample.Keyboard.PressAsync("Escape");
+        await Expect(editor).ToHaveCountAsync(0);
+        await Expect(sample.Cell(1, 1)).ToHaveTextAsync("#1a73e8");
+    }
+
+    [Fact]
+    public async Task LongTextDoesNotAskForSuggestions()
+    {
+        var sample = await OpenAsync("cell-kinds", "server");
+        await sample.RecordCallsAsync();
+
+        await sample.Cell(15, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("a");
+        await sample.WaitForCallAsync("GetSuggestionsAsync");
+        await sample.CallsAsync();
+        await sample.Keyboard.InsertTextAsync(new string('a', 5000));
+        await sample.Page.WaitForTimeoutAsync(600);
+
+        Assert.DoesNotContain("GetSuggestionsAsync", await sample.CallsAsync());
+    }
+
+    [Fact]
+    public async Task CopyingWithoutTheAsyncClipboardDuringACommitCopiesTheShownText()
+    {
+        var sample = await OpenAsync("playground", "wasm");
+        await sample.RemoveAsyncClipboardAsync();
+        await sample.Cell(0, 2).ClickAsync();
+        await sample.Keyboard.TypeAsync("5");
+        await sample.Keyboard.PressAsync("Enter");
+        await Expect(sample.Cell(0, 2)).ToHaveTextAsync("5");
+        await sample.HoldCommitsAsync();
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("7");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Keyboard.PressAsync("ArrowUp");
+        await sample.Keyboard.PressAsync("ArrowRight");
+
+        Assert.Equal("5", await sample.DispatchClipboardAsync("copy", null));
+        await sample.ReleaseCommitAsync(0);
+    }
+
+    [Fact]
     public async Task ColumnHeadersStopBelowAFixedPageHeader()
     {
         const int appBarHeight = 48;
@@ -1240,10 +1415,13 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     {
         var sample = await OpenAsync("customization", "server");
         var editor = sample.Page.Locator(".mussel-sheet-custom.mussel-sheet-open");
+        await sample.HoldCommitsAsync("OpenCustomEditorAsync");
 
         await sample.Cell(1, 1).ClickAsync();
         await sample.Keyboard.PressAsync("F2");
+        await sample.WaitForHeldCommitsAsync(1);
         await sample.Keyboard.PressAsync("Enter");
+        await sample.ReleaseCommitAsync(0);
         await Expect(editor).ToBeVisibleAsync();
         await sample.Keyboard.PressAsync("Escape");
 
@@ -1271,6 +1449,50 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Keyboard.PressAsync("Tab");
         await Expect(editor).ToHaveCountAsync(0);
         await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B3");
+    }
+
+    [Fact]
+    public async Task TabAtTheRowEndLeavesTheSheetFromACustomEditorLikeFromInput()
+    {
+        // No sample uses LeaveSheet, so the options C# sends are changed in the browser
+        var sample = opened = await app.OpenBlankAsync();
+        await sample.Page.AddInitScriptAsync(
+            """
+            (() => {
+                const parse = JSON.parse;
+                JSON.parse = function (text, reviver) {
+                    const value = parse.call(this, text, reviver);
+                    for (const item of Array.isArray(value) ? value : []) {
+                        if (item && (typeof item === 'object') && ('rowEnd' in item)) {
+                            item.rowEnd = 'leave';
+                        }
+                    }
+                    return value;
+                };
+            })();
+            """);
+        await sample.Page.GotoAsync($"{app.BaseAddress}render-mode/{ForcedMode ?? "server"}?redirect=%2Fcustomization");
+        await sample.WaitForSheetAsync();
+        var editor = sample.Page.Locator(".mussel-sheet-custom.mussel-sheet-open");
+
+        foreach (var (key, mark) in new[] { ("Tab", "leftForward"), ("Shift+Tab", "leftBack") })
+        {
+            await sample.Cell(4, 1).ClickAsync();
+            await sample.Keyboard.TypeAsync("x");
+            await sample.Keyboard.PressAsync(key);
+            await sample.Page.WaitForFunctionAsync(
+                "mark => { const active = document.activeElement; if (!active || (active === document.body) || active.closest('.mussel-sheet')) { return false; } window[mark] = active; return true; }",
+                mark,
+                new() { Timeout = 5000 });
+
+            await sample.Cell(1, 1).ClickAsync();
+            await sample.Keyboard.PressAsync("F2");
+            await Expect(editor).ToBeVisibleAsync();
+            await sample.Keyboard.PressAsync(key);
+            await Expect(editor).ToHaveCountAsync(0);
+            await sample.Page.WaitForFunctionAsync("mark => document.activeElement === window[mark]", mark, new() { Timeout = 5000 });
+            await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B2");
+        }
     }
 
     [Fact]
@@ -1418,6 +1640,14 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await Expect(commitMode.Locator("input").First).ToHaveValueAsync("Wait").ConfigureAwait(true);
         await sample.HoldCommitsAsync().ConfigureAwait(true);
         return sample;
+    }
+
+    [Fact]
+    public async Task TheRootIsMarkedOnceTheScriptIsReady()
+    {
+        var sample = await OpenAsync("form", "server");
+
+        await Expect(sample.Page.Locator(".mussel-sheet[data-attached]").First).ToBeAttachedAsync();
     }
 
     private async Task<SamplePage> OpenAsync(string path, string mode) =>

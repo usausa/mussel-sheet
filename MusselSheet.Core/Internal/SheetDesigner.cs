@@ -185,34 +185,45 @@ internal static class SheetDesigner
             DateOnly date => ("date", date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
             DateTime dateTime => ("date", DateOnly.FromDateTime(dateTime).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
             TimeOnly time => ("time", time.ToString("HH:mm:ss", CultureInfo.InvariantCulture)),
-            TimeSpan span => ("time", TimeOnly.FromTimeSpan(span).ToString("HH:mm:ss", CultureInfo.InvariantCulture)),
+            TimeSpan span when (span >= TimeSpan.Zero) && (span < TimeSpan.FromDays(1)) => ("time", TimeOnly.FromTimeSpan(span).ToString("HH:mm:ss", CultureInfo.InvariantCulture)),
+            TimeSpan span => ("text", span.ToString("c", CultureInfo.InvariantCulture)),
             decimal or int or long or short or byte or sbyte or uint or ulong or ushort => ("number", Convert.ToDecimal(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture)),
-            double or float => ("number", Convert.ToDouble(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture)),
+            double number => NumberOrText(number.ToString("R", CultureInfo.InvariantCulture)),
+            float number => NumberOrText(number.ToString("R", CultureInfo.InvariantCulture)),
             _ => ("text", Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty)
         };
         return new CellValueDesign { Cell = cell.ToString(), Type = type, Value = text };
     }
 
+    // A value outside the range of decimal (NaN, infinity) is kept as its text
+    private static (string Type, string Text) NumberOrText(string text) =>
+        decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out _) ? ("number", text) : ("text", text);
+
     private static SheetComputationDesign? ToComputation(Sheet sheet, SheetComputation computation, SheetFunctions? functions)
     {
-        if (functions?.NameOf(computation.Function) is not { } name)
+        if ((functions?.NameOf(computation.Function) is not { } name) || (computation.CurrentTarget() is not { } target))
         {
             return null;
         }
 
+        var observed = new List<SheetObservedDesign>(computation.Observations.Count);
+        foreach (var observation in computation.Observations)
+        {
+            if (observation.CurrentText(sheet) is not { } range)
+            {
+                return null;
+            }
+
+            observed.Add(new SheetObservedDesign { Name = observation.Name, Range = string.Equals(range, observation.Name, StringComparison.OrdinalIgnoreCase) ? null : range });
+        }
+
         return new SheetComputationDesign
         {
-            Target = computation.CurrentTarget(),
+            Target = target,
             PerRow = computation.PerRow,
-            Observed = [.. computation.Observations.Select(x => ToObserved(sheet, x))],
+            Observed = observed,
             Function = name
         };
-    }
-
-    private static SheetObservedDesign ToObserved(Sheet sheet, Observation observation)
-    {
-        var range = observation.CurrentText(sheet);
-        return new SheetObservedDesign { Name = observation.Name, Range = string.Equals(range, observation.Name, StringComparison.OrdinalIgnoreCase) ? null : range };
     }
 
     private static CellSettings ToSettings(CellRuleDesign rule, SheetFunctions? functions)

@@ -166,6 +166,20 @@ public sealed class CellInputTests
     }
 
     [Fact]
+    public void AutoCompleteTakesTheValueOfAMatchingItem()
+    {
+        var settings = Settings(CellKind.AutoComplete) with { Items = [new CellListItem("13", "東京"), "大阪"], CharacterRestriction = SheetCharacters.Fullwidth };
+
+        Assert.Null(CellInput.Check("東京", settings, Context, out var value, out _));
+        Assert.Equal("13", value);
+        Assert.Null(CellInput.Check("13", settings, Context, out value, out _));
+        Assert.Equal("13", value);
+        Assert.Null(CellInput.Check("名古屋", settings, Context, out value, out _));
+        Assert.Equal("名古屋", value);
+        Assert.Equal(CellInput.CharacterMessage(SheetCharacters.Fullwidth, JapaneseTexts.Default), CellInput.Check("abc", settings, Context, out _, out _));
+    }
+
+    [Fact]
     public void ValidateChecksRequiredRangeLengthAndPattern()
     {
         Assert.Equal(JapaneseTexts.Default.Required, CellInput.Validate(null, string.Empty, Settings(CellKind.Text) with { Required = true }, Context));
@@ -278,11 +292,22 @@ public sealed class CellInputTests
     [InlineData(@"[\s]+", "　", true)]
     [InlineData(@"\\s", @"\s", true)]
     [InlineData(@"\p{IsHiragana}+", "abc", true)]
+    [InlineData(@"[\S]+", "山田　太郎", true)]
+    [InlineData(".+", "a\u2028b", false)]
+    [InlineData(".+", "a\rb", false)]
+    [InlineData("[.]", "a", false)]
+    [InlineData(@"a\.b", "a.b", true)]
     public void APatternIsReadAsTheBrowserReadsIt(string pattern, string text, bool allowed)
     {
         var settings = Settings(CellKind.Text) with { Pattern = pattern };
 
         Assert.Equal(allowed, CellInput.Validate(text, text, settings, Context) is null);
-        Assert.Equal(pattern == @"\p{IsHiragana}+" ? null : pattern, CellInput.ScriptPattern(pattern));
+        Assert.Equal(pattern is @"\p{IsHiragana}+" or @"[\S]+" ? null : pattern, CellInput.ScriptPattern(pattern));
+    }
+
+    [Fact]
+    public void ACheckboxIgnoresThePattern()
+    {
+        Assert.Null(CellInput.Validate(true, "true", Settings(CellKind.Checkbox) with { Pattern = "x" }, Context));
     }
 }

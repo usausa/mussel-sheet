@@ -15,11 +15,11 @@ An input cell accepts user input. An input-disabled cell has `ReadOnly` or `Kind
 
 With `ReadyEnterMode.Edit`, Enter also starts edit or opens the custom editor.
 
-While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and a rejected commit drops them with the keys.
+While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and a rejected commit drops them with the keys. Keys before a custom editor opens are dropped.
 
 ## 🧾 Sheet
 
-Cells in one column can differ in kind, rules and style. By default rows are 24 pixels high and columns 100 wide. Row and column numbers start at 0. An address is `B2`, `B2:D5`, `B:D` (whole columns) or `2:4` (whole rows), with letters in either case and corners in any order; `*` is an open end (`2:*`, `B2:B*`) or the whole sheet. `sheet.Cells` is the whole sheet.
+Cells in one column can differ in kind, rules and style. By default rows are 24 pixels high and columns 100 wide. Row and column numbers start at 0. An address is `B2`, `B2:D5`, `B:D` (whole columns) or `2:4` (whole rows), with letters in either case and corners in any order; `*` is an open end in the second corner (`2:*`, `B2:B*`, `B2:**`) or the whole sheet. `ComputeRows` takes a whole column or rows that exist, and `Merge` a range without an open end. `sheet.Cells` is the whole sheet.
 
 - `SetValue` stores any object as it is. `ReadOnly` limits the user, not the app.
 - `GetValue<T>` converts on reading: `IConvertible` types, `DateTime` and `DateOnly`, `TimeSpan` and `TimeOnly`. It throws when it cannot, also for an empty cell with a non-nullable `T`. `TryGetValue<T>` returns `false` instead.
@@ -46,7 +46,7 @@ Edit form by kind: `Number` uses format `G`, without group separators. `Date` us
 | Height | From the source | Default |
 | Rule covering the source | Copied to the new rows with the same priority | Not copied |
 | Rule spanning the position | Grows | Is split around the new rows |
-| Whole-column rule, whole-sheet rule | Applies to the new rows | Applies to the new rows |
+| Whole-column rule, whole-sheet rule, rule with an open end | Applies to the new rows | Applies to the new rows |
 
 Values are never inherited. Deleting shrinks rules and drops empty ones. These methods are not undo steps.
 
@@ -77,7 +77,7 @@ Values are never inherited. Deleting shrinks rules and drops empty ones. These m
 | `Checkbox` | `bool` | Space, or a click on the box. `true` or `false` in any case from a paste or fill | A box, or `CheckedText` and `UncheckedText` |
 | `List` | The item's `Value` | An item's value or display text, in any case and width. Any text without `Items` | The item's display text |
 | `Mask` | `string` | Text that fits `Mask` | The text |
-| `AutoComplete` | `string` | Any text | The text, or the display text of the item with that value |
+| `AutoComplete` | `string` | Any text. An item's value or display text, in any case and width, becomes the item's `Value` | The text, or the display text of the item with that value |
 | `Custom` | Any | See [Custom cells](#-custom-cells) | `CustomDisplay`, or the value as text, with `Format` if formattable |
 
 - Empty text is `null` in every kind. Text starting with `=` is ordinary text.
@@ -92,9 +92,9 @@ Values are never inherited. Deleting shrinks rules and drops empty ones. These m
 | `Minimum`, `Maximum` | `Number`, `Date`, `Time` | Inclusive. A limit of another type is ignored |
 | `MaxLength` | Strings | Unicode characters, not UTF-16 units |
 | `MaxByteLength` | Strings | ASCII and Unicode's half-width forms count 1, others 2 |
-| `CharacterRestriction` | `Text`, `Mask`, `AutoComplete` | Every character must be in the `SheetCharacterSet`. `SheetCharacters.Fullwidth` excludes ASCII and Unicode's half-width forms, `Halfwidth` allows only those, `Alphanumeric` and `Digits` are ASCII, and `None` lifts a restriction of an earlier rule. `JapaneseCharacters.Hiragana` and `Katakana` also allow `ー` and spaces, `Katakana` also `・`, and `HalfwidthKatakana` also the ASCII space |
+| `CharacterRestriction` | `Text`, `Mask`, `AutoComplete` | Every character must be in the `SheetCharacterSet`. `SheetCharacters.Fullwidth` excludes ASCII and Unicode's half-width forms, `Halfwidth` allows only those, `Alphanumeric` and `Digits` are ASCII, and `None` lifts a restriction of an earlier rule. `JapaneseCharacters.Hiragana` and `Katakana` also allow `ー` and spaces, `Katakana` also `・`, and `HalfwidthKatakana` also the ASCII space. The value of an `AutoComplete` item is not checked |
 | `Mask` | `Text`, `Mask` | `9` is a digit, `A` an ASCII letter, `X` either, and `\c` the literal `c`. Other characters are separators the input may omit or replace with an ASCII symbol: for `999-9999`, `1234567` and `123 4567` store `123-4567`. An empty editor shows the mask |
-| `Pattern` | All | A regular expression over the whole text, read by the rules of JavaScript on both sides, so `\d` and `\w` are ASCII. A pattern those rules cannot read is ignored, and a match over 200 ms fails |
+| `Pattern` | All but `Checkbox` | A regular expression over the whole text, read by the rules of JavaScript on both sides, so `\d` and `\w` are ASCII. A pattern those rules cannot read, or with `\S` in a class, is ignored, and a match over 200 ms fails |
 
 ## 🔁 From text to value
 
@@ -152,6 +152,7 @@ Focus moving to a focusable element outside the sheet commits without a move, an
 
 - Text that cannot be converted is stored as a string.
 - `Cancel` in `CellCommitting` stores nothing. The message is `Error`, or else the `Canceled` text. In `Optimistic` it becomes the error mark. In `Wait` the cell stays with the message, and a `Revert` cell moves.
+- Text over 16 MiB in UTF-8 is not read, and nothing is stored. A range paste and Ctrl+Enter show the `TextTooLarge` text as their message, and a commit or paste of one cell is handled like `Cancel` with that text.
 - A range paste, Ctrl+Enter, Ctrl+D, Ctrl+R and the fill handle run the steps per cell. `Stay` and `AcceptAndMark` store with an error mark, `Revert` leaves the cell, and a message gives the counts.
 - If the active cell becomes input-disabled during input or edit, the typed text is dropped.
 - `SetActiveCellAsync` commits an edit first. `BeginEditAsync` works in ready. `CommitEditAsync` commits without a move.
@@ -191,7 +192,7 @@ Ctrl also means ⌘, and `—` leaves the key to the browser. On an input-disabl
 - Ctrl+D with one row selected copies the row above, and with several copies the first row to the others. Ctrl+R does the same with columns. The source's edit text runs the steps of each target. The selection stays.
 - The editor grows right with long text, and down with `WrapText`.
 
-`ReadyKeys` applies in ready, `EditingKeys` in input and edit. A listed key acts as the default key of its `SheetCommands` value, and `null` leaves it to the browser. Unlisted keys keep their action, so a command's default key still works unless it is also set to `null`. Write keys as `Ctrl+Alt+Shift+Key`, in any order and case, where `Key` is a character, `Space` or a `KeyboardEvent.key` name. Default keys: `Edit` F2, `ClearContents` Delete, `Undo` Ctrl+Z, `Redo` Ctrl+Y, `SelectAll` Ctrl+A, `FillDown` Ctrl+D, `FillRight` Ctrl+R, `Today` Ctrl+;, `FillSelection` Ctrl+Enter, `Menu` Shift+F10, `OpenList` Alt+Down, `MoveNext` Enter, `MovePrevious` Shift+Enter, `TabNext` Tab, `TabPrevious` Shift+Tab, `Cancel` Esc, `NewLine` Alt+Enter.
+`ReadyKeys` applies in ready, `EditingKeys` in input and edit. A listed key acts as the default key of its `SheetCommands` value, and `null` leaves it to the browser. Unlisted keys keep their action, so a command's default key still works unless it is also set to `null`. Write keys as `Ctrl+Alt+Shift+Key`, in any order and case, where `Key` is a character, `Space` or a `KeyboardEvent.key` name. `Control`, `Meta` and `Cmd` are read as `Ctrl`, and a key with another modifier never matches. When the same key is written twice, the last one wins. Default keys: `Edit` F2, `ClearContents` Delete, `Undo` Ctrl+Z, `Redo` Ctrl+Y, `SelectAll` Ctrl+A, `FillDown` Ctrl+D, `FillRight` Ctrl+R, `Today` Ctrl+;, `FillSelection` Ctrl+Enter, `Menu` Shift+F10, `OpenList` Alt+ArrowDown, `MoveNext` Enter, `MovePrevious` Shift+Enter, `TabNext` Tab, `TabPrevious` Shift+Tab, `Cancel` Escape, `NewLine` Alt+Enter.
 
 ## 🗾 IME
 
@@ -256,13 +257,13 @@ Copy works in ready and uses the edit text. Read-only cells can be copied, and c
 
 | Copied | `text/plain` | `text/html` |
 |---|---|---|
-| One cell, by key | The edit text | A one-cell table |
-| One cell, from the menu | The edit text | None |
+| One cell, by key | The edit text, quoted as in a range | A one-cell table |
+| One cell, from the menu | The edit text, quoted as in a range | None |
 | A range | Tab-separated, CRLF after every row. A cell with a tab, a line break or a leading `"` is quoted, with `"` doubled | A table |
 
 In the table, `Text`, `Mask`, `AutoComplete` and `List` cells carry `mso-number-format:"\@"`, and line breaks become `<br>`.
 
-> Note: `mso-number-format` makes Excel keep leading zeros and a leading `=` as text. Copying undrawn cells uses the asynchronous clipboard, and if the browser refuses, nothing is copied.
+> Note: `mso-number-format` makes Excel keep leading zeros and a leading `=` as text. Copying undrawn cells, and copying while a change is still on its way to C#, uses the asynchronous clipboard, and if the browser refuses, nothing is copied. Where there is no asynchronous clipboard, the drawn text is copied. A cut clears the cells only after the clipboard took them.
 
 > Note: The edit text of a typed cell is the committed text: a cell committed as `1,234` copies as `1,234`.
 
@@ -361,7 +362,7 @@ Popups appear below the cell, or above when there is no room. Focus stays in the
 
 The `CustomEditor` template opens with F2, double-click, Alt+Down or ▼, never by typing. `Editor` of the cell arrives as `context.Name`. Without a template the cell cannot be edited, but Delete and paste still work. Focus goes to the element with `autofocus`, the first focusable element, or the editor.
 
-- Enter (not with Alt or Ctrl, not on a button or link), Tab and Shift+Tab commit `context.Value` and move. Esc cancels. Keys the template handled with `preventDefault` stay with it.
+- Enter (not with Alt or Ctrl, not on a button or link), Tab and Shift+Tab commit `context.Value` and move. Where Tab leaves the sheet (`LeaveSheet`), focus then goes to the next focusable element outside the sheet in document order (Shift+Tab: the previous one). Esc cancels. Keys the template handled with `preventDefault` stay with it.
 - `context.CommitAsync` commits without a move, and returns whether it stored without an error. `context.CancelAsync` cancels.
 - A click on another cell commits and moves. Focus leaving the sheet commits.
 - On an error, `Stay` keeps it open with the message in `context.Error`, `Revert` closes it with the old value, and `AcceptAndMark` closes it with an error mark.
@@ -413,12 +414,12 @@ A read-only list gets no new elements. Without `Create` or a parameterless const
 ## 💾 Design
 
 - Saved: row and column counts, default sizes that differ from 24 and 100, culture name, frozen counts, heights, widths and headers set on rows and columns, rules in order, merges, `Label` values, and computations. With `includeValues`, all values.
-- Not saved: error marks, change marks, `InputText`, undo history, parameters of the view, and functions not in `SheetFunctions`, with the computations using them.
+- Not saved: error marks, change marks, `InputText`, undo history, parameters of the view, functions not in `SheetFunctions`, with the computations using them, and computations whose cells or read cells were deleted.
 - Functions are saved by name, and `FromDesign` takes them from the same `SheetFunctions`. Names are unique across all function kinds, and adding a name again replaces it.
 - Character sets are saved by `Name`. `FromDesign` takes them from `SheetFunctions` (`AddCharacterSet`) first, then from the built-in ones.
 - A computation saves the name it reads, and the current address when different. A loaded sheet computes at once, and the read-only rule comes from the saved rules.
 - Loading throws `JsonException` for a property it does not know, `NotSupportedException` for an unknown `version`, `InvalidOperationException` for a function name without `SheetFunctions`, and `KeyNotFoundException` for a name not in it.
-- JSON: camelCase names, no `null` items, LF line breaks. Ranges use addresses, and `*` is the whole sheet. Enums use camelCase names. `characterRestriction` is a name. Limits are text (`0`, `2026-01-01`, `09:00:00`). Values have a type: `text`, `number`, `date`, `time` or `check`. The invariant culture is an empty name.
+- JSON: camelCase names, no `null` items, LF line breaks. Ranges use addresses, and `*` is the whole sheet. Enums use camelCase names. `characterRestriction` is a name. Limits are text (`0`, `2026-01-01`, `09:00:00`). Values have a type: `text`, `number`, `date`, `time` or `check`. A value none of them holds (a `TimeSpan` of a day or more, a number outside `decimal`) is written as `text`. The invariant culture is an empty name.
 
 > Note: Saving finds a name from the delegate, so attach the delegate returned by `SheetFunctions`. The JSON is not escaped for HTML.
 

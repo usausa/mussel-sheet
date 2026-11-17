@@ -52,7 +52,6 @@ public static class ApplicationExtensions
 
     public static WebApplication UseLocalization(this WebApplication app)
     {
-        // The language comes from the cookie of the Localization page, not from the browser
         app.UseRequestLocalization(new RequestLocalizationOptions
         {
             DefaultRequestCulture = new RequestCulture(SupportedCultures.Names[0]),

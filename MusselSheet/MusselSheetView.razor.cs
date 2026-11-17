@@ -87,8 +87,6 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     private ElementReference customElement;
 
-    private bool disposed;
-
     [Parameter]
     [EditorRequired]
     public Sheet Sheet { get; set; } = default!;
@@ -223,6 +221,8 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     internal TimeProvider Clock { get; set; } = TimeProvider.System;
 
+    internal bool IsDisposed { get; private set; }
+
     internal DateOnly Today => clientOffset is { } offset
         ? DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime.AddMinutes(-offset))
         : DateOnly.FromDateTime(Clock.GetLocalNow().DateTime);
@@ -348,7 +348,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        disposed = true;
+        IsDisposed = true;
         // Cancel a pending suggestion query; GetSuggestionsAsync disposes the same source too, which is harmless
         if (suggestionCancel is not null)
         {
@@ -407,7 +407,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (disposed)
+        if (IsDisposed)
         {
             return;
         }
@@ -427,7 +427,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
             }
 
             await SyncMapAsync().ConfigureAwait(true);
-            if (disposed)
+            if (IsDisposed)
             {
                 return;
             }
@@ -438,7 +438,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
             {
                 sentOptions = optionsText;
                 await current.InvokeVoidAsync("setOptions", options).ConfigureAwait(true);
-                if (disposed)
+                if (IsDisposed)
                 {
                     return;
                 }
@@ -449,7 +449,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
             {
                 sentThresholds = thresholds;
                 await current.InvokeVoidAsync("setCovered", thresholds.Top, thresholds.Bottom, thresholds.Left, thresholds.Right).ConfigureAwait(true);
-                if (disposed)
+                if (IsDisposed)
                 {
                     return;
                 }
@@ -476,7 +476,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
     private void OnSheetChanged(object? sender, SheetChangedEventArgs e) =>
         _ = InvokeAsync(() =>
         {
-            if (!disposed)
+            if (!IsDisposed)
             {
                 CheckView();
                 Refresh();

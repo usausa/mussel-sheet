@@ -3,7 +3,6 @@ namespace MusselSheet.E2ETests;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 
-// Uses an installed Edge or Chrome, never Playwright's own browsers, and skips the tests when neither is installed
 public sealed partial class AppFixture : IAsyncLifetime
 {
 #if DEBUG
@@ -74,7 +73,6 @@ public sealed partial class AppFixture : IAsyncLifetime
         }
     }
 
-    // Goes through the render mode switch of the app, and waits until the sheet of the page is interactive
     public async Task<SamplePage> OpenAsync(string path, string mode)
     {
         var page = await OpenBlankAsync().ConfigureAwait(false);
@@ -111,7 +109,6 @@ public sealed partial class AppFixture : IAsyncLifetime
 
     private Process StartApp()
     {
-        // Set to the output of dotnet publish to test the app as it ships, with the trimmed WebAssembly client
         var published = Environment.GetEnvironmentVariable("MUSSELSHEET_E2E_PUBLISH_DIRECTORY");
         var project = Path.Combine(FindSolutionDirectory(), "Example");
         var startInfo = new ProcessStartInfo("dotnet")

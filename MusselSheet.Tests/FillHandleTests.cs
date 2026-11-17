@@ -45,6 +45,18 @@ public sealed class FillHandleTests : BunitContext
     }
 
     [Fact]
+    public void MonthlyDatesStopAtTheEndsOfTheCalendar()
+    {
+        var early = FillSeries.Create([new DateOnly(1, 2, 1), new DateOnly(1, 3, 1)], false)!;
+        var late = FillSeries.Create([new DateOnly(9999, 10, 1), new DateOnly(9999, 11, 1)], false)!;
+
+        Assert.Equal([new DateOnly(1, 1, 1)], Values<DateOnly>(early, -1));
+        Assert.Null(early(-2));
+        Assert.Equal([new DateOnly(9999, 12, 1)], Values<DateOnly>(late, 2));
+        Assert.Null(late(3));
+    }
+
+    [Fact]
     public void TheLastNumberInTextIsIncremented()
     {
         Assert.Equal(["A-002", "A-003"], Values<string>(FillSeries.Create(["A-001"], false), 1, 2));

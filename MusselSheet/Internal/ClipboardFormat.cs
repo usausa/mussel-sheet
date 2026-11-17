@@ -1,5 +1,6 @@
 namespace MusselSheet.Internal;
 
+using System.Buffers;
 using System.Text;
 
 // Must stay in step with parseClipboard, toTsv and toHtml in MusselSheet.js: change both together
@@ -9,6 +10,8 @@ internal static class ClipboardFormat
     private const string ExcelStyle = "<style>.istext{mso-number-format:\"\\@\";}br{mso-data-placement:same-cell;}</style>";
 
     private const string TextCell = "<td class=\"istext\" style='mso-number-format:\"\\@\"'>";
+
+    private static readonly SearchValues<char> CellBreaks = SearchValues.Create("\t\r\n");
 
     // Drops one trailing line break, as Excel writes one; a cell without a closing quote is read unquoted
     public static List<string[]> Parse(string? text)
@@ -106,8 +109,8 @@ internal static class ClipboardFormat
             return quoted;
         }
 
-        var end = text.IndexOfAny(['\t', '\r', '\n'], index);
-        return end < 0 ? (text[index..], text.Length) : (text[index..end], end);
+        var end = text.AsSpan(index).IndexOfAny(CellBreaks);
+        return end < 0 ? (text[index..], text.Length) : (text[index..(index + end)], index + end);
     }
 
     private static (string Cell, int Next)? ReadQuoted(string text, int index)
@@ -145,9 +148,9 @@ internal static class ClipboardFormat
 
     private static string Quote(string cell) =>
 #if NET11_0_OR_GREATER
-        (cell.IndexOfAny(['\t', '\r', '\n']) >= 0) || cell.StartsWith('"', StringComparison.Ordinal)
+        cell.AsSpan().ContainsAny(CellBreaks) || cell.StartsWith('"', StringComparison.Ordinal)
 #else
-        (cell.IndexOfAny(['\t', '\r', '\n']) >= 0) || cell.StartsWith('"')
+        cell.AsSpan().ContainsAny(CellBreaks) || cell.StartsWith('"')
 #endif
             ? "\"" + cell.Replace("\"", "\"\"", StringComparison.Ordinal) + "\""
             : cell;

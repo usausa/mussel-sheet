@@ -1,12 +1,14 @@
 # MusselSheet - Input sheet for Blazor
 
 [![NuGet](https://img.shields.io/nuget/v/MusselSheet.svg)](https://www.nuget.org/packages/MusselSheet/)
+[![NuGet](https://img.shields.io/nuget/v/MusselSheet.Core.svg?label=MusselSheet.Core)](https://www.nuget.org/packages/MusselSheet.Core/)
 [![Demo](https://img.shields.io/badge/demo-WebAssembly-blue.svg)](https://usausa.github.io/mussel-sheet/)
 
 ## 🐚 What is this?
 
 An Excel-like input sheet for Blazor, made for keyboard and IME entry.  
 Each cell has its own kind, rules and style, so one sheet works as a list or a form.  
+The sheet itself is in `MusselSheet.Core`, without UI, so a server can build and read sheets too.  
 
 | 📝 Form | 📅 Cell kinds | 🧾 Japanese form |
 |:-:|:-:|:-:|
@@ -70,7 +72,7 @@ The `Example` project shows every feature on Server and WebAssembly.
 | **Ranges** | Selection, copy and paste with Excel, fill handle with series, Ctrl+Enter, Ctrl+D and Ctrl+R |
 | **Structure** | Merged cells, frozen rows and columns, inserting and deleting rows and columns, undo and redo |
 | **Data** | Binding to objects, computed cells, C# callbacks for correcting, formatting and styling, and saving the design as JSON |
-| **Scale** | Only visible rows and columns are drawn; tested with 10,000 rows x 50 columns |
+| **Scale** | With a fixed `Width` and `Height`, only visible rows and columns are drawn; tested with 10,000 rows x 50 columns |
 | **Languages** | English and Japanese built in, others as data of the same shape; eras, date forms and character sets |
 | **Hosting** | Interactive Server, WebAssembly (also trimmed) and Auto |
 

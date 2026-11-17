@@ -41,6 +41,8 @@ public sealed class CellRangeTests
     [InlineData("A1:B")]
     [InlineData("0:3")]
     [InlineData("A1:C3:D4")]
+    [InlineData("B2:*")]
+    [InlineData("B*:B2")]
     public void InvalidTextIsRejected(string text)
     {
         Assert.False(CellRange.TryParse(text, out _));

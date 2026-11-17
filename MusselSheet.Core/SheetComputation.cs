@@ -18,6 +18,8 @@ public sealed class SheetComputation : IDisposable
 
     private bool disposed;
 
+    private bool allMarked;
+
     internal SheetComputation(Sheet sheet, CellRange target, bool perRow, IReadOnlyList<Observation> observations, Func<CellComputeContext, object?> compute)
     {
         this.sheet = sheet;
@@ -45,11 +47,12 @@ public sealed class SheetComputation : IDisposable
         sheet.RunComputations();
     }
 
-    internal string CurrentTarget()
+    // Null when the target cells were deleted
+    internal string? CurrentTarget()
     {
         if (!sheet.Contains(column))
         {
-            return Target.ToString();
+            return null;
         }
 
         if (rows.IsAll)
@@ -57,7 +60,7 @@ public sealed class SheetComputation : IDisposable
             return CellRange.Columns(column.Index, column.Index).ToString();
         }
 
-        return rows.Span(sheet) is { } span ? new CellRange(span.Top, column.Index, span.Bottom, column.Index).ToString() : Target.ToString();
+        return rows.Span(sheet) is { } span ? new CellRange(span.Top, column.Index, span.Bottom, column.Index).ToString() : null;
     }
 
     public void Dispose()
@@ -106,7 +109,13 @@ public sealed class SheetComputation : IDisposable
 
     internal void RunPending()
     {
-        if (disposed || running || (dirty.Count == 0))
+        if (disposed || running)
+        {
+            return;
+        }
+
+        allMarked = false;
+        if (dirty.Count == 0)
         {
             return;
         }
@@ -130,6 +139,11 @@ public sealed class SheetComputation : IDisposable
 
     private void MarkChanged(CellRange range)
     {
+        if (allMarked)
+        {
+            return;
+        }
+
         // A change outside a row's own cells (a range, or a rate in the header) recomputes every row
         if (Observations.Any(x => !x.IsSameRow && x.Intersects(sheet, range)))
         {
@@ -156,6 +170,12 @@ public sealed class SheetComputation : IDisposable
 
     private void MarkAll()
     {
+        if (allMarked)
+        {
+            return;
+        }
+
+        allMarked = true;
         foreach (var row in rows.Current(sheet))
         {
             dirty.Add(row);

@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
+using MusselSheet.Internal;
+
 public sealed class ObjectBindingTests : BunitContext
 {
     public ObjectBindingTests()
@@ -265,6 +267,38 @@ public sealed class ObjectBindingTests : BunitContext
 
         Assert.Empty(order.Lines);
         Assert.Null(sheet.GetValue(4, 0));
+    }
+
+    [Fact]
+    public async Task ResettingTheListClearsTheHistory()
+    {
+        var order = Order(("ノート", 10m, 120m), ("鉛筆", 5m, 50m));
+        var sheet = DetailSheet();
+        using var binding = BindDetails(sheet, order);
+        var cut = RenderMenuSheet(sheet);
+        var bridge = new SheetScriptBridge(cut.Instance);
+        await cut.InvokeAsync(() => bridge.CommitAsync(3, 1, "20", true, null));
+        var recorded = cut.Instance.CanUndo;
+
+        await cut.InvokeAsync(order.Lines.Clear);
+
+        Assert.True(recorded);
+        Assert.False(cut.Instance.CanUndo);
+    }
+
+    [Fact]
+    public async Task BindingNewRowsClearsTheHistory()
+    {
+        var sheet = DetailSheet();
+        var cut = RenderMenuSheet(sheet);
+        var bridge = new SheetScriptBridge(cut.Instance);
+        await cut.InvokeAsync(() => bridge.CommitAsync(3, 1, "20", true, null));
+        var recorded = cut.Instance.CanUndo;
+
+        using var binding = sheet.Bind(Order(("ノート", 10m, 120m))).Rows(new CellRange(3, 0, 4, 3), x => x.Lines, row => row.Column("A", x => x.Name));
+
+        Assert.True(recorded);
+        Assert.False(cut.Instance.CanUndo);
     }
 
     [Fact]

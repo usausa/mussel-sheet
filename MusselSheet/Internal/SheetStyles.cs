@@ -1,6 +1,7 @@
 namespace MusselSheet.Internal;
 
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 // Fixed kinds use classes in MusselSheet.css; colors, sizes, indents and widths go in a per-instance <style>
@@ -8,7 +9,7 @@ internal sealed class SheetStyles
 {
     private readonly Dictionary<string, int> colors = new(StringComparer.Ordinal);
 
-    private readonly Dictionary<(ResolvedCellSettings Settings, CellEdges Edges, CellBorder? Left, CellBorder? Top), string> cellClasses = [];
+    private readonly Dictionary<(ResolvedCellSettings Settings, CellEdges Edges, CellBorder? Left, CellBorder? Top), string> cellClasses = new(CellKeyComparer.Instance);
 
     private readonly Dictionary<CellRange, string> mergeClasses = [];
 
@@ -23,7 +24,7 @@ internal sealed class SheetStyles
 
     public string Scope { get; }
 
-    public string Css => baseCss + restCss;
+    public string Css { get; private set; } = string.Empty;
 
     // Colors are collected from the rules up front, so their classes exist before any cell renders
     public void Update(Sheet sheet, int rowHeaderWidth, int frozenColumns)
@@ -103,6 +104,7 @@ internal sealed class SheetStyles
         }
 
         baseCss = css.ToString();
+        Css = baseCss + restCss;
     }
 
     public void UpdateColumns(Sheet sheet, int frozenColumns, int first, int last)
@@ -115,6 +117,7 @@ internal sealed class SheetStyles
         css.Append(CultureInfo.InvariantCulture, $".{Scope} .mussel-sheet-rest{{padding-left:{widths[frozen..start].Sum()}px}}");
         AppendTemplate(css, $".{Scope} .mussel-sheet-rest", widths[start..end]);
         restCss = css.ToString();
+        Css = baseCss + restCss;
     }
 
     public string GetMergeClass(CellRange range) => mergeClasses.TryGetValue(range, out var name) ? name : string.Empty;
@@ -357,5 +360,17 @@ internal sealed class SheetStyles
 
         builder.Append(CultureInfo.InvariantCulture, $" mussel-sheet-b{side}-{name}");
         AppendColor(builder, $"b{side}c", value.Color);
+    }
+
+    // Resolved settings are shared instances, so they are compared by reference instead of by every member
+    private sealed class CellKeyComparer : IEqualityComparer<(ResolvedCellSettings Settings, CellEdges Edges, CellBorder? Left, CellBorder? Top)>
+    {
+        public static readonly CellKeyComparer Instance = new();
+
+        public bool Equals((ResolvedCellSettings Settings, CellEdges Edges, CellBorder? Left, CellBorder? Top) x, (ResolvedCellSettings Settings, CellEdges Edges, CellBorder? Left, CellBorder? Top) y) =>
+            ReferenceEquals(x.Settings, y.Settings) && (x.Edges == y.Edges) && (x.Left == y.Left) && (x.Top == y.Top);
+
+        public int GetHashCode((ResolvedCellSettings Settings, CellEdges Edges, CellBorder? Left, CellBorder? Top) obj) =>
+            HashCode.Combine(RuntimeHelpers.GetHashCode(obj.Settings), obj.Edges, obj.Left, obj.Top);
     }
 }

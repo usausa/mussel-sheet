@@ -1,4 +1,4 @@
-namespace Example.Application;
+namespace Example.Client;
 
 public static class SupportedCultures
 {

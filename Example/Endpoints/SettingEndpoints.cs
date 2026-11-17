@@ -1,10 +1,10 @@
 namespace Example.Endpoints;
 
 using Example.Application;
+using Example.Client;
 
 using Microsoft.AspNetCore.Localization;
 
-// Both switches reload the page, so a new Server circuit or WebAssembly runtime starts with the new setting
 public static class SettingEndpoints
 {
     public static void MapSettingEndpoints(this WebApplication app)

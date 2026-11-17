@@ -10,6 +10,7 @@ import {
     maskDisplay,
     isAllowed,
     filterItems,
+    pageTarget,
     parseDate,
     matchDate,
     parseNumber,
@@ -101,7 +102,7 @@ function error(r, text, reading) {
     return checkInput(r, text, messages, reading).error;
 }
 
-test('数値・日付・時刻では全角を半角にし、前後の空白を取る', () => {
+test('numbers, dates and times turn full-width characters half-width and trim surrounding spaces', () => {
     assert.equal(normalizeText('１，２３４', 'number'), '1,234');
     assert.equal(normalizeText('－５', 'number'), '-5');
     assert.equal(normalizeText('−５', 'number'), '-5');
@@ -118,7 +119,7 @@ test('数値・日付・時刻では全角を半角にし、前後の空白を�
     assert.equal(normalizeText('  営業部 ', 'list'), '営業部');
 });
 
-test('数値は桁区切りを許し、数字のない文字を受け付けない', () => {
+test('numbers allow group separators and reject text without digits', () => {
     const number = rule('number');
     assert.equal(error(number, '1,234'), null);
     assert.equal(error(number, '１２３４'), null);
@@ -130,13 +131,13 @@ test('数値は桁区切りを許し、数字のない文字を受け付けな�
     assert.equal(checkInput(number, '１，２３４', messages).text, '1,234');
 });
 
-test('必須は空の入力をエラーにする', () => {
+test('a required cell makes empty input an error', () => {
     assert.equal(error(rule('text', { required: true }), ''), messages.required);
     assert.equal(error(rule('number', { required: true }), '　'), messages.required);
     assert.equal(error(rule('text'), ''), null);
 });
 
-test('最小・最大はメッセージ用の文字で知らせる', () => {
+test('minimum and maximum are shown with their message text', () => {
     const range = rule('number', { minimum: '0', maximum: '100', minimumText: '0', maximumText: '100' });
     assert.equal(error(range, '100'), null);
     assert.equal(error(range, '101'), '0 から 100 の範囲で入力してください');
@@ -144,7 +145,7 @@ test('最小・最大はメッセージ用の文字で知らせる', () => {
     assert.equal(error(rule('number', { maximum: '1000', maximumText: '1,000' }), '1,001'), '1,000 以下で入力してください');
 });
 
-test('日付は存在する日だけを受け付け、範囲を比べる', () => {
+test('dates accept only existing days and are compared with the range', () => {
     const date = rule('date', { minimum: '2026-01-01', minimumText: '2026/01/01' });
     assert.equal(error(date, '2026/1/5'), null);
     assert.equal(error(date, '2026-02-28'), null);
@@ -156,7 +157,7 @@ test('日付は存在する日だけを受け付け、範囲を比べる', () =>
     assert.equal(error(rule('date'), '2100/02/29'), messages.date);
 });
 
-test('時刻は H:mm と H:mm:ss を受け付ける', () => {
+test('times accept H:mm and H:mm:ss', () => {
     const time = rule('time', { maximum: '18:00:00', maximumText: '18:00' });
     assert.equal(error(time, '9:05'), null);
     assert.equal(error(time, '09:05:30'), null);
@@ -164,7 +165,7 @@ test('時刻は H:mm と H:mm:ss を受け付ける', () => {
     assert.equal(error(time, '18:01'), '18:00 以下で入力してください');
 });
 
-test('チェックと選択リスト', () => {
+test('checks take true or false, and lists with items take only those items', () => {
     assert.equal(error(rule('check'), 'TRUE'), null);
     assert.equal(error(rule('check'), 'yes'), messages.check);
     const list = rule('list', { items: items(['S', '営業部'], ['G', '総務部']) });
@@ -175,7 +176,15 @@ test('チェックと選択リスト', () => {
     assert.equal(error(rule('autocomplete', { items: items(['東京']) }), '大阪'), null);
 });
 
-test('文字種の制限', () => {
+test('autocomplete enters the value of a matching item, and character restrictions apply only to free text', () => {
+    const city = rule('autocomplete', { items: items(['13', '東京']), restriction: SETS.fullwidth, restrictionMessage: '全角で' });
+    assert.equal(error(city, '東京'), null);
+    assert.equal(error(city, '13'), null);
+    assert.equal(error(city, '名古屋'), null);
+    assert.equal(error(city, 'abc'), '全角で');
+});
+
+test('character restrictions allow only the characters of their set', () => {
     assert.equal(isAllowed('ヤマダ　タロウ・ー', SETS.katakana), true);
     assert.equal(isAllowed('ヤマダ太郎', SETS.katakana), false);
     assert.equal(isAllowed('やまだ ー', SETS.hiragana), true);
@@ -190,7 +199,7 @@ test('文字種の制限', () => {
     assert.equal(isAllowed('何でも', null), true);
 });
 
-test('文字種の制限は文字で入力する種類だけに効く', () => {
+test('character restrictions apply only to kinds entered as text', () => {
     const kana = rule('text', { restriction: SETS.katakana, restrictionMessage: 'カタカナで' });
     assert.equal(error(kana, 'ヤマダ タロウ', JA), null);
     assert.equal(checkInput(kana, 'やまだ ﾀﾛｳ', messages, JA).text, 'やまだ ﾀﾛｳ');
@@ -200,7 +209,7 @@ test('文字種の制限は文字で入力する種類だけに効く', () => {
     assert.equal(error(rule('number', { restriction: SETS.katakana, restrictionMessage: 'カタカナで' }), '12', JA), null);
 });
 
-test('マスク: 区切りは省いても別の区切りで打ってもよく、確定の前にマスクの形に整える', () => {
+test('masks let separators be left out or typed differently, and shape the text before the commit', () => {
     assert.equal(formatMask('1234567', '999-9999'), '123-4567');
     assert.equal(formatMask('123-4567', '999-9999'), '123-4567');
     assert.equal(formatMask('123 4567', '999-9999'), '123-4567');
@@ -219,16 +228,28 @@ test('マスク: 区切りは省いても別の区切りで打ってもよく、
     assert.equal(error(zip, ''), null);
 });
 
-test('候補の絞り込みは前方一致を先に、部分一致を後に並べる', () => {
+test('suggestions put prefix matches first and other matches after them', () => {
     const list = items(['G', '総務部'], ['S', '営業部'], ['D', '開発部'], ['E', '営業推進部']);
     assert.deepEqual(filterItems(list, '営業').map(x => x.text), ['営業部', '営業推進部']);
     assert.deepEqual(filterItems(list, '部').map(x => x.text), ['総務部', '営業部', '開発部', '営業推進部']);
     assert.deepEqual(filterItems(list, 'd').map(x => x.text), ['開発部']);
     assert.deepEqual(filterItems(list, '推進').map(x => x.text), ['営業推進部']);
     assert.equal(filterItems(list, '  ').length, 4);
+    const cities = items(['tokyo', 'Tokyo'], ['ＯＳＡＫＡ', 'ＯＳＡＫＡ']);
+    assert.deepEqual(filterItems(cities, 'ｔｏｋ').map(x => x.value), ['tokyo']);
+    assert.deepEqual(filterItems(cities, 'osa').map(x => x.value), ['ＯＳＡＫＡ']);
 });
 
-test('カレンダーの日付の計算', () => {
+test('PageUp and PageDown count by row heights', () => {
+    const tops = [0, 24, 48, 248, 272, 296, 320];
+    assert.equal(pageTarget(tops, 0, 1, 100), 2);
+    assert.equal(pageTarget(tops, 2, 1, 100), 3);
+    assert.equal(pageTarget(tops, 5, -1, 100), 2);
+    assert.equal(pageTarget(tops, 4, 1, 1000), 5);
+    assert.equal(pageTarget(tops, 0, -1, 100), 0);
+});
+
+test('calendar dates are parsed, formatted and stepped', () => {
     assert.deepEqual(parseDate('２０２６／１１／５'), { y: 2026, m: 11, d: 5 });
     assert.deepEqual(parseDate('２０２６・１２・２４', JA), { y: 2026, m: 12, d: 24 });
     assert.equal(parseDate('2026/02/30'), null);
@@ -245,7 +266,7 @@ test('カレンダーの日付の計算', () => {
     assert.deepEqual(monthGrid(2026, 10)[0], { y: 2026, m: 9, d: 27 });
 });
 
-test('文字数はサロゲートペアを1文字、バイト数は全角を2バイトとして数える', () => {
+test('lengths count a surrogate pair as one character, and byte lengths count full-width characters as two', () => {
     assert.equal(error(rule('text', { maxLength: 3 }), '𠮷野家'), null);
     assert.equal(error(rule('text', { maxLength: 2 }), '𠮷野家'), '2 文字以内で入力してください');
     assert.equal(countBytes('ｱｲｳ'), 3);
@@ -254,14 +275,14 @@ test('文字数はサロゲートペアを1文字、バイト数は全角を2バ
     assert.equal(error(rule('text', { maxByteLength: 4 }), 'あいう'), '4 バイト以内で入力してください(全角は2バイト)');
 });
 
-test('正規表現は文字列全体に合うかを見る。使えない正規表現は判定しない', () => {
+test('patterns must match the whole text, and an unusable pattern checks nothing', () => {
     const zip = rule('text', { pattern: '[0-9]{3}-[0-9]{4}' });
     assert.equal(error(zip, '123-4567'), null);
     assert.equal(error(zip, 'x123-4567'), messages.pattern);
     assert.equal(error(rule('text', { pattern: '(' }), 'abc'), null);
 });
 
-test('セル設定のエラーメッセージがあれば、そちらを使う', () => {
+test('the error message of the cell settings is used when there is one', () => {
     const custom = rule('number', { message: '0〜100 で入力してください', minimum: '0', maximum: '100', minimumText: '0', maximumText: '100' });
     assert.equal(error(custom, 'abc'), '0〜100 で入力してください');
     assert.equal(error(custom, '200'), '0〜100 で入力してください');
@@ -285,27 +306,27 @@ function walk(start, dir, skip, wrap) {
     }
 }
 
-test('右方向で行の最後から次の行へ進むと Z 型になる(入力禁止セルと小計の行を飛ばす)', () => {
+test('moving right past the end of a row goes on in Z order, skipping disabled cells and subtotal rows', () => {
     assert.deepEqual(walk({ r: 0, c: 1 }, 'right', true, true), ['0,2', '1,1', '1,2', '3,1', '3,2']);
     assert.deepEqual(walk({ r: 3, c: 2 }, 'left', true, true), ['3,1', '1,2', '1,1', '0,2', '0,1']);
 });
 
-test('下方向は同じ列の次の入力セルへ進み、列の最後で止まる', () => {
+test('moving down goes to the next input cell in the column and stops at its end', () => {
     assert.deepEqual(walk({ r: 0, c: 1 }, 'down', true, false), ['1,1', '3,1']);
 });
 
-test('飛ばさないときは入力禁止セルにも止まり、表の端で止まる', () => {
+test('without skipping, moves stop on disabled cells and at the edge of the table', () => {
     assert.deepEqual(findNext(sample, 1, 1, 'down', false, false), { r: 2, c: 1 });
     assert.equal(findNext(sample, 0, 3, 'right', false, false), null);
     assert.equal(findNext(sample, 0, 0, 'up', false, false), null);
 });
 
-test('最初の入力セル', () => {
+test('the first input cell is the first enabled cell, or the top left when none is enabled', () => {
     assert.deepEqual(firstInputCell(sample), { r: 0, c: 1 });
     assert.deepEqual(firstInputCell({ rows: 2, cols: 2, isDisabled: () => true }), { r: 0, c: 0 });
 });
 
-test('セルの位置は見出しと、行ごとの高さ・列ごとの幅から求める', () => {
+test('cell positions come from the headers and the height of each row and the width of each column', () => {
     const map = new SheetMap({
         rows: 3,
         columns: 2,
@@ -325,7 +346,7 @@ test('セルの位置は見出しと、行ごとの高さ・列ごとの幅か�
     assert.equal(map.rule(2, 1).kind, 'text');
 });
 
-test('貼り付ける文字は表の最初のセルだけ(Excel の末尾の改行と引用符にも対応する)', () => {
+test('a paste into one cell takes only the first cell of a table, handling the trailing line break and quotes that Excel writes', () => {
     assert.equal(clipboardCell('営業部\r\n'), '営業部');
     assert.equal(clipboardCell('1,234'), '1,234');
     assert.equal(clipboardCell('a\tb\r\nc\td\r\n'), 'a');
@@ -337,7 +358,7 @@ test('貼り付ける文字は表の最初のセルだけ(Excel の末尾の改�
     assert.equal(clipboardCell('\r\n'), '');
 });
 
-test('クリップボードの表は Excel の TSV の書き方で分ける(C# の ClipboardFormat と同じ)', () => {
+test('clipboard tables are split the way Excel writes TSV, as in C# ClipboardFormat', () => {
     assert.deepEqual(parseClipboard('a\tb\r\nc\td\r\n'), [['a', 'b'], ['c', 'd']]);
     assert.deepEqual(parseClipboard('営業部\r\n'), [['営業部']]);
     assert.deepEqual(parseClipboard('"1行目\n2行目"\tb\r\n'), [['1行目\n2行目', 'b']]);
@@ -351,7 +372,7 @@ test('クリップボードの表は Excel の TSV の書き方で分ける(C# �
     assert.deepEqual(parseClipboard(''), []);
 });
 
-test('TSV と HTML の表を作る(C# の ClipboardFormat と同じ)', () => {
+test('TSV and HTML tables are written as in C# ClipboardFormat', () => {
     const rows = [['a', 'b'], ['c\td', '"x'], ['中"の引用符', '']];
     const tsv = toTsv(rows);
     assert.equal(tsv, 'a\tb\r\n"c\td"\t"""x"\r\n中"の引用符\t\r\n');
@@ -363,7 +384,7 @@ test('TSV と HTML の表を作る(C# の ClipboardFormat と同じ)', () => {
     assert.equal(toHtml([['1行目\n2行目']], () => false), `${style}<table><tr><td>1行目<br>2行目</td></tr></table>`);
 });
 
-test('範囲の中の Enter・Tab は端で次の列・行へ進み、最後から最初へ戻る(入力禁止セルは飛ばす)', () => {
+test('Enter and Tab in a range go on to the next column or row at its edge and wrap from the last cell to the first, skipping disabled cells', () => {
     const grid = { rows: 5, cols: 5, isDisabled: (r, c) => r === 1 && c === 1 };
     const range = { top: 0, left: 0, bottom: 1, right: 1 };
     assert.deepEqual(nextInRange(grid, range, 0, 0, 'col', false, true), { r: 1, c: 0 });
@@ -376,7 +397,7 @@ test('範囲の中の Enter・Tab は端で次の列・行へ進み、最後か�
     assert.equal(nextInRange(blocked, range, 0, 0, 'row', false, true), null);
 });
 
-test('位置から行・列の番号を求め(範囲の外は端)、2つの角から範囲を作る', () => {
+test('positions map to row and column numbers, clamped at the edges, and two corners make a range', () => {
     const totals = [0, 24, 48, 88];
     assert.equal(indexAt(totals, -5), 0);
     assert.equal(indexAt(totals, 0), 0);
@@ -388,7 +409,7 @@ test('位置から行・列の番号を求め(範囲の外は端)、2つの角�
     assert.deepEqual(rangeOf({ r: 3, c: 1 }, { r: 1, c: 4 }), { top: 1, left: 1, bottom: 3, right: 4 });
 });
 
-test('改行は、複数行のテキストでは LF にそろえ、それ以外のセルでは取り除く(C# の NormalizeLines と同じ)', () => {
+test('line breaks become LF in multiline text and are removed in other cells, as in C# NormalizeLines', () => {
     assert.equal(normalizeLines('a\r\nb\rc\nd', true), 'a\nb\nc\nd');
     assert.equal(normalizeLines('a\r\nb\rc\nd', false), 'abcd');
     assert.equal(prepareText(rule('text', { multiline: true }), '1行目\r\n2行目'), '1行目\n2行目');
@@ -411,7 +432,7 @@ const menuMessages = {
 
 const allowAll = { allowInsertRows: true, allowDeleteRows: true, allowInsertColumns: true, allowDeleteColumns: true };
 
-test('右クリックメニューの種類は、行全体・列全体を選んでいれば行・列のメニュー、それ以外はセルのメニュー', () => {
+test('the context menu is for rows or columns when whole rows or columns are selected, and for cells otherwise', () => {
     const size = { rows: 10, cols: 4 };
     assert.equal(menuKind({ top: 2, left: 1, bottom: 2, right: 1 }, size), 'cell');
     assert.equal(menuKind({ top: 2, left: 0, bottom: 3, right: 3 }, size), 'row');
@@ -420,7 +441,7 @@ test('右クリックメニューの種類は、行全体・列全体を選ん�
     assert.equal(menuKind({ top: 1, left: 1, bottom: 3, right: 2 }, size), 'cell');
 });
 
-test('右クリックメニューは、クリップボードの項目と、許可した行・列の挿入・削除を出す(選んだ数を入れる)', () => {
+test('the context menu shows the clipboard items and the allowed row and column inserts and deletes, with the selected count', () => {
     const size = { rows: 10, cols: 4 };
     const range = { top: 2, left: 1, bottom: 4, right: 1 };
     const actions = entries => entries.map(x => x?.action ?? '-');
@@ -439,14 +460,14 @@ test('右クリックメニューは、クリップボードの項目と、許�
     assert.deepEqual(actions(menuEntries('column', range, size, { allowInsertColumns: true }, true, menuMessages)).slice(3), ['-', 'insertColumnsLeft', 'insertColumnsRight']);
 });
 
-test('入力できるセルがない範囲では切り取り・貼り付けを、全部の行・列を選んでいるときは削除を使えなくする', () => {
+test('cut and paste are off for a range without input cells, and delete is off when every row or column is selected', () => {
     const size = { rows: 3, cols: 2 };
     const entries = menuEntries('cell', { top: 0, left: 0, bottom: 2, right: 0 }, size, allowAll, false, menuMessages);
     const disabled = entries.filter(x => x?.disabled).map(x => x.action);
     assert.deepEqual(disabled, ['cut', 'paste', 'deleteRows']);
 });
 
-test('メニューのキーでの移動は、区切りと使えない項目を飛ばし、端では反対の端へ回る', () => {
+test('menu keys skip separators and disabled items and wrap around at the ends', () => {
     const entries = [{ action: 'cut', disabled: true }, { action: 'copy' }, { action: 'paste', disabled: true }, null, { action: 'insertRowsAbove' }];
     assert.equal(nextMenuIndex(entries, -1, 1), 1);
     assert.equal(nextMenuIndex(entries, -1, -1), 4);
@@ -456,7 +477,7 @@ test('メニューのキーでの移動は、区切りと使えない項目を�
     assert.equal(nextMenuIndex([{ action: 'cut', disabled: true }, null], -1, 1), -1);
 });
 
-test('固定した行・列があるとき、セルのある部分(ペイン)を決める', () => {
+test('with frozen rows and columns, each cell belongs to a pane', () => {
     assert.equal(paneOf(0, 0, 1, 1), 'tl');
     assert.equal(paneOf(0, 5, 1, 1), 't');
     assert.equal(paneOf(3, 0, 1, 1), 'l');
@@ -464,7 +485,7 @@ test('固定した行・列があるとき、セルのある部分(ペイン)を
     assert.equal(paneOf(0, 0, 0, 0), 'main');
 });
 
-test('選択範囲は固定した行・列の境界で分け、外側の辺だけに枠の線を引く', () => {
+test('a selection is split at the frozen edges and framed only on its outer sides', () => {
     const pieces = selectionPieces({ top: 0, left: 1, bottom: 4, right: 3 }, 1, 2);
     assert.deepEqual(pieces.map(x => [x.pane, x.top, x.left, x.bottom, x.right]), [
         ['tl', 0, 1, 0, 1],
@@ -482,7 +503,7 @@ test('選択範囲は固定した行・列の境界で分け、外側の辺だ�
     assert.deepEqual(selectionPieces({ top: 0, left: 3, bottom: 0, right: 4 }, 2, 1).map(x => x.pane), ['t']);
 });
 
-test('固定した行・列の上の位置は、貼り付いている位置から番号を求める', () => {
+test('positions over frozen rows and columns map to numbers where they stick', () => {
     const totals = [0, 24, 48, 72, 96];
     assert.equal(frozenIndex(totals, 2, 10, 500), 0);
     assert.equal(frozenIndex(totals, 2, 30, 500), 1);
@@ -510,7 +531,7 @@ function mergedSheet() {
     });
 }
 
-test('結合した範囲は、どのセルからも引け、左上以外のセルは入力しない。位置は範囲全体', () => {
+test('a merged range is found from any of its cells, only its top-left cell takes input, and its position is the whole range', () => {
     const map = mergedSheet();
     assert.deepEqual(map.mergeAt(5, 2), { top: 3, left: 1, bottom: 5, right: 3 });
     assert.equal(map.mergeAt(6, 0), null);
@@ -523,7 +544,7 @@ test('結合した範囲は、どのセルからも引け、左上以外のセ�
     assert.deepEqual(map.cellBox(4, 2), { x: 240, y: 120, w: 100, h: 24 });
 });
 
-test('選択範囲は、一部だけかかる結合した範囲を含むまで広げる', () => {
+test('a selection grows to cover merged ranges it partly overlaps', () => {
     const map = mergedSheet();
     assert.deepEqual(map.expandRange({ top: 1, left: 2, bottom: 2, right: 2 }), { top: 1, left: 0, bottom: 2, right: 3 });
     assert.deepEqual(map.expandRange({ top: 6, left: 0, bottom: 6, right: 1 }), { top: 6, left: 0, bottom: 6, right: 1 });
@@ -531,7 +552,7 @@ test('選択範囲は、一部だけかかる結合した範囲を含むまで�
     assert.deepEqual(map.expandRange({ top: 5, left: 0, bottom: 5, right: 1 }), { top: 3, left: 0, bottom: 5, right: 3 });
 });
 
-test('結合した範囲は1つのセルとして動く(入るときは左上のセル、出るときは範囲の端から)', () => {
+test('a merged range moves as one cell, entered at its top left and left from its edge', () => {
     const map = mergedSheet();
     assert.deepEqual(findNext(map, 1, 1, 'down', true, false), { r: 3, c: 1 });
     assert.deepEqual(findNext(map, 3, 1, 'down', true, false), { r: 6, c: 1 });
@@ -544,14 +565,14 @@ test('結合した範囲は1つのセルとして動く(入るときは左上の
     assert.equal(findNext(map, 3, 1, 'right', false, false), null);
 });
 
-test('範囲の中の Enter・Tab は、結合した範囲の左上以外のセルに止まらない', () => {
+test('Enter and Tab in a range do not stop on merged cells other than the top left', () => {
     const map = mergedSheet();
     const range = { top: 1, left: 1, bottom: 3, right: 3 };
     assert.deepEqual(nextInRange(map, range, 1, 1, 'row', false, false), { r: 2, c: 3 });
     assert.deepEqual(nextInRange(map, range, 2, 3, 'row', false, false), { r: 3, c: 1 });
 });
 
-test('日付の簡易入力は、年を省いた月/日を今年にし、2桁の年・数字だけ・漢字の形も受け付ける', () => {
+test('quick date input puts a month and day without a year in this year, and accepts two-digit years, digits only and kanji forms', () => {
     const base = { y: 2026, m: 11, d: 2 };
     const cases = [
         ['11/5', 2026, 11, 5], ['1-5', 2026, 1, 5], ['11.5', 2026, 11, 5],
@@ -586,7 +607,7 @@ function groupedSheet() {
     });
 }
 
-test('移動の範囲の中は、範囲を選んでいるときと同じく巡回する', () => {
+test('inside a move group, moves wrap as in a selected range', () => {
     const map = groupedSheet();
     assert.deepEqual(map.groupBounds.get('見出し'), { top: 0, left: 1, bottom: 0, right: 2 });
     assert.deepEqual(map.groupBounds.get('備考'), { top: 1, left: 3, bottom: 2, right: 3 });
@@ -600,7 +621,7 @@ test('移動の範囲の中は、範囲を選んでいるときと同じく巡�
     assert.equal(nextInGroup(map, 'なし', 0, 0, 'row', false, true), null);
 });
 
-test('名前のないセルからは、名前のあるセルを飛ばしてこれまでどおり動く', () => {
+test('from a cell without a move group, moves pass over grouped cells as before', () => {
     const map = groupedSheet();
     const free = (r, c) => map.groupAt(r, c) === null;
     assert.deepEqual(findNext(map, 1, 2, 'right', true, true, free), { r: 2, c: 0 });
@@ -609,7 +630,7 @@ test('名前のないセルからは、名前のあるセルを飛ばしてこ�
     assert.equal(findNext(map, 3, 2, 'right', true, true, free), null);
 });
 
-test('カレンダーの週の始まりと年月の書き方は、カルチャに合わせる', () => {
+test('the calendar follows the culture for the first day of the week and the year and month text', () => {
     assert.deepEqual(monthGrid(2026, 11, 1)[0], { y: 2026, m: 10, d: 26 });
     assert.deepEqual(monthGrid(2026, 11)[0], { y: 2026, m: 11, d: 1 });
     const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -620,7 +641,7 @@ test('カレンダーの週の始まりと年月の書き方は、カルチャ�
     assert.equal(formatYearMonth('MMM yyyy g', 2026, 11, calendar), 'Nov 2026 A.D.');
 });
 
-test('数値の小数点・桁区切りと日付の並びは、シートのカルチャに合わせる', () => {
+test('numbers follow the sheet culture for the decimal and group separators, and dates for the field order', () => {
     const base = { y: 2026, m: 11, d: 2 };
     assert.deepEqual(matchDate('11/5/2025', base, US), { y: 2025, m: 11, d: 5 });
     assert.deepEqual(matchDate('11/5/25', base, US), { y: 2025, m: 11, d: 5 });
@@ -645,14 +666,14 @@ test('数値の小数点・桁区切りと日付の並びは、シートのカ�
     assert.equal(formatDate({ y: 2025, m: 11, d: 5 }), '2025/11/05');
 });
 
-test('キーは Ctrl・Alt・Shift の順に書き、1 文字のキーは大文字、空白は Space にそろえる', () => {
+test('keys are written in the order Ctrl, Alt, Shift, with one-character keys in upper case and a space as Space', () => {
     assert.equal(comboOf({ key: 'd', ctrl: true, alt: false, shift: false }), 'Ctrl+D');
     assert.equal(comboOf({ key: 'Enter', ctrl: true, alt: false, shift: true }), 'Ctrl+Shift+Enter');
     assert.equal(comboOf({ key: 'F4', ctrl: false, alt: false, shift: false }), 'F4');
     assert.equal(comboOf({ key: ' ', ctrl: false, alt: true, shift: false }), 'Alt+Space');
 });
 
-test('右クリックメニューは、隠した組み込みの項目を出さず、アプリの項目を最後に足す', () => {
+test('the context menu leaves out hidden built-in items and adds the items of the app at the end', () => {
     const range = { top: 0, left: 0, bottom: 0, right: 0 };
     const size = { rows: 5, cols: 5 };
     const labels = { menuCut: 'Cut', menuCopy: 'Copy', menuPaste: 'Paste', menuInsertRowsAbove: '{0}', menuInsertRowsBelow: '{0}', menuDeleteRows: '{0}', menuInsertColumnsLeft: '{0}', menuInsertColumnsRight: '{0}', menuDeleteColumns: '{0}' };
@@ -671,7 +692,7 @@ test('右クリックメニューは、隠した組み込みの項目を出さ�
     assert.deepEqual(onlyApp.map(x => x ? x.action : '-'), ['app']);
 });
 
-test('和暦は元号の名前、略称、頭文字で読み、元号の終わりを超えた年も受け付ける', () => {
+test('Japanese eras are read by name, short name or initial, and years past the end of an era are accepted', () => {
     const base = { y: 2026, m: 11, d: 2 };
     const cases = [
         ['令和7年11月5日', 2025, 11, 5], ['令和元年5月1日', 2019, 5, 1], ['令和7/11/5', 2025, 11, 5], ['令和7.11.5', 2025, 11, 5],
@@ -690,7 +711,7 @@ test('和暦は元号の名前、略称、頭文字で読み、元号の終わ�
     assert.deepEqual(parseDate('Ｒ７．１１．５', JA), { y: 2025, m: 11, d: 5 });
 });
 
-test('日本語の編集の書式を変えても、元年を含めて書いたものを読める', () => {
+test('a changed Japanese edit format still reads what it writes, first years included', () => {
     const era = compileReading({ ...LANGUAGES['ja-JP'], editDate: 'ggge年M月d日' });
     const base = { y: 2026, m: 11, d: 2 };
     assert.equal(formatDate({ y: 2019, m: 5, d: 1 }, era), '令和元年5月1日');
@@ -699,7 +720,7 @@ test('日本語の編集の書式を変えても、元年を含めて書いた�
     assert.deepEqual(matchDate(formatDate({ y: 2019, m: 5, d: 1 }, era), base, era), { y: 2019, m: 5, d: 1 });
 });
 
-test('他の言語も同じ形のデータだけで読み書きできる', () => {
+test('other languages read and write with data of the same form alone', () => {
     const base = { y: 2026, m: 11, d: 2 };
     assert.deepEqual(matchDate('民國114年11月5日', base, TW), { y: 2025, m: 11, d: 5 });
     assert.deepEqual(matchDate('民國元年1月1日', base, TW), { y: 1912, m: 1, d: 1 });
@@ -723,7 +744,7 @@ test('他の言語も同じ形のデータだけで読み書きできる', () =>
     assert.equal(normalizeText('۴۵۶', 'number', AR), '456');
 });
 
-test('カルチャの符号、区切り、制御文字を読む', () => {
+test('culture signs, separators and control characters are read', () => {
     assert.equal(normalizeText('\u061C-5', 'number'), '-5');
     assert.equal(normalizeText('\u200E-5', 'number'), '-5');
     assert.equal(normalizeText('\u200F-5', 'number'), '-5');
@@ -744,13 +765,13 @@ test('カルチャの符号、区切り、制御文字を読む', () => {
     assert.equal(parseNumber('1,234,5', sameSeparators), null);
 });
 
-test('前後の空白は C# と同じ文字を取る', () => {
+test('trimming removes the same spaces as C#', () => {
     assert.equal(normalizeText('\u00851\u0085', 'number'), '1');
     assert.equal(normalizeText('\uFEFF1\uFEFF', 'number'), '1');
     assert.equal(normalizeText('\u0085営業部\uFEFF', 'list'), '営業部');
 });
 
-test('半角は ASCII と Unicode の半角形', () => {
+test('half-width means ASCII and the Unicode half-width forms', () => {
     assert.equal(countBytes('ﾡￂ'), 2);
     assert.equal(countBytes('￨'), 1);
     assert.equal(countBytes('￠'), 2);
@@ -759,7 +780,7 @@ test('半角は ASCII と Unicode の半角形', () => {
     assert.equal(isAllowed('é', SETS.fullwidth), true);
 });
 
-test('フィルハンドルをドラッグした先までの範囲', () => {
+test('the fill handle range reaches the cell it is dragged to', () => {
     const source = { top: 2, left: 1, bottom: 3, right: 2 };
     assert.deepEqual(fillTarget(source, { r: 6, c: 2 }), { top: 2, left: 1, bottom: 6, right: 2 });
     assert.deepEqual(fillTarget(source, { r: 0, c: 1 }), { top: 0, left: 1, bottom: 3, right: 2 });
@@ -769,16 +790,17 @@ test('フィルハンドルをドラッグした先までの範囲', () => {
     assert.equal(fillTarget(source, { r: 3, c: 1 }), null);
 });
 
-test('補正の関数があるセルは型だけを確かめる', () => {
+test('a cell with a Corrector checks only the type', () => {
     const limited = rule('number', { maximum: '1000', required: true, corrects: true });
     assert.equal(error(limited, '2000'), null);
     assert.equal(error(limited, ''), null);
     assert.equal(error(limited, 'abc'), messages.number);
     assert.equal(error(rule('number', { maximum: '1000' }), '2000') !== null, true);
-    assert.equal(error(rule('list', { items: items(['A']), corrects: true }), 'a-1'), null);
+    assert.equal(error(rule('list', { items: items(['A']), corrects: true }), 'a-1'), messages.list);
+    assert.equal(error(rule('list', { items: items(['A']), corrects: true }), 'a'), null);
 });
 
-test('長い空白や点の並びも線形の時間で読む', () => {
+test('long runs of spaces or dots are read in linear time', () => {
     const spaces = `1${' '.repeat(200000)}2`;
     const dots = `1${'.'.repeat(200000)}2`;
     const start = performance.now();
@@ -788,7 +810,7 @@ test('長い空白や点の並びも線形の時間で読む', () => {
     assert.deepEqual(matchDate('1105\n.', { y: 2026, m: 11, d: 8 }, JA), { y: 2026, m: 11, d: 5 });
 });
 
-test('どの文字体系の数字も読み、一覧は幅の違いを問わない', () => {
+test('digits of every script are read, and lists ignore width differences', () => {
     assert.equal(normalizeText('۱۲۳', 'number'), '123');
     assert.equal(normalizeText('१२३', 'number'), '123');
     assert.equal(normalizeText('Ｓａｌｅｓ', 'list'), 'Ｓａｌｅｓ');
@@ -796,9 +818,11 @@ test('どの文字体系の数字も読み、一覧は幅の違いを問わな�
     assert.equal(checkInput(list, 'Ｓａｌｅｓ', messages).error, null);
     assert.equal(checkInput(list, 'b2', messages).error, null);
     assert.equal(checkInput(list, 'Support', messages).error, messages.list);
+    const short = rule('list', { items: items(['A', 'Apple']), maxLength: 1 });
+    assert.equal(error(short, 'Apple'), null);
 });
 
-test('編集の書式は二重引用符と円記号も文字として扱う', () => {
+test('edit formats keep quoted text and backslash-escaped characters as they are', () => {
     const date = { y: 2025, m: 11, d: 5 };
     assert.equal(formatDate(date, compileReading({ editDate: 'yyyy"年"M"月"d"日"' })), '2025年11月5日');
     assert.equal(formatDate(date, compileReading({ editDate: 'yyyy\\/MM\\/dd' })), '2025/11/05');

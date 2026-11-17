@@ -8,7 +8,7 @@ public static class JapaneseLanguage
         Texts = JapaneseTexts.Default,
         Eras =
         {
-            new SheetEra("明治", "明", "M", new DateOnly(1868, 9, 8)),
+            new SheetEra("明治", "明", "M", new DateOnly(1868, 10, 23)),
             new SheetEra("大正", "大", "T", new DateOnly(1912, 7, 30)),
             new SheetEra("昭和", "昭", "S", new DateOnly(1926, 12, 25)),
             new SheetEra("平成", "平", "H", new DateOnly(1989, 1, 8)),

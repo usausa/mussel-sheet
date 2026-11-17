@@ -31,7 +31,7 @@ public sealed class SamplePage(IBrowserContext context, IPage page) : IAsyncDisp
     public static Task RightClickAsync(ILocator target) => target.ClickAsync(new() { Button = MouseButton.Right });
 
     public Task WaitForSheetAsync() =>
-        page.Locator(".mussel-sheet-sink").WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 30_000 });
+        page.Locator(".mussel-sheet[data-attached]").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 30_000 });
 
     public static Task<int[]> RectAsync(ILocator target) =>
         target.EvaluateAsync<int[]>("e => { const b = e.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round); }");
@@ -68,29 +68,51 @@ public sealed class SamplePage(IBrowserContext context, IPage page) : IAsyncDisp
     public Task WaitForClipboardAsync(string text) =>
         page.WaitForFunctionAsync("text => window.fakeClipboard.text === text", text);
 
-    public Task HoldCommitsAsync() =>
+    public Task HoldCommitsAsync(string method = "CommitAsync") =>
         page.EvaluateAsync(
             """
-            () => {
+            method => {
                 const proto = DotNet.DotNetObject.prototype;
                 const invoke = proto.invokeMethodAsync;
                 let target = null;
                 let tail = Promise.resolve();
                 window.heldCommits = [];
                 proto.invokeMethodAsync = function (name, ...args) {
-                    if (name === 'CommitAsync') {
+                    if (name === method) {
                         target = this;
                     }
                     if (this !== target) {
                         return invoke.call(this, name, ...args);
                     }
-                    const held = name === 'CommitAsync' ? new Promise(resolve => window.heldCommits.push(resolve)) : null;
+                    const held = name === method ? new Promise(resolve => window.heldCommits.push(resolve)) : null;
                     const result = Promise.all([tail, held]).then(() => invoke.call(this, name, ...args));
                     tail = result.catch(() => { });
                     return result;
                 };
             }
+            """,
+            method);
+
+    public Task RemoveAsyncClipboardAsync() =>
+        page.EvaluateAsync("() => Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })");
+
+    public Task RecordCallsAsync() =>
+        page.EvaluateAsync(
+            """
+            () => {
+                const proto = DotNet.DotNetObject.prototype;
+                const invoke = proto.invokeMethodAsync;
+                window.calls = [];
+                proto.invokeMethodAsync = function (name, ...args) {
+                    window.calls.push(name);
+                    return invoke.call(this, name, ...args);
+                };
+            }
             """);
+
+    public Task<string[]> CallsAsync() => page.EvaluateAsync<string[]>("() => window.calls.splice(0)");
+
+    public Task WaitForCallAsync(string name) => page.WaitForFunctionAsync("name => window.calls.includes(name)", name);
 
     public Task WaitForHeldCommitsAsync(int count) =>
         page.WaitForFunctionAsync("count => window.heldCommits.length >= count", count);

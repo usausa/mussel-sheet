@@ -17,7 +17,7 @@ public sealed partial class MusselSheetView
         }
         catch (Exception ex) when (ex is not (JSDisconnectedException or OperationCanceledException))
         {
-            if (!disposed)
+            if (!IsDisposed)
             {
                 await DispatchExceptionAsync(ex).ConfigureAwait(true);
             }
@@ -34,7 +34,7 @@ public sealed partial class MusselSheetView
         }
         catch (Exception ex) when (ex is not (JSDisconnectedException or OperationCanceledException))
         {
-            if (!disposed)
+            if (!IsDisposed)
             {
                 await DispatchExceptionAsync(ex).ConfigureAwait(true);
             }
@@ -69,7 +69,7 @@ public sealed partial class MusselSheetView
             {
                 sentLanguage = language;
                 await current.InvokeVoidAsync("setLanguage", SheetScriptJson.ToElement(BuildLanguage())).ConfigureAwait(true);
-                if (disposed)
+                if (IsDisposed)
                 {
                     return;
                 }
@@ -135,7 +135,7 @@ public sealed partial class MusselSheetView
         try
         {
             module ??= await Runtime.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(true);
-            if (disposed)
+            if (IsDisposed)
             {
                 await ReleaseModuleAsync().ConfigureAwait(true);
                 return;
@@ -148,16 +148,30 @@ public sealed partial class MusselSheetView
             sentOptions = options.GetRawText();
             sentThresholds = null;
             controller = await module.InvokeAsync<IJSObjectReference>("attach", root, self, options, SheetScriptJson.ToElement(BuildMap()), SheetScriptJson.ToElement(BuildLanguage())).ConfigureAwait(true);
-            if (disposed)
+            if (IsDisposed)
             {
                 await DetachAsync().ConfigureAwait(true);
                 return;
             }
 
             clientOffset = await controller.InvokeAsync<int>("timezoneOffset").ConfigureAwait(true);
-            while (!disposed && pendingCalls.TryDequeue(out var call))
+            while (!IsDisposed && pendingCalls.TryDequeue(out var call))
             {
-                await controller.InvokeVoidAsync(call.Identifier, call.Args).ConfigureAwait(true);
+                try
+                {
+                    await controller.InvokeVoidAsync(call.Identifier, call.Args).ConfigureAwait(true);
+                }
+                catch (JSException)
+                {
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            }
+
+            if (!IsDisposed)
+            {
+                await controller.InvokeVoidAsync("ready").ConfigureAwait(true);
             }
         }
         catch (JSDisconnectedException)

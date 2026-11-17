@@ -23,6 +23,8 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private readonly List<SheetRow> rows = [];
 
+    private readonly HashSet<SheetRow> members = new(ReferenceEqualityComparer.Instance);
+
     private readonly Dictionary<SheetRow, TItem> items = [];
 
     // Weak, so undo brings back the same element until the row leaves the undo history
@@ -83,6 +85,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
                     ShowCell(row, link);
                 }
             });
+            sync.Sheet.OnRebound();
         }
 
         return this;
@@ -100,6 +103,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             rows.Add(sync.Sheet.Rows[r]);
         }
 
+        members.UnionWith(rows);
         minimum = rows.Count;
         emptyTop = frame.Top;
         attached = true;
@@ -109,12 +113,16 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     void IRowsBinding.Detach() => DetachList();
 
+    bool IRowsBinding.Holds(SheetRow row) => members.Contains(row);
+
     void IRowsBinding.OnValues(CellRange range)
     {
-        foreach (var row in rows.ToArray())
+        var sheet = sync.Sheet;
+        var bottom = Math.Min(range.Bottom, sheet.RowCount - 1);
+        for (var r = Math.Max(range.Top, 0); r <= bottom; r++)
         {
-            var r = row.Index;
-            if ((r < range.Top) || (r > range.Bottom) || !sync.Sheet.Contains(row))
+            var row = sheet.Rows[r];
+            if (!members.Contains(row))
             {
                 continue;
             }
@@ -158,6 +166,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
 
         rows.InsertRange(position, inserted);
+        members.UnionWith(inserted);
         foreach (var row in inserted)
         {
             if (remembered.TryGetValue(row, out var item) && (list is { IsReadOnly: false }))
@@ -216,6 +225,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
 
         rows.RemoveAll(x => !sheet.Contains(x));
+        members.RemoveWhere(x => !sheet.Contains(x));
         if (rows.Count == 0)
         {
             emptyTop = index;
@@ -225,7 +235,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     BoundProperty? IRowsBinding.FindProperty(int row, int column)
     {
         var sheet = sync.Sheet;
-        if ((row < 0) || (row >= sheet.RowCount) || !rows.Contains(sheet.Rows[row]))
+        if ((row < 0) || (row >= sheet.RowCount) || !members.Contains(sheet.Rows[row]))
         {
             return null;
         }
@@ -404,9 +414,11 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             return;
         }
 
-        foreach (var (row, bound) in items.ToArray())
+        // ReSharper disable once ForCanBeConvertedToForeach
+        for (var i = 0; i < rows.Count; i++)
         {
-            if (!ReferenceEquals(bound, item) || !sync.Sheet.Contains(row))
+            var row = rows[i];
+            if (!items.TryGetValue(row, out var bound) || !ReferenceEquals(bound, item) || !sync.Sheet.Contains(row))
             {
                 continue;
             }
@@ -509,6 +521,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
 
         rows.InsertRange(position, inserted);
+        members.UnionWith(inserted);
     }
 
     private void RemoveRowsAt(int position, int count)
@@ -523,6 +536,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             }
         }
 
+        members.ExceptWith(rows.GetRange(position, count));
         rows.RemoveRange(position, count);
         if (rows.Count == 0)
         {
@@ -547,7 +561,8 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             }
         }
 
-        return (index + count < sheet.RowCount) && ReferenceEquals(sheet.Rows[index + count], rows[0]) ? 0 : -1;
+        // A row between two lists joins the upper one only
+        return (index + count < sheet.RowCount) && ReferenceEquals(sheet.Rows[index + count], rows[0]) && ((index == 0) || !sheet.IsListRow(sheet.Rows[index - 1])) ? 0 : -1;
     }
 
     private int PositionOf(SheetRow row)

@@ -19,6 +19,24 @@ public sealed class SheetStructureTests
     }
 
     [Fact]
+    public void NoRowsOrColumnsChangeNothing()
+    {
+        var sheet = new Sheet(6, 6);
+        sheet.Range("A2:F5").Configure(c => c.Kind = CellKind.Number);
+        var rules = sheet.Rules.Count;
+        var changes = 0;
+        sheet.Changed += (_, _) => changes++;
+
+        sheet.InsertRows(5, 0);
+        sheet.InsertColumns(3, 0);
+        sheet.DeleteRows(2, 0);
+        sheet.DeleteColumns(2, 0);
+
+        Assert.Equal(rules, sheet.Rules.Count);
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
     public void InsertRowsMovesRulesBelowTheInsertPoint()
     {
         var sheet = new Sheet(5, 2);
@@ -49,6 +67,23 @@ public sealed class SheetStructureTests
         Assert.False(sheet.GetSettings(3, 0).ReadOnly);
         Assert.Equal(40, sheet.Rows[3].Height);
         Assert.Equal(CellKind.Text, sheet.GetSettings(4, 0).Kind);
+    }
+
+    [Fact]
+    public void RowsAddedNextToARuleStretchIt()
+    {
+        var sheet = new Sheet(3, 2);
+        sheet.Configure(CellRange.Parse("A1:B3"), c => c.Kind = CellKind.Number);
+
+        for (var i = 0; i < 5; i++)
+        {
+            sheet.AddRows(1);
+        }
+
+        sheet.InsertRows(0, 2);
+
+        Assert.Equal(CellRange.Parse("A1:B10"), Assert.Single(sheet.Rules).Range);
+        Assert.Equal(CellKind.Number, sheet.GetSettings(9, 1).Kind);
     }
 
     [Fact]

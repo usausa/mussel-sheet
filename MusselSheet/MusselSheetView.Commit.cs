@@ -149,15 +149,20 @@ public sealed partial class MusselSheetView
     // optimistic: the user has left the cell, so a Stay error is stored with a mark; batch makes one undo step
     private async Task<CommitResult> ApplyAsync(int row, int column, CommitDraft draft, bool optimistic, CellChangeReason reason, List<CellChange>? batch = null)
     {
-        var settings = Sheet.GetSettings(row, column);
-        var address = new CellAddress(row, column);
+        var (sheetRow, sheetColumn) = (Sheet.Rows[row], Sheet.Columns[column]);
         var (value, error) = (draft.Value, draft.Error);
-        var committing = new CellCommittingEventArgs(Sheet, address, draft.Text, value, error, reason);
+        var committing = new CellCommittingEventArgs(Sheet, new CellAddress(row, column), draft.Text, value, error, reason);
         await HandleAsync(CellCommitting, committing).ConfigureAwait(true);
-        if (!IsEditable(row, column))
+
+        // The handler can insert or delete rows and columns, so the cell is found again
+        if (!Sheet.Contains(sheetRow) || !Sheet.Contains(sheetColumn) || !IsEditable(sheetRow.Index, sheetColumn.Index))
         {
             return Rejected;
         }
+
+        (row, column) = (sheetRow.Index, sheetColumn.Index);
+        var settings = Sheet.GetSettings(row, column);
+        var address = new CellAddress(row, column);
 
         if (committing.Cancel)
         {

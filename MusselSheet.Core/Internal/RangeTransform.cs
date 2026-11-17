@@ -150,7 +150,18 @@ internal static class RangeTransform
             return;
         }
 
-        result.Add(rule with { Range = WithSpan(rule.Range, axis, index, index + count - 1) });
+        if (index == end + 1)
+        {
+            result[^1] = rule with { Range = WithSpan(rule.Range, axis, start, end + count) };
+        }
+        else if (index + count == start)
+        {
+            result[^1] = rule with { Range = WithSpan(rule.Range, axis, index, end) };
+        }
+        else
+        {
+            result.Add(rule with { Range = WithSpan(rule.Range, axis, index, index + count - 1) });
+        }
     }
 
     private static (int Start, int End) GetSpan(CellRange range, Axis axis) =>

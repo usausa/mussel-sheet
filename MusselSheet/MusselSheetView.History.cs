@@ -41,20 +41,23 @@ public sealed partial class MusselSheetView
         CellRange? target = null;
         var reason = redo ? CellChangeReason.Redo : CellChangeReason.Undo;
         var changes = redo ? entry.Changes : entry.Changes.Reverse();
-        foreach (var change in changes)
+        using (Sheet.BeginUpdate())
         {
-            if (!TryLocate(change, out var row, out var column))
+            foreach (var change in changes)
             {
-                continue;
-            }
+                if (!TryLocate(change, out var row, out var column))
+                {
+                    continue;
+                }
 
-            var snapshot = redo ? change.After : change.Before;
-            var old = Sheet.GetValue(row, column);
-            Sheet.SetInput(row, column, snapshot.Value, snapshot.Input, snapshot.Error);
-            target = target is { } t
-                ? new CellRange(Math.Min(t.Top, row), Math.Min(t.Left, column), Math.Max(t.Bottom, row), Math.Max(t.Right, column))
-                : CellRange.Cell(row, column);
-            await HandleAsync(CellCommitted, new CellCommittedEventArgs(Sheet, new CellAddress(row, column), old, snapshot.Value, snapshot.Error, reason)).ConfigureAwait(true);
+                var snapshot = redo ? change.After : change.Before;
+                var old = Sheet.GetValue(row, column);
+                Sheet.SetInput(row, column, snapshot.Value, snapshot.Input, snapshot.Error);
+                target = target is { } t
+                    ? new CellRange(Math.Min(t.Top, row), Math.Min(t.Left, column), Math.Max(t.Bottom, row), Math.Max(t.Right, column))
+                    : CellRange.Cell(row, column);
+                await HandleAsync(CellCommitted, new CellCommittedEventArgs(Sheet, new CellAddress(row, column), old, snapshot.Value, snapshot.Error, reason)).ConfigureAwait(true);
+            }
         }
 
         // Reselects the whole area of a range operation, or the changed cells if a corner row or column is gone
