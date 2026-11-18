@@ -18,7 +18,7 @@ public sealed partial class MusselSheetView
             return Task.FromResult(Rejected);
         }
 
-        var current = Sheet.TryGetValue<bool>(row, column, out var flag) && flag;
+        var current = CellText.IsChecked(Sheet.GetValue(row, column));
         return CommitCoreAsync(row, column, current ? "false" : "true", true, CellChangeReason.Toggle);
     }
 
@@ -93,7 +93,7 @@ public sealed partial class MusselSheetView
 
     private static bool IsTextKind(CellKind kind) => kind is CellKind.Text or CellKind.Mask or CellKind.AutoComplete or CellKind.List;
 
-    private Task<CommitResult> CommitValueAsync(int row, int column, object? value)
+    private Task<CommitResult> CommitValueAsync(int row, int column, object? value, bool optimistic)
     {
         if (!IsEditable(row, column))
         {
@@ -111,7 +111,7 @@ public sealed partial class MusselSheetView
         var error = CellInput.Validate(value, text, settings, InputContext);
         error = error is null ? RunValidator(settings, row, column, value, text) : settings.ErrorMessage ?? error;
         error ??= BindingError(row, column, value);
-        return ApplyAsync(row, column, new CommitDraft(text, value, true, error, null), false, CellChangeReason.Input);
+        return ApplyAsync(row, column, new CommitDraft(text, value, true, error, null), optimistic, CellChangeReason.Input);
     }
 
     private string? RunValidator(ResolvedCellSettings settings, int row, int column, object? value, string text) =>
@@ -193,16 +193,20 @@ public sealed partial class MusselSheetView
         // Nothing to do when value and error are unchanged; a different typed text alone is not a change
         var before = Sheet.GetSnapshot(row, column);
         var after = new CellSnapshot(value, draft.Input, error);
-        if (Equals(before.Value, after.Value) && string.Equals(before.Error, after.Error, StringComparison.Ordinal))
+        if (Equals(before.Value, after.Value) && String.Equals(before.Error, after.Error, StringComparison.Ordinal))
         {
             return new CommitResult(error is null, error, true);
         }
 
+        var generation = history.Generation;
         Sheet.SetInput(row, column, after.Value, after.Input, after.Error);
-        var change = new CellChange(Sheet.Rows[row], Sheet.Columns[column], before, after);
+        var change = new CellChange(sheetRow, sheetColumn, before, after);
         if (batch is null)
         {
-            history.Record(new CellsEdited([change]));
+            if (generation == history.Generation)
+            {
+                history.Record(new CellsEdited([change]));
+            }
         }
         else
         {

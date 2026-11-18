@@ -5,15 +5,13 @@ using System.Runtime.CompilerServices;
 // Tracks rows by object and remembers removed ones weakly for undo; a growing region also takes rows inserted next to it
 internal sealed class TrackedRows
 {
-    private static readonly object Removed = new();
-
     private readonly List<SheetRow> rows;
 
     private readonly HashSet<SheetRow> set;
 
     private readonly bool region;
 
-    private ConditionalWeakTable<SheetRow, object>? removed;
+    private ConditionalWeakTable<SheetRow, object?>? removed;
 
     private TrackedRows(List<SheetRow> rows, bool region, bool all)
     {
@@ -44,11 +42,12 @@ internal sealed class TrackedRows
     public bool Contains(Sheet sheet, SheetRow row) => sheet.Contains(row) && (IsAll || set.Contains(row));
 
     // Null unless the rows still in the sheet are one run without a gap
-    public (int Top, int Bottom)? Run(Sheet sheet)
+    public (int Top, int Bottom)? SpanWithoutGap(Sheet sheet)
     {
-        if (IsAll || (Span(sheet) is not { } span))
+        var whole = Span(sheet);
+        if (IsAll || (whole is not { } span))
         {
-            return Span(sheet);
+            return whole;
         }
 
         var count = 0;
@@ -70,7 +69,7 @@ internal sealed class TrackedRows
             return sheet.RowCount > 0 ? (0, sheet.RowCount - 1) : null;
         }
 
-        var (top, bottom) = (int.MaxValue, -1);
+        var (top, bottom) = (Int32.MaxValue, -1);
         foreach (var row in rows)
         {
             if (sheet.Contains(row))
@@ -138,7 +137,7 @@ internal sealed class TrackedRows
             else
             {
                 set.Remove(row);
-                (removed ??= new()).AddOrUpdate(row, Removed);
+                (removed ??= new()).AddOrUpdate(row, null);
             }
         }
 

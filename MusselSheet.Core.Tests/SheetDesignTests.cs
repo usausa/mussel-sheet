@@ -1,5 +1,7 @@
 namespace MusselSheet;
 
+using System.Text.Json;
+
 public sealed class SheetDesignTests
 {
     [Fact]
@@ -9,7 +11,7 @@ public sealed class SheetDesignTests
         var unknown = json.Replace("\"version\"", "\"characterConversions\": \"hiraganaToKatakana\", \"version\"", StringComparison.Ordinal);
 
         Assert.NotEqual(json, unknown);
-        Assert.Throws<System.Text.Json.JsonException>(() => SheetDesignJson.Read(unknown));
+        Assert.Throws<JsonException>(() => SheetDesignJson.Read(unknown));
     }
 
     [Fact]
@@ -93,7 +95,7 @@ public sealed class SheetDesignTests
         var sheet = new Sheet(1, 5);
         sheet.SetValue(0, 0, TimeSpan.FromHours(26));
         sheet.SetValue(0, 1, TimeSpan.FromHours(-1));
-        sheet.SetValue(0, 2, double.NaN);
+        sheet.SetValue(0, 2, Double.NaN);
         sheet.SetValue(0, 3, 1e30);
         sheet.SetValue(0, 4, 0.1f);
 
@@ -104,6 +106,21 @@ public sealed class SheetDesignTests
         Assert.Equal("NaN", copy.GetValue(0, 2));
         Assert.Equal("1E+30", copy.GetValue(0, 3));
         Assert.Equal(0.1m, copy.GetValue(0, 4));
+    }
+
+    [Fact]
+    public void DatesAndTimesAreSavedAsDateAndTimeCellsHoldThem()
+    {
+        var sheet = new Sheet(1, 3);
+        sheet.SetValue(0, 0, new DateTime(2026, 11, 18, 10, 30, 15));
+        sheet.SetValue(0, 1, new TimeOnly(9, 30, 15, 500));
+        sheet.SetValue(0, 2, new TimeSpan(0, 9, 30, 15, 500));
+
+        var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(sheet.ToDesign(includeValues: true))));
+
+        Assert.Equal(new DateOnly(2026, 11, 18), copy.GetValue(0, 0));
+        Assert.Equal(new TimeOnly(9, 30, 15), copy.GetValue(0, 1));
+        Assert.Equal(new TimeOnly(9, 30, 15), copy.GetValue(0, 2));
     }
 
     [Fact]

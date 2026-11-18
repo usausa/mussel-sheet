@@ -25,7 +25,7 @@ catch (JSException)
 {
 }
 
-var culture = CultureInfo.GetCultureInfo(SupportedCultures.Names.FirstOrDefault(x => string.Equals(x, name, StringComparison.Ordinal)) ?? SupportedCultures.Names[0]);
+var culture = CultureInfo.GetCultureInfo(SupportedCultures.Names.FirstOrDefault(x => String.Equals(x, name, StringComparison.Ordinal)) ?? SupportedCultures.Names[0]);
 CultureInfo.DefaultThreadCurrentCulture = culture;
 CultureInfo.DefaultThreadCurrentUICulture = culture;
 

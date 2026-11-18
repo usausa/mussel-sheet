@@ -72,7 +72,7 @@ public sealed class Order : INotifyPropertyChanged
 
     private void OnLineChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (string.IsNullOrEmpty(e.PropertyName) || (e.PropertyName == nameof(OrderLine.Amount)))
+        if (String.IsNullOrEmpty(e.PropertyName) || (e.PropertyName == nameof(OrderLine.Amount)))
         {
             OnChanged(nameof(Total));
         }

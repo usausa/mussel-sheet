@@ -44,10 +44,10 @@ public sealed partial class MusselSheetView
     }
 
     private string MapSignature() =>
-        string.Create(CultureInfo.InvariantCulture, $"{RuntimeHelpers.GetHashCode(Sheet)}|{Sheet.StructureVersion}|{HeaderHeight}|{HeaderWidth}|{ValidationMode}");
+        String.Create(CultureInfo.InvariantCulture, $"{RuntimeHelpers.GetHashCode(Sheet)}|{Sheet.StructureVersion}|{HeaderHeight}|{HeaderWidth}|{ValidationMode}");
 
     private string LanguageSignature() =>
-        string.Create(CultureInfo.InvariantCulture, $"{RuntimeHelpers.GetHashCode(Options)}|{RuntimeHelpers.GetHashCode(Sheet.Culture)}|{CultureInfo.CurrentUICulture.Name}|{Today}");
+        String.Create(CultureInfo.InvariantCulture, $"{RuntimeHelpers.GetHashCode(Options)}|{RuntimeHelpers.GetHashCode(Sheet.Culture)}|{CultureInfo.CurrentUICulture.Name}|{Today}");
 
     private SheetMap BuildMap() => SheetMapBuilder.Build(Sheet, HeaderHeight, HeaderWidth, ValidationMode, InputContext);
 
@@ -65,7 +65,7 @@ public sealed partial class MusselSheetView
         try
         {
             var language = LanguageSignature();
-            if (!string.Equals(sentLanguage, language, StringComparison.Ordinal))
+            if (!String.Equals(sentLanguage, language, StringComparison.Ordinal))
             {
                 sentLanguage = language;
                 await current.InvokeVoidAsync("setLanguage", SheetScriptJson.ToElement(BuildLanguage())).ConfigureAwait(true);
@@ -76,7 +76,7 @@ public sealed partial class MusselSheetView
             }
 
             var map = MapSignature();
-            if (!string.Equals(sentMap, map, StringComparison.Ordinal))
+            if (!String.Equals(sentMap, map, StringComparison.Ordinal))
             {
                 sentMap = map;
                 List<ScriptShift> shifts = [.. pendingShifts];

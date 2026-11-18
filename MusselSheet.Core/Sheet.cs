@@ -178,12 +178,14 @@ public sealed partial class Sheet
             StructureVersion++;
         }
 
-        NotifyBindings(e);
-        NotifyComputations(e);
+        // Before the bindings, which can change the structure again inside, so the view gets the changes in their order
         if (e.Kind is SheetChangeKind.RowsInserted or SheetChangeKind.RowsDeleted or SheetChangeKind.ColumnsInserted or SheetChangeKind.ColumnsDeleted)
         {
             Restructured?.Invoke(this, e);
         }
+
+        NotifyBindings(e);
+        NotifyComputations(e);
 
         if (updateDepth > 0)
         {

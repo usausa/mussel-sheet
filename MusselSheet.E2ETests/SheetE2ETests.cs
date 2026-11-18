@@ -180,7 +180,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
 
         // 1,000 rows x 49 columns (about 330KB) exceeds Interactive Server's 32KB message limit, so it is streamed
         await sample.Cell(0, 1).ClickAsync();
-        var text = string.Concat(Enumerable.Range(0, 1000).Select(r => string.Join('\t', Enumerable.Range(0, 49).Select(c => (r * 1000) + c)) + "\r\n"));
+        var text = String.Concat(Enumerable.Range(0, 1000).Select(r => String.Join('\t', Enumerable.Range(0, 49).Select(c => (r * 1000) + c)) + "\r\n"));
         await sample.DispatchClipboardAsync("paste", text);
 
         await Expect(sample.Log.First).ToHaveTextAsync("AX1000 Paste: 49000 → 999048");
@@ -476,7 +476,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Keyboard.PressAsync("Shift+Home");
         await Expect(sample.Selection).ToHaveTextAsync("Selection: A9002:AT9002");
         await sample.DispatchClipboardAsync("copy", null);
-        var expected = string.Join('\t', ["Row 9002", .. Enumerable.Range(1, 45).Select(c => (9002 * c).ToString(CultureInfo.InvariantCulture))]) + "\r\n";
+        var expected = String.Join('\t', ["Row 9002", .. Enumerable.Range(1, 45).Select(c => (9002 * c).ToString(CultureInfo.InvariantCulture))]) + "\r\n";
         await sample.WaitForClipboardAsync(expected);
     }
 
@@ -1316,6 +1316,25 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
+    public async Task CtrlHomeAndCtrlEndTypedWhileACommitWaitsGoToTheEndsOfTheText()
+    {
+        var sample = await OpenHoldingCommitsAsync();
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("12");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Keyboard.TypeAsync("34");
+        await sample.Keyboard.PressAsync("Control+Home");
+        await sample.Keyboard.TypeAsync("5");
+        await sample.Keyboard.PressAsync("Control+Shift+End");
+        await sample.Keyboard.TypeAsync("6");
+        await sample.ReleaseCommitAsync(0);
+
+        await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync("56");
+    }
+
+    [Fact]
     public async Task F2AndTextTypedWhileACommitWaitsAddToTheNextValue()
     {
         var sample = await OpenHoldingCommitsAsync();
@@ -1346,6 +1365,29 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.ReleaseCommitAsync(0);
 
         await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync("92");
+    }
+
+    [Fact]
+    public async Task ArrowsReplayedWhileEditingMoveOverASurrogatePairAtOnce()
+    {
+        var sample = await OpenHoldingCommitsAsync();
+        await sample.Cell(1, 0).ClickAsync();
+        await sample.Keyboard.TypeAsync("a\U00020BB7");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.ReleaseCommitAsync(0);
+        await Expect(sample.Cell(1, 0)).ToHaveTextAsync("a\U00020BB7");
+
+        await sample.Cell(0, 0).ClickAsync();
+        await sample.Keyboard.TypeAsync("12");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.WaitForHeldCommitsAsync(2);
+        await sample.Keyboard.PressAsync("F2");
+        await sample.Keyboard.PressAsync("ArrowLeft");
+        await sample.Keyboard.TypeAsync("9");
+        await sample.ReleaseCommitAsync(1);
+
+        await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync("a9\U00020BB7");
     }
 
     [Theory]
@@ -1478,6 +1520,23 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
 
         await Expect(sample.Cell(3, 1)).ToHaveTextAsync("9");
         await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B4");
+    }
+
+    [Fact]
+    public async Task FocusLeavingACustomEditorCommitsAndStaysWhereItWent()
+    {
+        var sample = await OpenAsync("customization", "server");
+        await Expect(sample.Cell(1, 1)).ToHaveTextAsync("#1a73e8");
+        await sample.Cell(1, 1).ClickAsync();
+        await sample.Keyboard.PressAsync("F2");
+        await Expect(sample.Page.Locator(".custom-choices")).ToBeVisibleAsync();
+        var header = sample.Page.Locator(".sample-source .mud-expand-panel-header").First;
+
+        await header.ClickAsync();
+
+        await Expect(sample.Page.Locator(".custom-choices")).ToHaveCountAsync(0);
+        await Expect(header).ToBeFocusedAsync();
+        await Expect(sample.Cell(1, 1)).ToHaveTextAsync("#1a73e8");
     }
 
     [Theory]
@@ -1698,6 +1757,43 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
+    public async Task ATabCommandOnAnotherKeyLeavesTheSheetAtTheRowEnd()
+    {
+        // No sample uses LeaveSheet or another key for TabNext, so the options C# sends are changed in the browser
+        var sample = opened = await app.OpenBlankAsync();
+        await sample.Page.AddInitScriptAsync(
+            """
+            (() => {
+                const parse = JSON.parse;
+                JSON.parse = function (text, reviver) {
+                    const value = parse.call(this, text, reviver);
+                    for (const item of Array.isArray(value) ? value : []) {
+                        if (item && (typeof item === 'object') && ('rowEnd' in item)) {
+                            item.rowEnd = 'leave';
+                            item.readyKeys = { ...item.readyKeys, ENTER: 'tabNext' };
+                            item.editingKeys = { ...item.editingKeys, ENTER: 'tabNext' };
+                        }
+                    }
+                    return value;
+                };
+            })();
+            """);
+        await sample.Page.GotoAsync($"{app.BaseAddress}render-mode/{ForcedMode ?? "server"}?redirect=%2Fcustomization");
+        await sample.WaitForSheetAsync();
+        var left = "() => { const active = document.activeElement; return !!active && (active !== document.body) && !active.closest('.mussel-sheet'); }";
+
+        await sample.Cell(4, 1).ClickAsync();
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.Page.WaitForFunctionAsync(left, null, new() { Timeout = 5000 });
+
+        await sample.Cell(4, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("x");
+        await sample.Keyboard.PressAsync("Enter");
+        await sample.Page.WaitForFunctionAsync(left, null, new() { Timeout = 5000 });
+        await Expect(sample.Cell(4, 1)).ToHaveTextAsync("x");
+    }
+
+    [Fact]
     public async Task AWrongPasteStaysInTheCellWithAMessage()
     {
         var sample = await OpenAsync("cell-kinds", "server");
@@ -1834,7 +1930,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
-    public async Task TheRootLosesItsMarkWhenTheSheetIsDisposed()
+    public async Task TheRootLosesItsMarkAndTheElementsOfTheScriptWhenTheSheetIsDisposed()
     {
         var sample = await OpenAsync("form", "server");
         await sample.Page.EvaluateAsync("() => { window.firstRoot = document.querySelector('.mussel-sheet[data-attached]'); }");
@@ -1843,6 +1939,44 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.WaitForSheetAsync();
 
         await sample.Page.WaitForFunctionAsync("() => !window.firstRoot.isConnected && !window.firstRoot.hasAttribute('data-attached')");
+        Assert.Equal(0, await sample.Page.EvaluateAsync<int>("() => window.firstRoot.querySelectorAll('.mussel-sheet-fill, .mussel-sheet-fill-range, .mussel-sheet-selection, .mussel-sheet-active, .mussel-sheet-sink').length"));
+    }
+
+    [Fact]
+    public async Task AClickOnARowDrawnBeforeTheMapIsIgnored()
+    {
+        var sample = await OpenAsync(string.Empty, "server");
+        var errors = new List<string>();
+        sample.Page.PageError += (_, error) => errors.Add(error);
+        await sample.Cell(1, 1).ClickAsync();
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B2");
+
+        await sample.Page.EvaluateAsync(
+            """
+            () => {
+                const rows = document.querySelectorAll('.mussel-sheet-row[data-r]');
+                const row = rows[rows.length - 1];
+                row.dataset.r = '999';
+                row.querySelector('.mussel-sheet-cell').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+            }
+            """);
+        await sample.Page.EvaluateAsync("() => new Promise((resolve) => setTimeout(resolve, 100))");
+
+        Assert.Empty(errors);
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B2");
+    }
+
+    [Fact]
+    public async Task ASmallerSheetMovesTheActiveCellOfCSharpToo()
+    {
+        var sample = await OpenAsync("large-sheets?rows=10000", "server");
+        await sample.Cell(1, 1).ClickAsync();
+        await sample.Keyboard.PressAsync("Control+ArrowDown");
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B10000");
+
+        await sample.Page.GetByRole(AriaRole.Link, new() { Name = "1,000 rows x 50 columns" }).ClickAsync();
+
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B1000");
     }
 
     private async Task<SamplePage> OpenHoldingCommitsAsync()

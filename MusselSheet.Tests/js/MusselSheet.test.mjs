@@ -44,6 +44,8 @@ import {
     lineStartOf,
     deleteSize,
     currentItem,
+    shiftSelection,
+    lineCaret,
 } from '../../MusselSheet/wwwroot/MusselSheet.js';
 
 // What C# produces for each language: AddedLanguageTests checks that this file is up to date
@@ -670,11 +672,13 @@ test('numbers follow the sheet culture for the decimal and group separators, and
     assert.equal(formatDate({ y: 2025, m: 11, d: 5 }), '2025/11/05');
 });
 
-test('keys are written in the order Ctrl, Alt, Shift, with one-character keys in upper case and a space as Space', () => {
+test('keys are written in the order Ctrl, Alt, Shift, with the key in upper case and a space as SPACE', () => {
     assert.equal(comboOf({ key: 'd', ctrl: true, alt: false, shift: false }), 'Ctrl+D');
-    assert.equal(comboOf({ key: 'Enter', ctrl: true, alt: false, shift: true }), 'Ctrl+Shift+Enter');
+    assert.equal(comboOf({ key: 'Enter', ctrl: true, alt: false, shift: true }), 'Ctrl+Shift+ENTER');
     assert.equal(comboOf({ key: 'F4', ctrl: false, alt: false, shift: false }), 'F4');
-    assert.equal(comboOf({ key: ' ', ctrl: false, alt: true, shift: false }), 'Alt+Space');
+    assert.equal(comboOf({ key: ' ', ctrl: false, alt: true, shift: false }), 'Alt+SPACE');
+    assert.equal(comboOf({ key: 'Pause', ctrl: true, alt: false, shift: false }), 'Ctrl+PAUSE');
+    assert.equal(comboOf({ key: 'F13', ctrl: false, alt: false, shift: false }), 'F13');
 });
 
 test('the context menu leaves out hidden built-in items and adds the items of the app at the end', () => {
@@ -853,10 +857,25 @@ test('the current list item is found whatever the width of the text', () => {
     assert.equal(currentItem(items, ' tokyo '), 1);
 });
 
+test('suggestions match letter by letter in lower case and trim the same as the commit', () => {
+    const greek = items(['x', 'οδοσ'], ['y', 'οδος']);
+    assert.deepEqual(filterItems(greek, 'ΟΔΟΣ').map(x => x.text), ['οδοσ']);
+    assert.equal(filterItems(items(['s', '営業部']), String.fromCharCode(0x85) + '営業').length, 1);
+    assert.equal(currentItem([{ text: 'tokyo', value: 't' }], String.fromCharCode(0x85) + 'tokyo'), 0);
+});
+
 test('list items match letter by letter in lower case, the same as the commit', () => {
+    const dotted = 'i' + String.fromCharCode(0x307);
+    const capital = String.fromCharCode(0x130);
     assert.equal(currentItem([{ text: 'οδος', value: 'x' }], 'ΟΔΟΣ'), -1);
     assert.equal(currentItem([{ text: 'οδοσ', value: 'x' }], 'ΟΔΟΣ'), 0);
-    assert.equal(currentItem([{ text: 'i' + String.fromCharCode(0x307), value: 'x' }], String.fromCharCode(0x130)), -1);
+    assert.equal(currentItem([{ text: dotted, value: 'x' }], capital), -1);
+    assert.equal(checkInput({ kind: 'list', items: items(['x', 'οδος']) }, 'ΟΔΟΣ', messages).error, messages.list);
+    assert.equal(checkInput({ kind: 'list', items: items(['x', 'οδοσ']) }, 'ΟΔΟΣ', messages).error, null);
+    assert.equal(checkInput({ kind: 'list', items: items(['x', dotted]) }, capital, messages).error, messages.list);
+    assert.equal(filterItems(items(['x', 'οδος']), 'ΟΔΟΣ').length, 0);
+    assert.equal(filterItems(items(['x', 'οδοσ']), 'ΟΔΟΣ').length, 1);
+    assert.equal(filterItems(items(['x', dotted]), capital).length, 0);
 });
 
 test('cells follow rows and columns the app inserts or deletes', () => {
@@ -865,4 +884,39 @@ test('cells follow rows and columns the app inserts or deletes', () => {
     assert.deepEqual(shiftCell({ r: 4, c: 1 }, { axis: 'row', index: 3, count: -1 }), { r: 3, c: 1 });
     assert.deepEqual(shiftCell({ r: 4, c: 1 }, { axis: 'row', index: 3, count: -2 }), { r: 3, c: 1, lost: true });
     assert.deepEqual(shiftCell({ r: 4, c: 3 }, { axis: 'col', index: 0, count: -2 }), { r: 4, c: 1 });
+});
+
+test('the column where a Tab run started follows the columns the app inserts or deletes', () => {
+    const at = { row: 1, col: 3, anchor: { r: 1, c: 3 }, extent: { r: 1, c: 3 }, tabStartCol: 1 };
+    assert.equal(shiftSelection(at, [{ axis: 'col', index: 0, count: 2 }], 5, 8).tabStartCol, 3);
+    assert.equal(shiftSelection(at, [{ axis: 'col', index: 2, count: 1 }], 5, 8).tabStartCol, 1);
+    assert.equal(shiftSelection(at, [{ axis: 'col', index: 1, count: -1 }], 5, 8).tabStartCol, -1);
+    assert.equal(shiftSelection(at, [{ axis: 'row', index: 0, count: 1 }], 5, 8).tabStartCol, 1);
+    assert.equal(shiftSelection({ ...at, tabStartCol: 6 }, [], 5, 4).tabStartCol, -1);
+    assert.equal(shiftSelection({ ...at, tabStartCol: -1 }, [{ axis: 'col', index: 0, count: 2 }], 5, 8).tabStartCol, -1);
+});
+
+test('a caret moved to another line never stops inside a surrogate pair', () => {
+    const value = 'ab\n\u{20BB7}\u{20BB7}\nc';
+    assert.equal(lineCaret(value, 1, false), 3);
+    assert.equal(lineCaret(value, 2, false), 5);
+    assert.equal(lineCaret(value, 9, true), 3);
+    assert.equal(lineCaret(value, 5, true), 2);
+    assert.equal(lineCaret(value, 0, true), 0);
+    assert.equal(lineCaret(value, 8, false), 9);
+});
+
+test('the active cell of a deleted last row or column stays inside the sheet', () => {
+    assert.deepEqual(
+        shiftSelection({ row: 4, col: 1, anchor: { r: 4, c: 1 }, extent: { r: 4, c: 2 } }, [{ axis: 'row', index: 4, count: -1 }], 4, 3),
+        { row: 3, col: 1, anchor: { r: 3, c: 1 }, extent: { r: 3, c: 2 }, lost: true, tabStartCol: -1 });
+    assert.deepEqual(
+        shiftSelection({ row: 1, col: 2, anchor: { r: 1, c: 2 }, extent: { r: 1, c: 2 } }, [{ axis: 'col', index: 2, count: -1 }], 5, 2),
+        { row: 1, col: 1, anchor: { r: 1, c: 1 }, extent: { r: 1, c: 1 }, lost: true, tabStartCol: -1 });
+    assert.deepEqual(
+        shiftSelection({ row: 2, col: 0, anchor: { r: 2, c: 0 }, extent: { r: 2, c: 0 } }, [{ axis: 'row', index: 0, count: 1 }], 4, 3),
+        { row: 3, col: 0, anchor: { r: 3, c: 0 }, extent: { r: 3, c: 0 }, lost: false, tabStartCol: -1 });
+    assert.deepEqual(
+        shiftSelection({ row: 6, col: 4, anchor: { r: 6, c: 4 }, extent: { r: 6, c: 4 } }, [], 3, 2),
+        { row: 2, col: 1, anchor: { r: 2, c: 1 }, extent: { r: 2, c: 1 }, lost: true, tabStartCol: -1 });
 });

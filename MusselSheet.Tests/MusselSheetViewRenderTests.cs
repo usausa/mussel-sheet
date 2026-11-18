@@ -106,6 +106,22 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Fact]
+    public async Task RowsTheAppChangesWhileABindingFollowsAChangeAreSentInTheirOrder()
+    {
+        var order = new Order { Lines = [new Line { Name = "a" }, new Line { Name = "b" }] };
+        var sheet = new Sheet(8, 1);
+        using var binding = sheet.Bind(order).Rows("A1:A2", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        order.Lines.CollectionChanged += (_, _) => sheet.InsertRows(6, 1);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var sent = JSInterop.Invocations["setMap"].Count;
+
+        await cut.InvokeAsync(() => sheet.DeleteRows(0, 1));
+
+        await cut.WaitForAssertionAsync(() => Assert.Equal(sent + 1, JSInterop.Invocations["setMap"].Count));
+        Assert.Equal("""[{"axis":"row","index":0,"count":-1},{"axis":"row","index":6,"count":1}]""", ((JsonElement)JSInterop.Invocations["setMap"][^1].Arguments[1]!).GetRawText());
+    }
+
+    [Fact]
     public async Task DisposingWhileTheMapIsSentEndsQuietly()
     {
         var module = JSInterop.SetupModule("./_content/MusselSheet/MusselSheet.js");
@@ -154,24 +170,27 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Fact]
-    public async Task DisposingWhileTheScriptIsAttachingEndsQuietly()
+    public async Task DisposingWhileTheScriptIsAttachingReleasesWhatAttachReturns()
     {
-        var runtime = new LateRuntime { Module = { Hold = "attach" } };
+        var instance = new LateModule();
+        var runtime = new LateRuntime { Module = { Hold = "attach", Returned = instance } };
         Services.AddSingleton<IJSRuntime>(runtime);
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(3, 3)));
         await cut.InvokeAsync(() => runtime.Import.SetResult(runtime.Module));
-        await cut.WaitForAssertionAsync(() => Assert.Contains("attach", runtime.Module.Calls));
+        await cut.WaitForAssertionAsync(() => Assert.Equal(["attach"], runtime.Module.Calls));
 
         await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
         await cut.InvokeAsync(runtime.Module.Resume.SetResult);
-        var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
 
+        await cut.WaitForAssertionAsync(() => Assert.True(instance.Released));
+        var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
         Assert.NotSame(Renderer.UnhandledException, ended);
-        Assert.DoesNotContain("timezoneOffset", runtime.Module.Calls);
+        Assert.Equal(["dispose"], instance.Calls);
+        Assert.True(runtime.Module.Released);
     }
 
     [Fact]
-    public async Task AViewDisposedWhileTheLanguageIsSentStops()
+    public async Task DisposingWhileTheLanguageIsSentStopsTheRest()
     {
         var runtime = new LateRuntime { Module = { Hold = "setLanguage" } };
         Services.AddSingleton<IJSRuntime>(runtime);

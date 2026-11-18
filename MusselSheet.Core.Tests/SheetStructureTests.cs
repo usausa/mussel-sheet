@@ -408,7 +408,7 @@ public sealed class SheetStructureTests
     }
 
     [Fact]
-    public void PutRowsDropsValuesWhenColumnsChanged()
+    public void PutRowsKeepsTheValuesOfTheColumnsThatRemain()
     {
         var sheet = new Sheet(2, 1);
         var row = sheet.Rows[1];
@@ -418,8 +418,23 @@ public sealed class SheetStructureTests
 
         sheet.PutRows(1, [row], sheet.Rules.ToArray(), []);
 
-        Assert.Null(sheet.GetValue(1, 0));
+        Assert.Equal("x", sheet.GetValue(1, 0));
         Assert.Null(sheet.GetValue(1, 1));
+    }
+
+    [Fact]
+    public void PutRowsPutsTheValuesIntoTheirColumnsWhenTheColumnsMoved()
+    {
+        var sheet = new Sheet(2, 3);
+        var row = sheet.Rows[1];
+        sheet.SetValues(1, 0, [["a", "b", "c"]]);
+        sheet.DeleteRows(1, 1);
+        sheet.InsertColumns(0, 1);
+        sheet.DeleteColumns(2, 1);
+
+        sheet.PutRows(1, [row], sheet.Rules.ToArray(), []);
+
+        Assert.Equal([null, "a", "c"], Enumerable.Range(0, 3).Select(x => sheet.GetValue(1, x)));
     }
 
     [Fact]

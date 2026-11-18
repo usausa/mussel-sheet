@@ -1,5 +1,6 @@
 namespace MusselSheet.Internal;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 internal static class CellText
@@ -44,7 +45,7 @@ internal static class CellText
 
         return settings.Kind switch
         {
-            CellKind.Number => FormatNumber(value, "G", culture),
+            CellKind.Number => FormatNumber(EditNumber(value), "G", culture),
             CellKind.Date => FormatDate(value, reading.EditDateFormat, culture, reading.Dates, EditFormatBeforeEras),
             CellKind.Time => FormatTime(value, HasSeconds(value) ? "HH:mm:ss" : DefaultTimeFormat, culture),
             CellKind.Checkbox => IsTrue(value) ? "true" : "false",
@@ -113,12 +114,15 @@ internal static class CellText
         }
     }
 
-    internal static decimal ToDecimal(object value) => value switch
-    {
-        double number => decimal.Parse(number.ToString("G15", CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture),
-        float number => decimal.Parse(number.ToString("G7", CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture),
-        _ => Convert.ToDecimal(value, CultureInfo.InvariantCulture)
-    };
+    internal static decimal ToDecimal(object value) =>
+        value is double or float ? Decimal.Parse(DecimalText(value), NumberStyles.Float, CultureInfo.InvariantCulture) : Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+
+    // The edit text takes no exponent, so a double or float is written as the decimal it reads as
+    private static object EditNumber(object value) =>
+        (value is double or float) && Decimal.TryParse(DecimalText(value), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : value;
+
+    private static string DecimalText(object value) =>
+        value is double number ? number.ToString("G15", CultureInfo.InvariantCulture) : ((float)value).ToString("G7", CultureInfo.InvariantCulture);
 
     public static string Format(IFormattable value, string format, CultureInfo culture)
     {
@@ -132,11 +136,10 @@ internal static class CellText
         }
     }
 
-    private static string FormatNumber(object value, string format, CultureInfo culture) => value switch
-    {
-        decimal or double or float or int or long or short or byte or uint or ulong or ushort or sbyte => Format((IFormattable)value, format, culture),
-        _ => Convert.ToString(value, culture) ?? string.Empty
-    };
+    internal static bool IsNumber([NotNullWhen(true)] object? value) => value is decimal or double or float or int or long or short or byte or uint or ulong or ushort or sbyte;
+
+    private static string FormatNumber(object value, string format, CultureInfo culture) =>
+        IsNumber(value) ? Format((IFormattable)value, format, culture) : Convert.ToString(value, culture) ?? string.Empty;
 
     public static string FormatDate(DateOnly date, string format, CultureInfo culture, DateRules dates, string? beforeEras = null) =>
         DateRules.IsEraFormat(format) ? dates.Format(date, format, culture, beforeEras) : Format(date, format, culture);
@@ -168,7 +171,7 @@ internal static class CellText
     private static bool IsTrue(object value) => value switch
     {
         bool flag => flag,
-        string text => string.Equals(text, "true", StringComparison.OrdinalIgnoreCase),
+        string text => String.Equals(text, "true", StringComparison.OrdinalIgnoreCase),
         _ => false
     };
 
@@ -177,7 +180,7 @@ internal static class CellText
         var text = Convert.ToString(value, culture) ?? string.Empty;
         foreach (var item in items)
         {
-            if (string.Equals(item.Value, text, StringComparison.Ordinal))
+            if (String.Equals(item.Value, text, StringComparison.Ordinal))
             {
                 return item.DisplayText;
             }

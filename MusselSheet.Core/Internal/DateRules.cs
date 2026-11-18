@@ -150,13 +150,13 @@ internal sealed partial class DateRules
         return CellInput.TryCreateDate(year, Number(match.Groups["month"].ValueSpan), Number(match.Groups["day"].ValueSpan), out date) && ((era is null) || (date >= era.Start));
     }
 
-    private static int Number(ReadOnlySpan<char> text) => int.Parse(text, provider: CultureInfo.InvariantCulture);
+    private static int Number(ReadOnlySpan<char> text) => Int32.Parse(text, provider: CultureInfo.InvariantCulture);
 
     private static string Alternatives(IEnumerable<string> items) =>
-        string.Join('|', items.Where(static x => x.Length > 0).OrderByDescending(static x => x.Length).Select(Literal));
+        String.Join('|', items.Where(static x => x.Length > 0).OrderByDescending(static x => x.Length).Select(Literal));
 
     private static string EitherCase(string text) =>
-        string.Concat(text.Select(static c => char.IsAsciiLetter(c) ? $"[{char.ToUpperInvariant(c)}{char.ToLowerInvariant(c)}]" : Literal(c.ToString())));
+        String.Concat(text.Select(static c => Char.IsAsciiLetter(c) ? $"[{Char.ToUpperInvariant(c)}{Char.ToLowerInvariant(c)}]" : Literal(c.ToString())));
 
     private static string Literal(string text) => SpecialCharacter().Replace(text, static x => $"\\{x.Value}");
 
@@ -272,7 +272,7 @@ internal sealed partial class DateRules
                     ? Alternatives(Eras.Select(static x => x.Name))
                     : count == 2
                         ? Alternatives(Eras.Select(static x => x.ShortName))
-                        : string.Join('|', Eras.Where(static x => x.Initial.Length > 0).Select(static x => EitherCase(x.Initial)));
+                        : String.Join('|', Eras.Where(static x => x.Initial.Length > 0).Select(static x => EitherCase(x.Initial)));
                 return eras.Length == 0 ? string.Empty : $"(?<{(count >= 3 ? "era" : count == 2 ? "short" : "initial")}>{eras})";
             case 'e':
                 var firstYear = FirstYear is { } first ? $"{Literal(first.Text)}|" : string.Empty;
@@ -284,7 +284,7 @@ internal sealed partial class DateRules
             case 'd':
                 return count >= 3 ? string.Empty : "(?<day>[0-9]{1,2})";
             case '/':
-                return string.Concat(Enumerable.Repeat("[/.-]", count));
+                return String.Concat(Enumerable.Repeat("[/.-]", count));
             case ' ':
                 return " *";
             default:

@@ -1,15 +1,8 @@
 namespace MusselSheet.Internal;
 
-// Same notation as comboOf in MusselSheet.js: Ctrl+Alt+Shift+key, a character upper-cased, a space as Space
+// Same notation as comboOf in MusselSheet.js: Ctrl+Alt+Shift+key, the key upper-cased, a space as SPACE
 internal static class KeyCombo
 {
-    private static readonly string[] Names =
-    [
-        "Enter", "Tab", "Escape", "Backspace", "Delete", "Insert", "Home", "End", "PageUp", "PageDown",
-        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ContextMenu", "Space",
-        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
-    ];
-
     public static Dictionary<string, string?> NormalizeAll(IDictionary<string, string?> keys)
     {
         var normalized = new Dictionary<string, string?>(keys.Count, StringComparer.Ordinal);
@@ -53,8 +46,8 @@ internal static class KeyCombo
             }
         }
 
-        var name = key.Length == 1 ? key.ToUpperInvariant() : Names.FirstOrDefault(x => x.Equals(key, StringComparison.OrdinalIgnoreCase)) ?? key;
-        return string.Concat(others)
+        var name = key.ToUpperInvariant();
+        return String.Concat(others)
             + (ctrl ? "Ctrl+" : string.Empty)
             + (alt ? "Alt+" : string.Empty)
             + (shift ? "Shift+" : string.Empty)

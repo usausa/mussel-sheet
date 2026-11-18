@@ -197,7 +197,7 @@ internal static class SheetDesigner
 
     // A value outside the range of decimal (NaN, infinity) is kept as its text
     private static (string Type, string Text) NumberOrText(string text) =>
-        decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out _) ? ("number", text) : ("text", text);
+        Decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out _) ? ("number", text) : ("text", text);
 
     private static SheetComputationDesign? ToComputation(Sheet sheet, SheetComputation computation, SheetFunctions? functions)
     {
@@ -214,7 +214,7 @@ internal static class SheetDesigner
                 return null;
             }
 
-            observed.Add(new SheetObservedDesign { Name = observation.Name, Range = string.Equals(range, observation.Name, StringComparison.OrdinalIgnoreCase) ? null : range });
+            observed.Add(new SheetObservedDesign { Name = observation.Name, Range = String.Equals(range, observation.Name, StringComparison.OrdinalIgnoreCase) ? null : range });
         }
 
         return new SheetComputationDesign
@@ -290,10 +290,10 @@ internal static class SheetDesigner
 
     private static object ToValue(CellValueDesign value) => value.Type.ToUpperInvariant() switch
     {
-        "NUMBER" => decimal.Parse(value.Value, NumberStyles.Number | NumberStyles.AllowExponent, CultureInfo.InvariantCulture),
+        "NUMBER" => Decimal.Parse(value.Value, NumberStyles.Number | NumberStyles.AllowExponent, CultureInfo.InvariantCulture),
         "DATE" => DateOnly.ParseExact(value.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture),
         "TIME" => TimeOnly.ParseExact(value.Value, "HH:mm:ss", CultureInfo.InvariantCulture),
-        "CHECK" => bool.Parse(value.Value),
+        "CHECK" => Boolean.Parse(value.Value),
         _ => value.Value
     };
 
@@ -314,7 +314,7 @@ internal static class SheetDesigner
             return time;
         }
 
-        return decimal.Parse(text, NumberStyles.Number, CultureInfo.InvariantCulture);
+        return Decimal.Parse(text, NumberStyles.Number, CultureInfo.InvariantCulture);
     }
 
     private static void Restore(Sheet sheet, SheetComputationDesign design, SheetFunctions? functions)
@@ -335,7 +335,7 @@ internal static class SheetDesigner
         where T : struct, Enum =>
         value is { } item ? Camel(item.ToString()) : null;
 
-    private static string Camel(string text) => string.Join(", ", text.Split(", ").Select(JsonNamingPolicy.CamelCase.ConvertName));
+    private static string Camel(string text) => String.Join(", ", text.Split(", ").Select(JsonNamingPolicy.CamelCase.ConvertName));
 
     private static T? Parse<T>(string? text)
         where T : struct, Enum =>

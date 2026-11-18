@@ -1,5 +1,11 @@
 namespace MusselSheet;
 
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.JSInterop;
+
 using MusselSheet.Internal;
 
 public sealed class CellStyleOutputTests : BunitContext
@@ -28,12 +34,59 @@ public sealed class CellStyleOutputTests : BunitContext
         { "no indent when centered", new CellStyle { HorizontalAlignment = HorizontalAlignment.Center, IndentLevel = 1 }, "text-align:center;" }
     };
 
+    [Fact]
+    public async Task PrerenderedRulesKeepTheirSelectorsAndSums()
+    {
+        var sheet = new Sheet(2, 2) { FrozenColumns = 1 };
+        sheet["B1"].Configure(static c => c.Style.IndentLevel = 1);
+        var services = new ServiceCollection().AddSingleton<IJSRuntime>(new LateRuntime()).BuildServiceProvider();
+        var renderer = new HtmlRenderer(services, NullLoggerFactory.Instance);
+        await using (services.ConfigureAwait(true))
+        await using (renderer.ConfigureAwait(true))
+        {
+            var html = await renderer.Dispatcher.InvokeAsync(async () =>
+            {
+                var output = await renderer.RenderComponentAsync<MusselSheetView>(ParameterView.FromDictionary(new Dictionary<string, object?> { [nameof(MusselSheetView.Sheet)] = sheet })).ConfigureAwait(true);
+                return output.ToHtmlString();
+            });
+
+            Assert.Contains(".mussel-sheet-row>.mussel-sheet-cell[data-c=\"0\"]", html, StringComparison.Ordinal);
+            Assert.Contains("calc(4px + 1em)", html, StringComparison.Ordinal);
+        }
+    }
+
     [Theory]
     [MemberData(nameof(ValueStyles))]
     public void StyleByValueBecomesAnInlineStyle(string name, CellStyle patch, string expected)
     {
         Assert.NotNull(name);
         Assert.Equal(expected, SheetStyles.GetValueStyle(new Sheet(1, 1).GetSettings(0, 0), patch));
+    }
+
+    public static TheoryData<string, CellKind, CellStyle, string?> IndentedValueStyles => new()
+    {
+        { "to the right", CellKind.Text, new CellStyle { HorizontalAlignment = HorizontalAlignment.Right }, "text-align:right;padding-left:4px;padding-right:calc(4px + 2em);" },
+        { "to the center", CellKind.Text, new CellStyle { HorizontalAlignment = HorizontalAlignment.Center }, "text-align:center;padding-left:4px;" },
+        { "to the right at its own level", CellKind.Text, new CellStyle { HorizontalAlignment = HorizontalAlignment.Right, IndentLevel = 1 }, "text-align:right;padding-left:4px;padding-right:calc(4px + 1em);" },
+        { "no level", CellKind.Text, new CellStyle { IndentLevel = 0 }, "padding-left:4px;" },
+        { "the same level", CellKind.Text, new CellStyle { IndentLevel = 2 }, null },
+        { "another level", CellKind.Text, new CellStyle { IndentLevel = 3 }, "padding-left:calc(4px + 3em);" },
+        { "a number to the left", CellKind.Number, new CellStyle { HorizontalAlignment = HorizontalAlignment.Left }, "text-align:left;padding-left:calc(4px + 2em);padding-right:4px;" }
+    };
+
+    [Theory]
+    [MemberData(nameof(IndentedValueStyles))]
+    public void StyleByValueMovesTheIndentOfTheCellToItsSide(string name, CellKind kind, CellStyle patch, string? expected)
+    {
+        Assert.NotNull(name);
+        var sheet = new Sheet(1, 1);
+        sheet["A1"].Configure(c =>
+        {
+            c.Kind = kind;
+            c.Style.IndentLevel = 2;
+        });
+
+        Assert.Equal(expected, SheetStyles.GetValueStyle(sheet.GetSettings(0, 0), patch));
     }
 
     public static TheoryData<CellBorder, string> Borders => new()

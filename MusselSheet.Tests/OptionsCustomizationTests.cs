@@ -32,10 +32,13 @@ public sealed class OptionsCustomizationTests : BunitContext
 
     [Theory]
     [InlineData("ctrl+d", "Ctrl+D")]
-    [InlineData("shift+ctrl+enter", "Ctrl+Shift+Enter")]
+    [InlineData("shift+ctrl+enter", "Ctrl+Shift+ENTER")]
     [InlineData("f4", "F4")]
-    [InlineData("Alt+arrowdown", "Alt+ArrowDown")]
-    [InlineData("space", "Space")]
+    [InlineData("Alt+arrowdown", "Alt+ARROWDOWN")]
+    [InlineData("space", "SPACE")]
+    [InlineData("Ctrl+Pause", "Ctrl+PAUSE")]
+    [InlineData("ctrl+pause", "Ctrl+PAUSE")]
+    [InlineData("f13", "F13")]
     [InlineData("Ctrl+;", "Ctrl+;")]
     [InlineData("Control+D", "Ctrl+D")]
     [InlineData("Meta+Shift+z", "Ctrl+Shift+Z")]
@@ -76,7 +79,7 @@ public sealed class OptionsCustomizationTests : BunitContext
         Assert.Equal(new CellAddress(1, 1), clicked.ActiveCell);
         Assert.Same(sheet, clicked.Sheet);
 
-        Assert.Equal("メモ", new SheetMenuItem { Name = "x", Text = "X", Texts = { ["ja"] = "メモ" } }.TextFor(System.Globalization.CultureInfo.GetCultureInfo("ja-JP")));
-        Assert.Equal("X", new SheetMenuItem { Name = "x", Text = "X" }.TextFor(System.Globalization.CultureInfo.GetCultureInfo("ja-JP")));
+        Assert.Equal("メモ", new SheetMenuItem { Name = "x", Text = "X", Texts = { ["ja"] = "メモ" } }.TextFor(CultureInfo.GetCultureInfo("ja-JP")));
+        Assert.Equal("X", new SheetMenuItem { Name = "x", Text = "X" }.TextFor(CultureInfo.GetCultureInfo("ja-JP")));
     }
 }

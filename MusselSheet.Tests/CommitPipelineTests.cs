@@ -173,6 +173,21 @@ public sealed class CommitPipelineTests : BunitContext
         Assert.Equal(false, sheet.GetValue(0, 0));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(" true ")]
+    public async Task ToggleReadsTheCheckAsItIsShown(object value)
+    {
+        var sheet = new Sheet(1, 1);
+        sheet["A1"].Configure(static c => c.Kind = CellKind.Checkbox);
+        sheet.SetValue(0, 0, value);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+
+        await cut.InvokeAsync(() => cut.Instance.ToggleAsync(0, 0)).ConfigureAwait(true);
+
+        Assert.Equal(true, sheet.GetValue(0, 0));
+    }
+
     [Fact]
     public async Task InputDisabledCellIsRejected()
     {

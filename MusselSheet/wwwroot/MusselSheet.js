@@ -421,8 +421,8 @@ function findError(rule, text, messages, reading) {
 }
 
 function findItem(items, text) {
-    const halfwidth = toHalfwidth(text);
-    return items?.find(x => sameText(toHalfwidth(x.value), halfwidth) || sameText(toHalfwidth(x.text), halfwidth));
+    const key = lowerText(toHalfwidth(text));
+    return items?.find(x => (lowerText(toHalfwidth(x.value)) === key) || (lowerText(toHalfwidth(x.text)) === key));
 }
 
 function checkRange(rule, value, messages) {
@@ -506,13 +506,29 @@ export function lineStartOf(value, caret) {
     return caret === 0 ? 0 : value.lastIndexOf('\n', caret - 1) + 1;
 }
 
+// The column is counted in UTF-16 units, so a caret that would land inside a surrogate pair stops before it
+export function lineCaret(value, focus, up) {
+    const lineStart = lineStartOf(value, focus);
+    const next = value.indexOf('\n', focus);
+    let caret;
+    if (up) {
+        const previous = value.lastIndexOf('\n', lineStart - 2) + 1;
+        caret = lineStart === 0 ? 0 : Math.min(previous + (focus - lineStart), lineStart - 1);
+    } else {
+        const following = value.indexOf('\n', next + 1);
+        caret = next < 0 ? value.length : Math.min(next + 1 + (focus - lineStart), following < 0 ? value.length : following);
+    }
+
+    return value.codePointAt(caret - 1) > 0xFFFF ? caret - 1 : caret;
+}
+
 export function deleteSize(value, caret, back) {
     return (back ? value.codePointAt(caret - 2) : value.codePointAt(caret)) > 0xFFFF ? 2 : 1;
 }
 
 export function currentItem(items, text) {
-    const key = toHalfwidth(text.trim());
-    return items.findIndex(x => sameText(toHalfwidth(x.text), key) || sameText(toHalfwidth(x.value), key));
+    const key = lowerText(toHalfwidth(trimText(text)));
+    return items.findIndex(x => (lowerText(toHalfwidth(x.text)) === key) || (lowerText(toHalfwidth(x.value)) === key));
 }
 
 export function countBytes(text) {
@@ -546,22 +562,18 @@ function fill(template, first, second) {
 }
 
 // Letter by letter, the same as SameText in C#; a letter whose lower case is longer stays as it is
-function sameText(a, b) {
-    const x = [...a];
-    const y = [...b];
-    return (x.length === y.length) && x.every((letter, i) => lowerLetter(letter) === lowerLetter(y[i]));
-}
-
-function lowerLetter(letter) {
-    const lower = letter.toLowerCase();
-    return [...lower].length === 1 ? lower : letter;
+function lowerText(text) {
+    return Array.from(text, (letter) => {
+        const lower = letter.toLowerCase();
+        return [...lower].length === 1 ? lower : letter;
+    }).join('');
 }
 
 // ---- Suggestions and calendar ----
 
 // Width and case do not matter, the same as the match when the value is committed
 export function filterItems(items, text) {
-    const key = toHalfwidth(text.trim()).toLowerCase();
+    const key = lowerText(toHalfwidth(trimText(text)));
     if (!key) {
         return items.slice();
     }
@@ -569,8 +581,8 @@ export function filterItems(items, text) {
     const head = [];
     const rest = [];
     for (const item of items) {
-        const label = toHalfwidth(item.text).toLowerCase();
-        const value = toHalfwidth(item.value).toLowerCase();
+        const label = lowerText(toHalfwidth(item.text));
+        const value = lowerText(toHalfwidth(item.value));
         if (label.startsWith(key) || value.startsWith(key)) {
             head.push(item);
         } else if (label.includes(key) || value.includes(key)) {
@@ -1433,9 +1445,30 @@ export function shiftCell(cell, { axis, index, count }) {
     return value < index - count ? { ...cell, [key]: index, lost: true } : { ...cell, [key]: value + count };
 }
 
+// The column where a Tab run started follows too, and is forgotten when its column is gone
+export function shiftSelection({ row, col, anchor, extent, tabStartCol = -1 }, shifts, rows, cols) {
+    let lost = false;
+    for (const shift of shifts) {
+        const active = shiftCell({ r: row, c: col }, shift);
+        lost ||= Boolean(active.lost);
+        row = active.r;
+        col = active.c;
+        anchor = shiftCell(anchor, shift);
+        extent = shiftCell(extent, shift);
+        if ((tabStartCol >= 0) && (shift.axis === 'col')) {
+            const start = shiftCell({ r: 0, c: tabStartCol }, shift);
+            tabStartCol = start.lost ? -1 : start.c;
+        }
+    }
+
+    const fit = (cell) => ({ r: clamp(cell.r, 0, rows - 1), c: clamp(cell.c, 0, cols - 1) });
+    const active = fit({ r: row, c: col });
+    return { row: active.r, col: active.c, anchor: fit(anchor), extent: fit(extent), lost: lost || (active.r !== row) || (active.c !== col), tabStartCol: tabStartCol < cols ? tabStartCol : -1 };
+}
+
 // Must produce the same notation as C# KeyCombo
 export function comboOf(k) {
-    const key = k.key === ' ' ? 'Space' : k.key.length === 1 ? k.key.toUpperCase() : k.key;
+    const key = k.key === ' ' ? 'SPACE' : k.key.toUpperCase();
     return `${k.ctrl ? 'Ctrl+' : ''}${k.alt ? 'Alt+' : ''}${k.shift ? 'Shift+' : ''}${key}`;
 }
 
@@ -1479,6 +1512,7 @@ class SheetController {
         this.drag = null;
         this.tabStartCol = -1;
         this.queue = [];
+        this.lostWhileWaiting = false;
         this.compositionEndAt = -Infinity;
         this.disposed = false;
         this.activeTimer = 0;
@@ -1612,40 +1646,26 @@ class SheetController {
             return;
         }
 
-        let lost = false;
-        for (const shift of shifts) {
-            const active = shiftCell({ r: this.row, c: this.col }, shift);
-            lost ||= Boolean(active.lost);
-            this.row = active.r;
-            this.col = active.c;
-            const anchor = shiftCell(this.anchor, shift);
-            const extent = shiftCell(this.extent, shift);
-            this.anchor = { r: anchor.r, c: anchor.c };
-            this.extent = { r: extent.r, c: extent.c };
-        }
+        const moved = shiftSelection(this, shifts, this.map.rows, this.map.cols);
+        this.row = moved.row;
+        this.col = moved.col;
+        this.anchor = moved.anchor;
+        this.extent = moved.extent;
+        this.tabStartCol = moved.tabStartCol;
+        const covered = this.map.isCovered(this.row, this.col);
+        const lost = moved.lost || covered || this.map.isDisabled(this.row, this.col);
+        this.lostWhileWaiting ||= lost && (this.state === COMMITTING);
         if (lost && this.isEditing()) {
             this.finishEdit();
         }
-        if (shifts.length > 0) {
-            this.notifyActive();
-        }
+        this.notifyActive();
 
-        this.row = clamp(this.row, 0, this.map.rows - 1);
-        this.col = clamp(this.col, 0, this.map.cols - 1);
-        this.anchor = this.clampCell(this.anchor);
-        this.extent = this.clampCell(this.extent);
         // A merge added by the app can cover the active cell; it moves to the merge's top left
-        if (this.map.isCovered(this.row, this.col)) {
-            if (this.isEditing()) {
-                this.finishEdit();
-            }
+        if (covered) {
             this.moveTo(this.row, this.col, { scroll: false });
             return;
         }
 
-        if (this.isEditing() && this.map.isDisabled(this.row, this.col)) {
-            this.finishEdit();
-        }
         this.place();
         this.updateSink();
     }
@@ -1774,11 +1794,12 @@ class SheetController {
         hideFloating(this.popup);
         hideFloating(this.menu);
         this.menu.remove();
-        for (const piece of Object.values(this.selections)) {
+        for (const piece of [...Object.values(this.selections), ...Object.values(this.fillRanges)]) {
             piece.remove();
         }
         this.probe.remove();
         this.frame.remove();
+        this.handle.remove();
         this.drop.remove();
         this.sink.remove();
         this.tip.remove();
@@ -2165,6 +2186,7 @@ class SheetController {
             return;
         }
 
+        this.lostWhileWaiting = false;
         this.setState(COMMITTING);
         this.updateSink();
         let response;
@@ -2181,7 +2203,7 @@ class SheetController {
 
         this.setState(READY);
         this.updateSink();
-        if (response.ok || response.stored || this.row !== row || this.col !== col) {
+        if (response.ok || response.stored || this.lostWhileWaiting) {
             this.replay();
             return;
         }
@@ -2246,9 +2268,10 @@ class SheetController {
         return this.state === READY ? this.readyKey(k) : this.editingKey(k);
     }
 
+    // The browser's default action would be the pressed key's, so the command's key runs like a replayed one
     runCommand(name) {
         const key = COMMAND_KEYS[name];
-        return key ? this.builtinKey({ key: key.key, shift: !!key.shift, ctrl: !!key.ctrl, alt: !!key.alt, replay: false }) : false;
+        return key ? this.builtinKey({ key: key.key, shift: !!key.shift, ctrl: !!key.ctrl, alt: !!key.alt, replay: true }) : false;
     }
 
     readyKey(k) {
@@ -2482,7 +2505,7 @@ class SheetController {
             return true;
         }
 
-        if (k.replay && !k.ctrl && !k.alt && REPLAYED_CARET_KEYS.has(k.key)) {
+        if (k.replay && !k.alt && REPLAYED_CARET_KEYS.has(k.key) && (!k.ctrl || (k.key === 'Home') || (k.key === 'End'))) {
             this.replayCaret(k);
             return true;
         }
@@ -2529,19 +2552,15 @@ class SheetController {
         if (!k.shift && (sink.selectionStart !== sink.selectionEnd) && ((k.key === 'ArrowLeft') || (k.key === 'ArrowRight'))) {
             caret = k.key === 'ArrowLeft' ? sink.selectionStart : sink.selectionEnd;
         } else if (k.key === 'Home') {
-            caret = lineStart;
+            caret = k.ctrl ? 0 : lineStart;
         } else if (k.key === 'End') {
-            caret = lineEnd;
+            caret = k.ctrl ? value.length : lineEnd;
         } else if (k.key === 'ArrowLeft') {
             caret = Math.max(0, focus - deleteSize(value, focus, true));
         } else if (k.key === 'ArrowRight') {
             caret = Math.min(value.length, focus + deleteSize(value, focus, false));
-        } else if (k.key === 'ArrowUp') {
-            const previous = value.lastIndexOf('\n', lineStart - 2) + 1;
-            caret = lineStart === 0 ? 0 : Math.min(previous + (focus - lineStart), lineStart - 1);
         } else {
-            const following = value.indexOf('\n', next + 1);
-            caret = next < 0 ? value.length : Math.min(next + 1 + (focus - lineStart), following < 0 ? value.length : following);
+            caret = lineCaret(value, focus, k.key === 'ArrowUp');
         }
 
         if (k.shift) {
@@ -3399,6 +3418,7 @@ class SheetController {
         }
 
         this.closePopup();
+        this.lostWhileWaiting = false;
         this.setState(COMMITTING);
         this.updateSink();
         let response;
@@ -3420,12 +3440,17 @@ class SheetController {
             return;
         }
 
+        if (this.lostWhileWaiting) {
+            this.finishEdit();
+            this.replay();
+            return;
+        }
+
         this.queue = [];
         this.setState(previous);
         this.updateSink();
         // Focus that left the sheet while C# answered stores the edit with a mark, as leaving does
-        const active = document.activeElement;
-        if (active && (active !== document.body) && !this.root.contains(active)) {
+        if (this.isFocusOutside()) {
             this.commit(null, true);
             return;
         }
@@ -3995,6 +4020,10 @@ class SheetController {
             opened = false;
         }
 
+        if (this.disposed) {
+            return;
+        }
+
         if (!opened && this.state === CUSTOM && !this.custom) {
             this.setState(READY);
             this.updateSink();
@@ -4055,11 +4084,11 @@ class SheetController {
 
     onCustomFocusOut(e) {
         if (this.state === CUSTOM && e.relatedTarget && !this.root.contains(e.relatedTarget)) {
-            this.commitCustom(null);
+            this.commitCustom(null, true);
         }
     }
 
-    async commitCustom(moveAction) {
+    async commitCustom(moveAction, forceOptimistic = false) {
         if (this.state !== CUSTOM || this.customBusy) {
             return;
         }
@@ -4073,7 +4102,7 @@ class SheetController {
         this.customBusy = true;
         let result;
         try {
-            result = await this.dotnet.invokeMethodAsync('CommitCustomEditorAsync');
+            result = await this.dotnet.invokeMethodAsync('CommitCustomEditorAsync', forceOptimistic);
         } catch {
             result = { closed: true, error: null };
         } finally {
@@ -4091,6 +4120,11 @@ class SheetController {
 
         if (!result.closed) {
             this.queue = [];
+            if (this.isFocusOutside()) {
+                this.commitCustom(null, true);
+                return;
+            }
+
             this.custom?.classList.add('mussel-sheet-invalid');
             (this.custom?.querySelector(FOCUSABLE) ?? this.custom)?.focus({ preventScroll: true });
             return;
@@ -4123,7 +4157,9 @@ class SheetController {
         }
         this.updateSink();
         this.place();
-        this.focus();
+        if (!this.isFocusOutside()) {
+            this.focus();
+        }
     }
 
     detachCustom() {
@@ -4513,8 +4549,13 @@ class SheetController {
             return;
         }
 
+        // Server can draw new rows a round trip before their map comes
         const row = Number(cell.closest('.mussel-sheet-row').dataset.r);
         const col = Number(cell.dataset.c);
+        if ((row >= this.map.rows) || (col >= this.map.cols)) {
+            return;
+        }
+
         const rule = this.map.rule(row, col);
         const toggle = !e.shiftKey && rule.kind === 'check' && !rule.disabled && e.target.closest('.mussel-sheet-cb, .mussel-sheet-ct') !== null;
         if (this.isEditing()) {
@@ -4764,6 +4805,11 @@ class SheetController {
 
     isEditing() {
         return this.state === INPUT || this.state === EDIT;
+    }
+
+    isFocusOutside() {
+        const active = document.activeElement;
+        return Boolean(active) && (active !== document.body) && !this.root.contains(active);
     }
 
     currentRule() {

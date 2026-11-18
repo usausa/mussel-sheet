@@ -63,7 +63,7 @@ public sealed class ColumnVirtualizationTests : BunitContext
     private static int[] Range(int first, int last) => [.. Enumerable.Range(first, last - first + 1)];
 
     private static int[] Columns(IRenderedComponent<MusselSheetView> cut, string selector) =>
-        [.. cut.FindAll(selector).Select(x => int.Parse(x.GetAttribute("data-c")!, System.Globalization.CultureInfo.InvariantCulture))];
+        [.. cut.FindAll(selector).Select(x => Int32.Parse(x.GetAttribute("data-c")!, CultureInfo.InvariantCulture))];
 
     private static string Css(IRenderedComponent<MusselSheetView> cut) => cut.Find("style").TextContent;
 }

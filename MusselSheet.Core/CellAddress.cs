@@ -60,12 +60,12 @@ public readonly record struct CellAddress(int Row, int Column)
         var value = 0;
         foreach (var ch in name)
         {
-            if (!char.IsAsciiLetter(ch))
+            if (!Char.IsAsciiLetter(ch))
             {
                 return false;
             }
 
-            value = (value * 26) + (char.ToUpperInvariant(ch) - 'A' + 1);
+            value = (value * 26) + (Char.ToUpperInvariant(ch) - 'A' + 1);
             if (value > MaxColumns)
             {
                 return false;
@@ -79,7 +79,7 @@ public readonly record struct CellAddress(int Row, int Column)
     public static bool TryParseRow(ReadOnlySpan<char> text, out int row)
     {
         row = -1;
-        if (!int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var number) || (number < 1))
+        if (!Int32.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var number) || (number < 1))
         {
             return false;
         }
@@ -93,7 +93,7 @@ public readonly record struct CellAddress(int Row, int Column)
     private static int CountLetters(ReadOnlySpan<char> span)
     {
         var count = 0;
-        while ((count < span.Length) && char.IsAsciiLetter(span[count]))
+        while ((count < span.Length) && Char.IsAsciiLetter(span[count]))
         {
             count++;
         }

@@ -81,11 +81,22 @@ public sealed partial class Sheet
     {
         foreach (var row in rows)
         {
-            if (row.Cells.Length != ColumnCount)
+            // Columns can change while the row is out of the sheet, so each value goes back to its column where it is now
+            if ((row.TakenColumns is { } taken) && !taken.SequenceEqual(columnList))
             {
-                // Values are not carried over if the column count changed while the row was out of the sheet
-                row.Cells = new CellData?[ColumnCount];
+                var cells = new CellData?[ColumnCount];
+                for (var c = 0; c < taken.Length; c++)
+                {
+                    if (Contains(taken[c]))
+                    {
+                        cells[taken[c].Index] = row.Cells[c];
+                    }
+                }
+
+                row.Cells = cells;
             }
+
+            row.TakenColumns = null;
         }
 
         rowList.InsertRange(index, rows);
@@ -97,9 +108,11 @@ public sealed partial class Sheet
 
     internal void TakeRows(int index, int count, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges)
     {
+        var columns = columnList.ToArray();
         for (var r = index; r < index + count; r++)
         {
             rowList[r].WasRemoved = true;
+            rowList[r].TakenColumns = columns;
         }
 
         rowList.RemoveRange(index, count);

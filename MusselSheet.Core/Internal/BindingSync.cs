@@ -27,6 +27,8 @@ internal interface IRowsBinding
 
     BoundProperty? FindProperty(int row, int column);
 
+    CellRange Frame { get; }
+
     bool Holds(SheetRow row);
 
     bool IsEmptyAt(int index);
@@ -61,14 +63,15 @@ internal sealed class BindingSync
         }
     }
 
-    // Skips values the property type cannot take; a setter exception becomes the error mark; the property is shown back
-    public void Write(object target, BoundProperty property, int row, int column)
+    // Skips values the property type cannot take; a setter exception becomes the error mark; true when the cell is to show the property back
+    public bool Write(object target, BoundProperty property, SheetRow row, SheetColumn column)
     {
-        if (!property.CanWrite || !property.TryConvert(Sheet.GetValue(row, column), out var value))
+        if (!property.CanWrite || !Holds(row, column) || !property.TryConvert(Sheet.GetValue(row.Index, column.Index), out var value))
         {
-            return;
+            return false;
         }
 
+        string? error = null;
         if (!Equals(property.Get(target), value))
         {
             try
@@ -77,12 +80,23 @@ internal sealed class BindingSync
             }
             catch (TargetInvocationException ex) when (ex.InnerException is not null)
             {
-                Sheet.SetError(row, column, ex.InnerException.Message);
-                return;
+                error = ex.InnerException.Message;
             }
         }
 
-        Show(target, property, row, column);
+        // The setter can insert or delete rows and columns, so the cell is found again
+        if (!Holds(row, column))
+        {
+            return false;
+        }
+
+        if (error is not null)
+        {
+            Sheet.SetError(row.Index, column.Index, error);
+            return false;
+        }
+
+        return true;
     }
 
     // Does nothing when the value is the same, which keeps the typed text and the error mark; a covered cell holds no value
@@ -94,6 +108,8 @@ internal sealed class BindingSync
             Apply(() => Sheet.SetValue(row, column, value));
         }
     }
+
+    private bool Holds(SheetRow row, SheetColumn column) => Sheet.Contains(row) && Sheet.Contains(column);
 
     public void Clear(int row, int column)
     {

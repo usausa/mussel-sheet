@@ -113,6 +113,22 @@ public sealed class SheetValuesTests
         Assert.Null(sheet.GetInputText(0, 0));
     }
 
+    [Theory]
+    [InlineData(0.00005, "0.00005")]
+    [InlineData(1e20, "100000000000000000000")]
+    [InlineData(0.30000000000000004, "0.3")]
+    [InlineData(1e-5f, "0.00001")]
+    [InlineData(1e300, "1E+300")]
+    [InlineData(Double.NaN, "NaN")]
+    public void TheEditTextOfADoubleOrFloatIsTheDecimalItReadsAs(object value, string text)
+    {
+        var sheet = new Sheet(1, 1) { Culture = CultureInfo.InvariantCulture };
+        sheet[0, 0].Configure(static c => c.Kind = CellKind.Number);
+        sheet.SetValue(0, 0, value);
+
+        Assert.Equal(text, sheet.GetEditText(0, 0));
+    }
+
     [Fact]
     public void SetValueClearsTheInputText()
     {

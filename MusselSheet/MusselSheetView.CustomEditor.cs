@@ -24,13 +24,13 @@ public sealed partial class MusselSheetView
         return true;
     }
 
-    internal Task<CustomEditorResult> CommitCustomEditorAsync() =>
-        customEdit is { } edit ? CommitCustomCoreAsync(edit) : Task.FromResult(new CustomEditorResult(true, null));
+    internal Task<CustomEditorResult> CommitCustomEditorAsync(bool optimistic) =>
+        customEdit is { } edit ? CommitCustomCoreAsync(edit, optimistic) : Task.FromResult(new CustomEditorResult(true, null));
 
     internal void CancelCustomEditor() => CloseCustom();
 
     // A cell the app deleted while the editor was open takes nothing
-    private async Task<CustomEditorResult> CommitCustomCoreAsync(CellEditContext edit)
+    private async Task<CustomEditorResult> CommitCustomCoreAsync(CellEditContext edit, bool optimistic)
     {
         if (!edit.IsCurrent)
         {
@@ -42,7 +42,7 @@ public sealed partial class MusselSheetView
             return new CustomEditorResult(true, null);
         }
 
-        var result = await CommitValueAsync(edit.Address.Row, edit.Address.Column, edit.Value).ConfigureAwait(true);
+        var result = await CommitValueAsync(edit.Address.Row, edit.Address.Column, edit.Value, optimistic).ConfigureAwait(true);
         var (row, column) = (edit.Address.Row, edit.Address.Column);
         var keepOpen = !result.Stored
             && (result.Error is not null)
@@ -73,7 +73,7 @@ public sealed partial class MusselSheetView
                 return false;
             }
 
-            var result = await CommitCustomCoreAsync(edit).ConfigureAwait(true);
+            var result = await CommitCustomCoreAsync(edit, false).ConfigureAwait(true);
             if (result.Closed)
             {
                 await InvokeScriptAsync("finishCustom").ConfigureAwait(true);

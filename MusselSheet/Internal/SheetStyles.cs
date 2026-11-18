@@ -54,7 +54,6 @@ internal sealed class SheetStyles
             Register(style.Borders.Left?.Color);
         }
 
-        // No line breaks: prerendering writes them as &#xA;, which <style> does not decode
         var widths = sheet.Columns.Select(x => x.ActualWidth).ToArray();
         var frozen = Math.Clamp(frozenColumns, 0, widths.Length);
         var header = rowHeaderWidth > 0 ? [rowHeaderWidth] : Array.Empty<int>();
@@ -79,7 +78,7 @@ internal sealed class SheetStyles
         mergeClasses.Clear();
         foreach (var range in sheet.MergeAreas)
         {
-            var name = string.Create(CultureInfo.InvariantCulture, $"m{mergeClasses.Count}");
+            var name = String.Create(CultureInfo.InvariantCulture, $"m{mergeClasses.Count}");
             mergeClasses[range] = name;
             var width = widths[range.Left..(range.Right + 1)].Sum();
             var height = Enumerable.Range(range.Top, range.Bottom - range.Top + 1).Sum(r => sheet.Rows[r].ActualHeight);
@@ -186,18 +185,13 @@ internal sealed class SheetStyles
             builder.Append(" mussel-sheet-ro");
         }
 
-        if (settings.Kind == CellKind.Label)
-        {
-            builder.Append(" mussel-sheet-label");
-        }
-
         AppendColor(builder, "fg", style.FontColor);
         AppendColor(builder, "bg", style.FillColor);
         AppendBorder(builder, 'r', edges.Right);
         AppendBorder(builder, 'b', edges.Bottom);
         AppendBorder(builder, 'l', left);
         AppendBorder(builder, 't', top);
-        if (!string.IsNullOrWhiteSpace(style.CssClass))
+        if (!String.IsNullOrWhiteSpace(style.CssClass))
         {
             builder.Append(' ').Append(style.CssClass.Trim());
         }
@@ -213,6 +207,7 @@ internal sealed class SheetStyles
         var css = new StringBuilder();
         var style = settings.Style;
         var alignment = EffectiveAlignment(settings);
+        var (leftBefore, rightBefore) = Indents(alignment, style.IndentLevel);
         if ((patch.HorizontalAlignment is { } horizontal) && (horizontal != HorizontalAlignment.General))
         {
             alignment = horizontal;
@@ -251,14 +246,33 @@ internal sealed class SheetStyles
             css.Append(CultureInfo.InvariantCulture, $"font-size:{size}px;");
         }
 
-        if ((patch.IndentLevel is { } indent) && (alignment != HorizontalAlignment.Center))
-        {
-            css.Append(CultureInfo.InvariantCulture, $"{(alignment == HorizontalAlignment.Right ? "padding-right" : "padding-left")}:calc(4px + {indent}em);");
-        }
-
+        // The class indents the side of the cell's own alignment, so a patch that moves or changes it writes both sides
+        var (leftAfter, rightAfter) = Indents(alignment, patch.IndentLevel ?? style.IndentLevel);
+        AppendPadding(css, "padding-left", leftBefore, leftAfter);
+        AppendPadding(css, "padding-right", rightBefore, rightAfter);
         AppendInlineColor(css, "color", patch.FontColor);
         AppendInlineColor(css, "background-color", patch.FillColor);
         return css.Length == 0 ? null : css.ToString();
+    }
+
+    private static (int Left, int Right) Indents(HorizontalAlignment alignment, int? level) =>
+        (level is not > 0) || (alignment == HorizontalAlignment.Center) ? (0, 0) : alignment == HorizontalAlignment.Right ? (0, level.Value) : (level.Value, 0);
+
+    private static void AppendPadding(StringBuilder css, string side, int before, int after)
+    {
+        if (after == before)
+        {
+            return;
+        }
+
+        if (after > 0)
+        {
+            css.Append(CultureInfo.InvariantCulture, $"{side}:calc(4px + {after}em);");
+        }
+        else
+        {
+            css.Append(side).Append(":4px;");
+        }
     }
 
     private static void AppendTemplate(StringBuilder css, string selector, int[] widths)
@@ -279,9 +293,9 @@ internal sealed class SheetStyles
 
     private static void AppendInlineColor(StringBuilder css, string property, string? color)
     {
-        if (!string.IsNullOrWhiteSpace(color) && color.All(x => char.IsAsciiLetterOrDigit(x) || (x is '#' or '(' or ')' or ',' or '.' or '%' or ' ' or '-')))
+        if ((color?.Trim() is { } trimmed) && IsSafeColor(trimmed))
         {
-            css.Append(CultureInfo.InvariantCulture, $"{property}:{color.Trim()};");
+            css.Append(CultureInfo.InvariantCulture, $"{property}:{trimmed};");
         }
     }
 
@@ -311,7 +325,7 @@ internal sealed class SheetStyles
 
         foreach (var ch in value)
         {
-            if (!char.IsAsciiLetterOrDigit(ch) && (ch is not ('#' or '(' or ')' or ',' or '.' or '%' or ' ' or '-')))
+            if (!Char.IsAsciiLetterOrDigit(ch) && (ch is not ('#' or '(' or ')' or ',' or '.' or '%' or ' ' or '-')))
             {
                 return false;
             }

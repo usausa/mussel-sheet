@@ -1,6 +1,7 @@
 namespace MusselSheet;
 
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 
 using MusselSheet.Internal;
 
@@ -35,6 +36,22 @@ public sealed class CellCallbackTests : BunitContext
 
         Assert.Same(Renderer.UnhandledException, ended);
         Assert.Same(thrown, await Renderer.UnhandledException.ConfigureAwait(true));
+    }
+
+    [Fact]
+    public async Task CanceledHandlersAndLostConnectionsDoNotReachTheRenderer()
+    {
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, new Sheet(2, 2))
+            .Add(x => x.ActiveCellChanged, static _ => throw new OperationCanceledException())
+            .Add(x => x.CellCommitted, static _ => throw new JSDisconnectedException("gone")));
+
+        var bridge = new SheetScriptBridge(cut.Instance);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => cut.InvokeAsync(() => bridge.OnActiveCellChangedAsync(1, 1, 1, 1, 1, 1)));
+        await Assert.ThrowsAsync<JSDisconnectedException>(() => cut.InvokeAsync(() => bridge.CommitAsync(0, 0, "5", true, null)));
+        var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
+
+        Assert.NotSame(Renderer.UnhandledException, ended);
     }
 
     [Fact]
@@ -154,7 +171,7 @@ public sealed class CellCallbackTests : BunitContext
 
         await cut.InvokeAsync(() => cut.Instance.OpenCustomEditor(0, 0));
         opened!.Value = "#00ff00";
-        await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync());
+        await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync(false));
 
         Assert.Equal("#00FF00", sheet.GetValue(0, 0));
 
@@ -192,7 +209,7 @@ public sealed class CellCallbackTests : BunitContext
             }
         });
         opened!.Value = "#00ff00";
-        await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync());
+        await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync(false));
 
         Assert.Equal(removed ? [null, null] : [null, null, "#00ff00", null], Enumerable.Range(0, sheet.RowCount).Select(r => sheet.GetValue(r, 0)));
 
@@ -218,7 +235,7 @@ public sealed class CellCallbackTests : BunitContext
             .Add(x => x.CellCommitting, _ => sheet.DeleteRows(1, 1)));
 
         await cut.InvokeAsync(() => cut.Instance.OpenCustomEditor(1, 0));
-        await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync());
+        await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync(false));
 
         Assert.Empty(cut.FindAll(".mussel-sheet-custom"));
     }

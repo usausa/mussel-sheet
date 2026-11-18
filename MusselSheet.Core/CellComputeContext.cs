@@ -27,7 +27,7 @@ public sealed class CellComputeContext
     {
         foreach (var observation in observations)
         {
-            if (string.Equals(observation.Name, observed, StringComparison.OrdinalIgnoreCase))
+            if (String.Equals(observation.Name, observed, StringComparison.OrdinalIgnoreCase))
             {
                 var values = new List<object?>();
                 foreach (var cell in observation.Cells(Sheet, row))

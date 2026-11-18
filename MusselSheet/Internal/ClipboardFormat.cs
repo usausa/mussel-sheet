@@ -17,7 +17,7 @@ internal static class ClipboardFormat
     public static List<string[]> Parse(string? text)
     {
         var rows = new List<string[]>();
-        if (string.IsNullOrEmpty(text))
+        if (String.IsNullOrEmpty(text))
         {
             return rows;
         }

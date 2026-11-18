@@ -15,7 +15,7 @@
     --mussel-sheet-font: 13px/1.2 var(--mussel-font-family, "Segoe UI", system-ui, sans-serif);
 
     /* Sheet only */
-    --mussel-sheet-cell-bg: #fff;
+    --mussel-sheet-cell-bg: #ffffff;
     --mussel-sheet-header-bg: #f6f8fa;
     --mussel-sheet-border-color: #1f2328;
     --mussel-sheet-readonly-bg: #f3f4f6;
@@ -331,7 +331,7 @@
     width: 30%;
     height: 58%;
     box-sizing: border-box;
-    border: solid #fff;
+    border: solid #ffffff;
     border-width: 0 2px 2px 0;
     content: "";
     transform: translate(-50%, -50%) rotate(45deg);
@@ -417,7 +417,7 @@
     position: absolute;
     box-sizing: border-box;
     border: 1px solid var(--mussel-sheet-inactive-color);
-    background: rgb(140 149 159 / 12%);
+    background: rgb(110 119 129 / 12%);
     pointer-events: none;
 }
 
@@ -723,7 +723,7 @@
 
 .mussel-sheet-cal-day.mussel-sheet-selected {
     background: var(--mussel-sheet-active-color);
-    color: #fff;
+    color: #ffffff;
 }
 
 .mussel-sheet-cal-day.mussel-sheet-focus {
@@ -765,7 +765,7 @@
     padding: 2px 6px;
     border-radius: 2px;
     background: var(--mussel-sheet-error-color);
-    color: #fff;
+    color: #ffffff;
     font-size: 12px;
     line-height: 1.5;
     white-space: nowrap;

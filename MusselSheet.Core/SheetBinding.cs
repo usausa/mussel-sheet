@@ -96,6 +96,11 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
     // While one list adds or removes rows for its own items, the other lists of this binding only follow those rows
     private void FollowRowsOfAnotherList(SheetChangedEventArgs e)
     {
+        if (e.Kind is not (SheetChangeKind.RowsInserted or SheetChangeKind.RowsDeleted))
+        {
+            return;
+        }
+
         foreach (var list in lists.ToArray())
         {
             if (ReferenceEquals(list, Sheet.ChangingList))
@@ -132,9 +137,9 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
             case SheetChangeKind.Values when e.Range is { } range:
                 foreach (var link in cells.ToArray())
                 {
-                    if (IsCurrent(link) && range.Contains(link.Row.Index, link.Column.Index))
+                    if (IsCurrent(link) && range.Contains(link.Row.Index, link.Column.Index) && sync.Write(Source, link.Property, link.Row, link.Column))
                     {
-                        sync.Write(Source, link.Property, link.Row.Index, link.Column.Index);
+                        sync.Show(Source, link.Property, link.Row.Index, link.Column.Index);
                     }
                 }
 
@@ -218,7 +223,7 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
     {
         foreach (var link in cells.ToArray())
         {
-            if (IsCurrent(link) && (string.IsNullOrEmpty(name) || (link.Property.Name == name)))
+            if (IsCurrent(link) && (String.IsNullOrEmpty(name) || (link.Property.Name == name)))
             {
                 sync.Show(Source, link.Property, link.Row.Index, link.Column.Index);
             }

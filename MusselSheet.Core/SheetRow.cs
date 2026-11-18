@@ -22,6 +22,9 @@ public sealed class SheetRow
     // A row that left the sheet comes back only by undo or redo, and then belongs where it was before
     internal bool WasRemoved { get; set; }
 
+    // The columns when the row left the sheet, as its values are in their order
+    internal SheetColumn[]? TakenColumns { get; set; }
+
     public int? Height
     {
         get => height;

@@ -298,9 +298,9 @@ public sealed partial class MusselSheetView : IAsyncDisposable
         }
     }
 
-    private string RootStyle => string.Create(CultureInfo.InvariantCulture, $"width:{(IsAuto(Width) ? "max-content" : Width)};height:{(IsAuto(Height) ? "auto" : Height)}");
+    private string RootStyle => String.Create(CultureInfo.InvariantCulture, $"width:{(IsAuto(Width) ? "max-content" : Width)};height:{(IsAuto(Height) ? "auto" : Height)}");
 
-    private string ContentStyle => string.Create(CultureInfo.InvariantCulture, $"width:{contentWidth}px");
+    private string ContentStyle => String.Create(CultureInfo.InvariantCulture, $"width:{contentWidth}px");
 
     private string ColumnHeaderStyle => RowStyle(HeaderHeight);
 
@@ -440,7 +440,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
             var options = SheetScriptJson.ToElement(ScriptOptions());
             var optionsText = options.GetRawText();
-            if (!string.Equals(sentOptions, optionsText, StringComparison.Ordinal))
+            if (!String.Equals(sentOptions, optionsText, StringComparison.Ordinal))
             {
                 sentOptions = optionsText;
                 await current.InvokeVoidAsync("setOptions", options).ConfigureAwait(true);
@@ -513,8 +513,8 @@ public sealed partial class MusselSheetView : IAsyncDisposable
     // Frozen row and column counts can also be changed on the Sheet, so sheet changes run this check too
     private void CheckView()
     {
-        var signature = string.Create(CultureInfo.InvariantCulture, $"{ShowRowHeaders}|{ShowColumnHeaders}|{ShowChanges}|{RowHeaderWidth}|{ColumnHeaderHeight}|{Height}|{Width}|{OverscanCount}|{OverscanColumnCount}|{CustomDisplay is not null}|{FrozenRows ?? Sheet.FrozenRows}|{FrozenColumns ?? Sheet.FrozenColumns}");
-        if (!string.Equals(signature, viewSignature, StringComparison.Ordinal))
+        var signature = String.Create(CultureInfo.InvariantCulture, $"{ShowRowHeaders}|{ShowColumnHeaders}|{ShowChanges}|{RowHeaderWidth}|{ColumnHeaderHeight}|{Height}|{Width}|{OverscanCount}|{OverscanColumnCount}|{CustomDisplay is not null}|{FrozenRows ?? Sheet.FrozenRows}|{FrozenColumns ?? Sheet.FrozenColumns}");
+        if (!String.Equals(signature, viewSignature, StringComparison.Ordinal))
         {
             viewSignature = signature;
             ViewVersion++;

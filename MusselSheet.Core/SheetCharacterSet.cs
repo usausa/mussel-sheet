@@ -29,7 +29,7 @@ public sealed class SheetCharacterSet
             {
                 if (codes[i + 2] < codes[i])
                 {
-                    throw new ArgumentException($"The range '{char.ConvertFromUtf32(codes[i])}-{char.ConvertFromUtf32(codes[i + 2])}' is reversed.", nameof(characters));
+                    throw new ArgumentException($"The range '{Char.ConvertFromUtf32(codes[i])}-{Char.ConvertFromUtf32(codes[i + 2])}' is reversed.", nameof(characters));
                 }
 
                 i += 2;

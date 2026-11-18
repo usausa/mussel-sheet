@@ -24,11 +24,11 @@ public sealed class SheetCharacterMap
 
         for (var i = 0; i < sources.Count; i++)
         {
-            characters[char.ConvertFromUtf32(sources[i])] = char.ConvertFromUtf32(targets[targets.Count == 1 ? 0 : i]);
+            characters[Char.ConvertFromUtf32(sources[i])] = Char.ConvertFromUtf32(targets[targets.Count == 1 ? 0 : i]);
         }
 
         lookup = characters.GetAlternateLookup<ReadOnlySpan<char>>();
-        firstCharacters = SearchValues.Create(string.Concat(characters.Keys.Select(static x => x[0]).Distinct()));
+        firstCharacters = SearchValues.Create(String.Concat(characters.Keys.Select(static x => x[0]).Distinct()));
     }
 
     internal IReadOnlyDictionary<string, string> Characters => characters;
@@ -53,7 +53,7 @@ public sealed class SheetCharacterMap
 
             buffer.Append(rest[..at]);
             rest = rest[at..];
-            var size = (rest.Length > 1) && char.IsHighSurrogate(rest[0]) ? 2 : 1;
+            var size = (rest.Length > 1) && Char.IsHighSurrogate(rest[0]) ? 2 : 1;
             if (lookup.TryGetValue(rest[..size], out var value))
             {
                 buffer.Append(value);

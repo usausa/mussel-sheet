@@ -312,6 +312,6 @@ public sealed partial class MusselSheetView
             parts.Add(InputContext.Fill(texts.PasteTruncatedColumns, cutColumns));
         }
 
-        return parts.Count == 0 ? null : string.Join(texts.MessageSeparator, parts);
+        return parts.Count == 0 ? null : String.Join(texts.MessageSeparator, parts);
     }
 }

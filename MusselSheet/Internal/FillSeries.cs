@@ -114,7 +114,7 @@ internal static class FillSeries
     private static bool TryNumber(object? value, out decimal number)
     {
         number = 0m;
-        if (value is not (decimal or int or long or short or byte or sbyte or uint or ulong or ushort or double or float))
+        if (!CellText.IsNumber(value))
         {
             return false;
         }
@@ -170,13 +170,13 @@ internal static class FillSeries
     {
         part = default;
         var end = text.Length;
-        while ((end > 0) && !char.IsAsciiDigit(text[end - 1]))
+        while ((end > 0) && !Char.IsAsciiDigit(text[end - 1]))
         {
             end--;
         }
 
         var start = end;
-        while ((start > 0) && char.IsAsciiDigit(text[start - 1]))
+        while ((start > 0) && Char.IsAsciiDigit(text[start - 1]))
         {
             start--;
         }
@@ -186,7 +186,7 @@ internal static class FillSeries
             return false;
         }
 
-        part = new Numbered(text[..start], long.Parse(text.AsSpan(start, end - start), CultureInfo.InvariantCulture), end - start, text[end..]);
+        part = new Numbered(text[..start], Int64.Parse(text.AsSpan(start, end - start), CultureInfo.InvariantCulture), end - start, text[end..]);
         return true;
     }
 
@@ -258,7 +258,7 @@ internal static class FillSeries
 
     // Zero-padded digits keep their width, and a negative number uses its absolute value, same as Excel
     private static string Format(Numbered part, decimal number) =>
-        string.Concat(part.Prefix, Math.Abs(number).ToString(new string('0', part.Width), CultureInfo.InvariantCulture), part.Suffix);
+        String.Concat(part.Prefix, Math.Abs(number).ToString(new string('0', part.Width), CultureInfo.InvariantCulture), part.Suffix);
 
     private readonly record struct Numbered(string Prefix, long Number, int Width, string Suffix);
 }

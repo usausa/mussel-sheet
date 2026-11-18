@@ -135,7 +135,7 @@ public sealed partial class InputAssistPage
     private string ChangedCells()
     {
         var cells = sheet.GetChangedCells();
-        return cells.Count == 0 ? "none" : string.Join(" ", cells);
+        return cells.Count == 0 ? "none" : String.Join(" ", cells);
     }
 
     private void AcceptChanges()

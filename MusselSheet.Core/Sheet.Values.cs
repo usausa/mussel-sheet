@@ -30,7 +30,7 @@ public sealed partial class Sheet
     {
         var sheetRow = rowList[row];
         var data = sheetRow.Cells[column];
-        if (string.Equals(data?.Error, message, StringComparison.Ordinal))
+        if (String.Equals(data?.Error, message, StringComparison.Ordinal))
         {
             return;
         }

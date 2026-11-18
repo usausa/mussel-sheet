@@ -74,7 +74,7 @@ internal sealed class Observation
             return CellRange.Columns(current[0], current[^1]).ToString();
         }
 
-        if (rows.Run(sheet) is not { } span)
+        if (rows.SpanWithoutGap(sheet) is not { } span)
         {
             return null;
         }

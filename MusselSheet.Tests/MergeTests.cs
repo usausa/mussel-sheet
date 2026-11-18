@@ -111,6 +111,23 @@ public sealed class MergeTests : BunitContext
     }
 
     [Fact]
+    public async Task UndoAndRedoWriteNothingIntoACoveredCell()
+    {
+        var sheet = new Sheet(3, 3);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 1, "x", false));
+        await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 1, "y", false));
+        await cut.InvokeAsync(cut.Instance.UndoAsync);
+        await cut.InvokeAsync(() => sheet.Range("A1:B1").Merge());
+
+        await cut.InvokeAsync(cut.Instance.RedoAsync);
+        Assert.Null(sheet.GetValue(0, 1));
+
+        await cut.InvokeAsync(cut.Instance.UndoAsync);
+        Assert.Null(sheet.GetValue(0, 1));
+    }
+
+    [Fact]
     public async Task UndoingARowDeleteRestoresTheMerge()
     {
         var sheet = new Sheet(5, 3);

@@ -40,7 +40,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     // Where the detail region sits once the user has deleted all of its rows
     private int emptyTop;
 
-    private int changingList;
+    private int changingItems;
 
     private bool attached;
 
@@ -115,6 +115,8 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     void IRowsBinding.Detach() => DetachList();
 
+    CellRange IRowsBinding.Frame => frame;
+
     bool IRowsBinding.Holds(SheetRow row) => members.Contains(row);
 
     bool IRowsBinding.IsEmptyAt(int index) => (rows.Count == 0) && (emptyTop == index);
@@ -122,10 +124,16 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     void IRowsBinding.OnValues(CellRange range)
     {
         var sheet = sync.Sheet;
-        var bottom = Math.Min(range.Bottom, sheet.RowCount - 1);
-        for (var r = Math.Max(range.Top, 0); r <= bottom; r++)
+        var top = Math.Max(range.Top, 0);
+        // The setters can insert or delete rows, so the rows of the range are taken before writing
+        var targets = new SheetRow[Math.Max(Math.Min(range.Bottom, sheet.RowCount - 1) - top + 1, 0)];
+        for (var i = 0; i < targets.Length; i++)
         {
-            var row = sheet.Rows[r];
+            targets[i] = sheet.Rows[top + i];
+        }
+
+        foreach (var row in targets)
+        {
             if (!members.Contains(row))
             {
                 continue;
@@ -135,13 +143,13 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             {
                 foreach (var link in columns)
                 {
-                    if (IsCurrent(link) && (link.Column.Index >= range.Left) && (link.Column.Index <= range.Right))
+                    if (IsCurrent(link) && (link.Column.Index >= range.Left) && (link.Column.Index <= range.Right) && sync.Write(item, link.Property, row, link.Column))
                     {
-                        sync.Write(item, link.Property, r, link.Column.Index);
+                        ShowCell(row, link);
                     }
                 }
             }
-            else if (columns.Exists(x => IsCurrent(x) && (sync.Sheet.GetValue(r, x.Column.Index) is not null)))
+            else if (columns.Exists(x => IsCurrent(x) && (sheet.GetValue(row.Index, x.Column.Index) is not null)))
             {
                 AddItemFor(row);
             }
@@ -158,10 +166,12 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             return;
         }
 
-        var position = sheet.ChangingList is null ? InsertPosition(index, count) : -1;
+        var changing = sheet.ChangingList;
+        var position = changing is null ? InsertPosition(index, count) : -1;
         if (position < 0)
         {
-            if ((rows.Count == 0) && (index <= emptyTop))
+            var below = (index == emptyTop) && (changing is not null) && StaysAbove(changing, index + count);
+            if ((rows.Count == 0) && (index <= emptyTop) && !below)
             {
                 emptyTop += count;
             }
@@ -313,7 +323,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     void IRowsBinding.OnSourceChanged(string? name, bool reload)
     {
-        if (reload || ((string.IsNullOrEmpty(name) || (name == listProperty.Name)) && !ReferenceEquals(listProperty.Get(source), list)))
+        if (reload || ((String.IsNullOrEmpty(name) || (name == listProperty.Name)) && !ReferenceEquals(listProperty.Get(source), list)))
         {
             Load();
         }
@@ -366,7 +376,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private void OnListChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if ((changingList > 0) || (list is null))
+        if ((changingItems > 0) || (list is null))
         {
             return;
         }
@@ -485,7 +495,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
             foreach (var link in columns)
             {
-                if (string.IsNullOrEmpty(e.PropertyName) || (link.Property.Name == e.PropertyName))
+                if (String.IsNullOrEmpty(e.PropertyName) || (link.Property.Name == e.PropertyName))
                 {
                     ShowCell(row, link);
                 }
@@ -506,12 +516,11 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         items[row] = item;
         remembered.AddOrUpdate(row, item);
         Subscribe(item);
-        var r = row.Index;
         foreach (var link in columns)
         {
-            if (IsCurrent(link) && (sync.Sheet.GetValue(r, link.Column.Index) is not null))
+            if (IsCurrent(link) && (sync.Sheet.GetValue(row.Index, link.Column.Index) is not null))
             {
-                sync.Write(item, link.Property, r, link.Column.Index);
+                sync.Write(item, link.Property, row, link.Column);
             }
         }
 
@@ -546,7 +555,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private void ShowCell(SheetRow row, ColumnLink link)
     {
-        if (!IsCurrent(link))
+        if (!IsCurrent(link) || !sync.Sheet.Contains(row))
         {
             return;
         }
@@ -624,6 +633,13 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
     }
 
+    // At its place, an empty list stays above the rows that a list below it adds
+    private bool StaysAbove(IRowsBinding changing, int next)
+    {
+        var sheet = sync.Sheet;
+        return ((next < sheet.RowCount) && changing.Holds(sheet.Rows[next])) || (changing.IsEmptyAt(emptyTop) && (frame.Top < changing.Frame.Top));
+    }
+
     private int InsertPosition(int index, int count)
     {
         var sheet = sync.Sheet;
@@ -687,14 +703,14 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private void ChangeList(Action<IList<TItem>> change)
     {
-        changingList++;
+        changingItems++;
         try
         {
             change(list!);
         }
         finally
         {
-            changingList--;
+            changingItems--;
         }
     }
 

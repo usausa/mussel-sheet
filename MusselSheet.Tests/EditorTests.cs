@@ -85,7 +85,7 @@ public sealed class EditorTests : BunitContext
         Assert.Equal(new CellAddress(0, 0), opened.Address);
 
         opened.Value = "#00ff00";
-        var result = await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync()).ConfigureAwait(true);
+        var result = await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync(false)).ConfigureAwait(true);
 
         Assert.True(result.Closed);
         Assert.Null(result.Error);
@@ -114,7 +114,7 @@ public sealed class EditorTests : BunitContext
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CustomEditor, Editor));
         await cut.InvokeAsync(() => cut.Instance.OpenCustomEditor(0, 0)).ConfigureAwait(true);
 
-        var result = await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync()).ConfigureAwait(true);
+        var result = await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync(false)).ConfigureAwait(true);
 
         Assert.False(result.Closed);
         Assert.Equal(JapaneseTexts.Default.Required, result.Error);
@@ -133,6 +133,24 @@ public sealed class EditorTests : BunitContext
             opened = context;
             builder.AddContent(0, context.Error);
         };
+    }
+
+    [Fact]
+    public async Task FocusLeavingTheSheetStoresAStayErrorOfTheCustomEditorWithAMark()
+    {
+        var sheet = CustomSheet();
+        sheet["A1"].Configure(c => c.Required = true);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CustomEditor, Editor));
+        await cut.InvokeAsync(() => cut.Instance.OpenCustomEditor(0, 0)).ConfigureAwait(true);
+
+        var result = await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync(true)).ConfigureAwait(true);
+
+        Assert.True(result.Closed);
+        Assert.Equal(JapaneseTexts.Default.Required, result.Error);
+        Assert.Equal(JapaneseTexts.Default.Required, sheet.GetError(0, 0));
+        Assert.Empty(cut.FindAll(".mussel-sheet-custom"));
+
+        static RenderFragment Editor(CellEditContext context) => builder => builder.AddContent(0, context.Error);
     }
 
     [Fact]

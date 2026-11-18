@@ -13,8 +13,8 @@ internal static partial class CellInput
 
     // What the width step changes or drops: full-width ASCII, U+3000, U+2212, bidi marks and other scripts' digits
     private static readonly SearchValues<char> WidthCharacters = SearchValues.Create(
-        string.Concat(Enumerable.Range(0xFF01, 0xFF5E - 0xFF01 + 1).Select(static x => (char)x)) + "\u3000\u2212\u200E\u200F\u061C" +
-        string.Concat(Enumerable.Range(0x80, 0xFF01 - 0x80).Select(static x => (char)x).Where(char.IsDigit)));
+        String.Concat(Enumerable.Range(0xFF01, 0xFF5E - 0xFF01 + 1).Select(static x => (char)x)) + "\u3000\u2212\u200E\u200F\u061C" +
+        String.Concat(Enumerable.Range(0x80, 0xFF01 - 0x80).Select(static x => (char)x).Where(Char.IsDigit)));
 
     internal static readonly TimeSpan PatternTimeout = TimeSpan.FromMilliseconds(200);
 
@@ -29,7 +29,7 @@ internal static partial class CellInput
         '\u2006', '\u2007', '\u2008', '\u2009', '\u200A', '\u2028', '\u2029', '\u202F', '\u205F', '\u3000', '\uFEFF'
     ];
 
-    private static readonly string ScriptSpaces = string.Concat(TrimCharacters.Where(static x => x != (char)0x85));
+    private static readonly string ScriptSpaces = String.Concat(TrimCharacters.Where(static x => x != (char)0x85));
 
     // Line breaks, then width per kind, then the mask; text that does not fit the mask is left for validation
     public static string Normalize(string text, ResolvedCellSettings settings, ReadingRules reading)
@@ -60,7 +60,7 @@ internal static partial class CellInput
     };
 
     public static string? ActiveMask(ResolvedCellSettings settings) =>
-        (settings.Kind is CellKind.Text or CellKind.Mask) && !string.IsNullOrEmpty(settings.Mask) ? settings.Mask : null;
+        (settings.Kind is CellKind.Text or CellKind.Mask) && !String.IsNullOrEmpty(settings.Mask) ? settings.Mask : null;
 
     // Separators in the mask may be left out of the input or typed as another separator character
     public static string? FormatMask(string text, string mask)
@@ -87,7 +87,7 @@ internal static partial class CellInput
                 continue;
             }
 
-            if ((i < text.Length) && ((text[i] == token) || (!char.IsAsciiLetterOrDigit(token) && IsSeparator(text[i]))))
+            if ((i < text.Length) && ((text[i] == token) || (!Char.IsAsciiLetterOrDigit(token) && IsSeparator(text[i]))))
             {
                 i++;
             }
@@ -190,7 +190,7 @@ internal static partial class CellInput
             case CellKind.Time:
                 error = context.Texts.Time;
                 return false;
-            case CellKind.Checkbox when bool.TryParse(text, out var flag):
+            case CellKind.Checkbox when Boolean.TryParse(text, out var flag):
                 value = flag;
                 return true;
             case CellKind.Checkbox:
@@ -239,7 +239,7 @@ internal static partial class CellInput
         return value.Time is { } time ? CellText.Format(time, settings.Kind == CellKind.Time ? settings.Format ?? "HH:mm" : "HH:mm", culture) : null;
     }
 
-    public static string? ScriptPattern(string? pattern) => string.IsNullOrEmpty(pattern) || (PatternOf(pattern) is null) ? null : pattern;
+    public static string? ScriptPattern(string? pattern) => String.IsNullOrEmpty(pattern) || (PatternOf(pattern) is null) ? null : pattern;
 
     private static Regex? PatternOf(string pattern) =>
         Patterns.GetOrAdd(pattern, static key =>
@@ -406,7 +406,7 @@ internal static partial class CellInput
         }
 
         plain = plain.Replace(reading.DecimalSeparator, ".", StringComparison.Ordinal);
-        return decimal.TryParse(plain, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out number);
+        return Decimal.TryParse(plain, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out number);
     }
 
     private static Regex NumberPattern(ReadingRules reading) =>
@@ -416,7 +416,7 @@ internal static partial class CellInput
             return new Regex($"^[+-]?(?:[0-9](?:[0-9]{group})*)?(?:{Regex.Escape(key.Decimal)}[0-9]+)?$", RegexOptions.CultureInvariant, PatternTimeout);
         });
 
-    private static bool IsBlankSeparator(string separator) => (separator.Length > 0) && char.IsWhiteSpace(separator[0]);
+    private static bool IsBlankSeparator(string separator) => (separator.Length > 0) && Char.IsWhiteSpace(separator[0]);
 
     // Same as matchDate in MusselSheet.js: the language's forms first, then / - . in culture order or year first
     private static bool TryParseDate(string text, InputContext context, out DateOnly date, out bool omitsYear)
@@ -435,13 +435,13 @@ internal static partial class CellInput
 
         omitsYear = yearText.IsEmpty;
 
-        var year = yearText.IsEmpty ? today.Year : int.Parse(yearText, provider: CultureInfo.InvariantCulture);
+        var year = yearText.IsEmpty ? today.Year : Int32.Parse(yearText, provider: CultureInfo.InvariantCulture);
         if (yearText.Length == 2)
         {
             year = FullYear(year);
         }
 
-        return TryCreateDate(year, int.Parse(monthText, provider: CultureInfo.InvariantCulture), int.Parse(dayText, provider: CultureInfo.InvariantCulture), out date);
+        return TryCreateDate(year, Int32.Parse(monthText, provider: CultureInfo.InvariantCulture), Int32.Parse(dayText, provider: CultureInfo.InvariantCulture), out date);
     }
 
     internal static bool TryCreateDate(int year, int month, int day, out DateOnly date)
@@ -523,9 +523,9 @@ internal static partial class CellInput
             return false;
         }
 
-        var hour = int.Parse(match.Groups[1].ValueSpan, CultureInfo.InvariantCulture);
-        var minute = int.Parse(match.Groups[2].ValueSpan, CultureInfo.InvariantCulture);
-        var second = match.Groups[3].Success ? int.Parse(match.Groups[3].ValueSpan, CultureInfo.InvariantCulture) : 0;
+        var hour = Int32.Parse(match.Groups[1].ValueSpan, CultureInfo.InvariantCulture);
+        var minute = Int32.Parse(match.Groups[2].ValueSpan, CultureInfo.InvariantCulture);
+        var second = match.Groups[3].Success ? Int32.Parse(match.Groups[3].ValueSpan, CultureInfo.InvariantCulture) : 0;
         if ((hour > 23) || (minute > 59) || (second > 59))
         {
             return false;
@@ -603,7 +603,7 @@ internal static partial class CellInput
 
         foreach (var item in settings.Items)
         {
-            if (string.Equals(item.Value, text, StringComparison.Ordinal))
+            if (String.Equals(item.Value, text, StringComparison.Ordinal))
             {
                 return true;
             }
@@ -706,7 +706,7 @@ internal static partial class CellInput
                     break;
                 case '\u200E' or '\u200F' or '\u061C':
                     break;
-                case > '\u007F' when char.IsDigit(ch):
+                case > '\u007F' when Char.IsDigit(ch):
                     buffer.Append((char)('0' + CharUnicodeInfo.GetDecimalDigitValue(ch)));
                     break;
                 default:
@@ -720,17 +720,17 @@ internal static partial class CellInput
 
     private static bool FitsMask(char token, char ch) => token switch
     {
-        '9' => char.IsAsciiDigit(ch),
-        'A' => char.IsAsciiLetter(ch),
-        _ => char.IsAsciiLetterOrDigit(ch)
+        '9' => Char.IsAsciiDigit(ch),
+        'A' => Char.IsAsciiLetter(ch),
+        _ => Char.IsAsciiLetterOrDigit(ch)
     };
 
-    private static bool IsSeparator(char ch) => (ch <= 0x7F) && !char.IsAsciiLetterOrDigit(ch);
+    private static bool IsSeparator(char ch) => (ch <= 0x7F) && !Char.IsAsciiLetterOrDigit(ch);
 
     // The pattern must match the whole text; an invalid pattern is not validated, same as in JS
     private static string? CheckPattern(string text, string? pattern, SheetTexts texts)
     {
-        if (string.IsNullOrEmpty(pattern))
+        if (String.IsNullOrEmpty(pattern))
         {
             return null;
         }

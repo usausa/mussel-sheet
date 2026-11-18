@@ -21,7 +21,7 @@ public sealed partial class MusselSheetView
     }
 
     internal static string RowStyle(int height) =>
-        string.Create(CultureInfo.InvariantCulture, $"height:{height}px;line-height:{height - 1}px;--mussel-sheet-row-h:{height}px");
+        String.Create(CultureInfo.InvariantCulture, $"height:{height}px;line-height:{height - 1}px;--mussel-sheet-row-h:{height}px");
 
     internal CellView GetCellView(int row, int column)
     {
@@ -51,7 +51,7 @@ public sealed partial class MusselSheetView
             css += " mussel-sheet-merge " + styles.GetMergeClass(range);
         }
 
-        if (!string.IsNullOrWhiteSpace(patch?.CssClass))
+        if (!String.IsNullOrWhiteSpace(patch?.CssClass))
         {
             css += " " + patch.CssClass.Trim();
         }
@@ -85,7 +85,7 @@ public sealed partial class MusselSheetView
         // Edit text only when it differs from the display text, and always for a custom display
         var custom = (settings.Kind == CellKind.Custom) && (CustomDisplay is not null);
         var editText = Sheet.GetEditText(row, column);
-        var edit = custom || !string.Equals(editText, text, StringComparison.Ordinal) ? editText : null;
+        var edit = custom || !String.Equals(editText, text, StringComparison.Ordinal) ? editText : null;
 
         return new CellView(
             css,
@@ -121,9 +121,9 @@ public sealed partial class MusselSheetView
     }
 
     private static bool IsAuto(string? value) =>
-        string.IsNullOrWhiteSpace(value) || value.Trim().Equals("auto", StringComparison.OrdinalIgnoreCase);
+        String.IsNullOrWhiteSpace(value) || value.Trim().Equals("auto", StringComparison.OrdinalIgnoreCase);
 
-    private static string SpacerStyle(int height) => string.Create(CultureInfo.InvariantCulture, $"height:{height}px");
+    private static string SpacerStyle(int height) => String.Create(CultureInfo.InvariantCulture, $"height:{height}px");
 
     private void Refresh()
     {
@@ -216,7 +216,7 @@ public sealed partial class MusselSheetView
 
         var text = Width.Trim();
         return text.EndsWith("px", StringComparison.OrdinalIgnoreCase)
-            && int.TryParse(text.AsSpan(0, text.Length - 2), NumberStyles.Integer, CultureInfo.InvariantCulture, out var px)
+            && Int32.TryParse(text.AsSpan(0, text.Length - 2), NumberStyles.Integer, CultureInfo.InvariantCulture, out var px)
                 ? px
                 : DefaultViewportWidth;
     }
@@ -230,7 +230,7 @@ public sealed partial class MusselSheetView
 
         var text = Height.Trim();
         return text.EndsWith("px", StringComparison.OrdinalIgnoreCase)
-            && int.TryParse(text.AsSpan(0, text.Length - 2), NumberStyles.Integer, CultureInfo.InvariantCulture, out var px)
+            && Int32.TryParse(text.AsSpan(0, text.Length - 2), NumberStyles.Integer, CultureInfo.InvariantCulture, out var px)
                 ? px
                 : DefaultViewportHeight;
     }
@@ -238,22 +238,22 @@ public sealed partial class MusselSheetView
     // Where JS reports a scroll: half the overscan inside the drawn range, so it comes before the edge is reached
     private (int Top, int Bottom, int Left, int Right) Thresholds()
     {
-        var (top, bottom) = (int.MinValue, int.MaxValue);
+        var (top, bottom) = (Int32.MinValue, Int32.MaxValue);
         if (IsVirtualized && (lastRow >= firstRow))
         {
             var margin = Math.Max(1, OverscanCount) * Sheet.DefaultRowHeight / 2;
             var frozen = FrozenRowCount;
-            top = BodyFirst > frozen ? rowLayout.Start(BodyFirst) - rowLayout.Start(frozen) + margin : int.MinValue;
-            bottom = lastRow < Sheet.RowCount - 1 ? HeaderHeight + rowLayout.End(lastRow) - margin : int.MaxValue;
+            top = BodyFirst > frozen ? rowLayout.Start(BodyFirst) - rowLayout.Start(frozen) + margin : Int32.MinValue;
+            bottom = lastRow < Sheet.RowCount - 1 ? HeaderHeight + rowLayout.End(lastRow) - margin : Int32.MaxValue;
         }
 
-        var (left, right) = (int.MinValue, int.MaxValue);
+        var (left, right) = (Int32.MinValue, Int32.MaxValue);
         if (IsColumnVirtualized && (lastColumn >= firstColumn))
         {
             var margin = Math.Max(1, OverscanColumnCount) * Sheet.DefaultColumnWidth / 2;
             var frozen = FrozenColumnCount;
-            left = RestFirst > frozen ? columnLayout.Start(RestFirst) - columnLayout.Start(frozen) + margin : int.MinValue;
-            right = lastColumn < Sheet.ColumnCount - 1 ? HeaderWidth + columnLayout.End(lastColumn) - margin : int.MaxValue;
+            left = RestFirst > frozen ? columnLayout.Start(RestFirst) - columnLayout.Start(frozen) + margin : Int32.MinValue;
+            right = lastColumn < Sheet.ColumnCount - 1 ? HeaderWidth + columnLayout.End(lastColumn) - margin : Int32.MaxValue;
         }
 
         return (top, bottom, left, right);

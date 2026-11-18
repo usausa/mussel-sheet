@@ -4,7 +4,7 @@ using System.Globalization;
 
 public readonly record struct CellRange
 {
-    public const int End = int.MaxValue;
+    public const int End = Int32.MaxValue;
 
     public static CellRange All { get; } = new(0, 0, End, End);
 

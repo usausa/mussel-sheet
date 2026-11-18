@@ -45,7 +45,7 @@ public sealed partial class MusselSheetView
         {
             foreach (var change in changes)
             {
-                if (!TryLocate(change, out var row, out var column))
+                if (!TryLocate(change, out var row, out var column) || Sheet.IsCovered(row, column))
                 {
                     continue;
                 }

@@ -8,7 +8,8 @@ window.exampleCulture = () => {
     return /(?:^|\|)c=([^|]*)/.exec(value)?.[1] ?? null;
 };
 
-document.documentElement.lang = (exampleCultures.find(x => x === window.exampleCulture()) ?? exampleCultures[0]).split('-')[0];
+const exampleSavedCulture = window.exampleCulture();
+document.documentElement.lang = (exampleCultures.includes(exampleSavedCulture) ? exampleSavedCulture : exampleCultures[0]).split('-')[0];
 
 window.exampleSaveCulture = name => {
     const value = encodeURIComponent(`c=${name}|uic=${name}`);

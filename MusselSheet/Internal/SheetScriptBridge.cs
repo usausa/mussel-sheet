@@ -114,8 +114,8 @@ internal sealed class SheetScriptBridge(MusselSheetView view)
     public Task<bool> OpenCustomEditorAsync(int row, int column) => RunAsync(() => Task.FromResult(view.OpenCustomEditor(row, column)));
 
     [JSInvokable]
-    public Task<JsonElement> CommitCustomEditorAsync() =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.CommitCustomEditorAsync().ConfigureAwait(true)));
+    public Task<JsonElement> CommitCustomEditorAsync(bool optimistic) =>
+        RunAsync(async () => SheetScriptJson.ToElement(await view.CommitCustomEditorAsync(optimistic).ConfigureAwait(true)));
 
     [JSInvokable]
     public Task CancelCustomEditorAsync() =>

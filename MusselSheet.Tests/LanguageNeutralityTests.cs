@@ -42,7 +42,7 @@ public sealed partial class LanguageNeutralityTests
         var script = File.ReadAllText(Path.Combine(TestPaths.Root, "MusselSheet", "wwwroot", "MusselSheet.js"));
         var list = DigitZeros().Match(script).Groups[1].Value;
         var zeros = list.Split(',', StringSplitOptions.TrimEntries).Select(static x => Convert.ToInt32(x, 16));
-        var expected = Enumerable.Range(0x80, 0xFF01 - 0x80).Where(static x => char.IsDigit((char)x) && (CharUnicodeInfo.GetDecimalDigitValue((char)x) == 0));
+        var expected = Enumerable.Range(0x80, 0xFF01 - 0x80).Where(static x => Char.IsDigit((char)x) && (CharUnicodeInfo.GetDecimalDigitValue((char)x) == 0));
 
         Assert.Equal(expected, zeros);
     }

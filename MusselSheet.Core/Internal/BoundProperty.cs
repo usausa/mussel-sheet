@@ -87,9 +87,9 @@ internal sealed class BoundProperty
 
     private static bool HasFraction(object value) => value switch
     {
-        decimal number => !decimal.IsInteger(number),
-        double number => !double.IsInteger(number),
-        float number => !float.IsInteger(number),
+        decimal number => !Decimal.IsInteger(number),
+        double number => !Double.IsInteger(number),
+        float number => !Single.IsInteger(number),
         _ => false
     };
 

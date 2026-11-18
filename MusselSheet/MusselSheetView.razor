@@ -1,6 +1,7 @@
 @* The grid role is on .mussel-sheet-content; JS-owned elements stay outside it unless aria-hidden *@
 <div @attributes="AdditionalAttributes" class="@RootClass" style="@RootStyle" @ref="root">
-    <style>@styles.Css</style>
+    @* Written as markup, since prerendering encodes > " + in text, which <style> does not decode *@
+    <style>@((MarkupString)styles.Css)</style>
     <div class="mussel-sheet-viewport">
         @* Panes for elements owned by JS (active cell frame, input element); Blazor renders them empty *@
         <div class="mussel-sheet-pane mussel-sheet-pane-l"></div>

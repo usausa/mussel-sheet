@@ -104,7 +104,7 @@ internal sealed partial record ReadingRules(string DecimalSeparator, string Grou
     }
 
     private static string Kept(string own, string standard, string pinned) =>
-        string.Equals(own, standard, StringComparison.Ordinal) ? pinned : own;
+        String.Equals(own, standard, StringComparison.Ordinal) ? pinned : own;
 
     private static string[] Kept(string[] own, string[] standard, string[] pinned) =>
         own.AsSpan().SequenceEqual(standard) ? pinned : own;

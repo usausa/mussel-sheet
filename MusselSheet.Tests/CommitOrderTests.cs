@@ -59,7 +59,7 @@ public sealed class CommitOrderTests : BunitContext
 
         await cut.InvokeAsync(() =>
         {
-            calls = [bridge.CommitAsync(0, 0, "5", true, null), bridge.CommitCustomEditorAsync(), bridge.CancelCustomEditorAsync()];
+            calls = [bridge.CommitAsync(0, 0, "5", true, null), bridge.CommitCustomEditorAsync(false), bridge.CancelCustomEditorAsync()];
         });
         await cut.InvokeAsync(held.SetResult);
         await Task.WhenAll(calls).WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
@@ -89,7 +89,7 @@ public sealed class CommitOrderTests : BunitContext
 
         await cut.InvokeAsync(() =>
         {
-            calls = [bridge.CommitAsync(0, 0, "5", true, null), bridge.CommitCustomEditorAsync(), edit.CancelAsync()];
+            calls = [bridge.CommitAsync(0, 0, "5", true, null), bridge.CommitCustomEditorAsync(false), edit.CancelAsync()];
         });
         await cut.InvokeAsync(held.SetResult);
         await Task.WhenAll(calls).WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
@@ -164,7 +164,7 @@ public sealed class CommitOrderTests : BunitContext
     }
 
     [Fact]
-    public async Task CallsFromTheScriptAfterDisposingDoNothing()
+    public async Task CallsFromTheScriptAfterTheViewIsGoneDoNothing()
     {
         var sheet = new Sheet(1, 1);
         var committed = 0;
