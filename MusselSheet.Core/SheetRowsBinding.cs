@@ -30,7 +30,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     // Weak, so undo brings back the same element until the row leaves the undo history
     private readonly ConditionalWeakTable<SheetRow, TItem> remembered = [];
 
-    private readonly ConditionalWeakTable<SheetRow, object> former = [];
+    private readonly ConditionalWeakTable<SheetRow, object?> former = [];
 
     private IList<TItem>? list;
 
@@ -158,7 +158,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             return;
         }
 
-        var position = sheet.InsertingList is null ? InsertPosition(index, count) : -1;
+        var position = sheet.ChangingList is null ? InsertPosition(index, count) : -1;
         if (position < 0)
         {
             if ((rows.Count == 0) && (index <= emptyTop))
@@ -187,10 +187,9 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         for (var r = index; r < index + count; r++)
         {
             var row = sheet.Rows[r];
-            if (former.TryGetValue(row, out _))
+            if (former.Remove(row))
             {
                 returning.Add(row);
-                former.Remove(row);
             }
         }
 
@@ -278,7 +277,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
         foreach (var row in rows.Where(x => !sheet.Contains(x)).ToArray())
         {
-            former.AddOrUpdate(row, row);
+            former.AddOrUpdate(row, null);
             if (items.Remove(row, out var item))
             {
                 Unsubscribe(item);
@@ -566,7 +565,8 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     {
         var sheet = sync.Sheet;
         var index = position < rows.Count ? rows[position].Index : rows.Count > 0 ? rows[^1].Index + 1 : emptyTop;
-        sheet.InsertingList = this;
+        var changing = sheet.ChangingList;
+        sheet.ChangingList = this;
         try
         {
             if (rows.Count > 0)
@@ -580,7 +580,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
         finally
         {
-            sheet.InsertingList = null;
+            sheet.ChangingList = changing;
         }
 
         var inserted = new List<SheetRow>(count);
@@ -596,7 +596,18 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     private void RemoveRowsAt(int position, int count)
     {
         var index = rows[position].Index;
-        sync.Sheet.DeleteRows(index, count);
+        var sheet = sync.Sheet;
+        var changing = sheet.ChangingList;
+        sheet.ChangingList = this;
+        try
+        {
+            sheet.DeleteRows(index, count);
+        }
+        finally
+        {
+            sheet.ChangingList = changing;
+        }
+
         foreach (var row in rows.GetRange(position, count))
         {
             if (items.Remove(row, out var item))
@@ -618,7 +629,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         var sheet = sync.Sheet;
         if (rows.Count == 0)
         {
-            return (index == emptyTop) && ((index == 0) || !sheet.IsListRow(sheet.Rows[index - 1])) ? 0 : -1;
+            return (index == emptyTop) && ((index == 0) || !sheet.IsListRow(sheet.Rows[index - 1])) && !sheet.IsListRow(sheet.Rows[index]) ? 0 : -1;
         }
 
         if (index > 0)
@@ -630,9 +641,9 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             }
         }
 
-        // A row between two lists joins the upper one only
-        var between = (index + count < sheet.RowCount) && ReferenceEquals(sheet.Rows[index + count], rows[0]) && ((index == 0) || !sheet.IsListRow(sheet.Rows[index - 1]));
-        return between && !sheet.HasEmptyListAt(index) && !sheet.IsListRow(sheet.Rows[index]) ? 0 : -1;
+        // Rows right above the first row join at the top, unless another list ends above them and takes them
+        var joinsAtTop = (index + count < sheet.RowCount) && ReferenceEquals(sheet.Rows[index + count], rows[0]) && ((index == 0) || !sheet.IsListRow(sheet.Rows[index - 1]));
+        return joinsAtTop && !sheet.HasEmptyListAt(index) && !sheet.IsListRow(sheet.Rows[index]) ? 0 : -1;
     }
 
     private int PositionOf(SheetRow row)

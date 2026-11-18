@@ -1197,14 +1197,34 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await Expect(sample.Cell(3, 0)).ToHaveTextAsync("Notebook");
 
         await sample.Cell(4, 1).ClickAsync();
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B5");
         await sample.Keyboard.TypeAsync("7");
         await sample.Page.GetByRole(AriaRole.Button, new() { Name = "Remove the first line" }).EvaluateAsync("button => button.click()");
         await Expect(sample.Cell(3, 0)).ToHaveTextAsync("Ballpoint pen");
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B4");
         await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync("7");
         await sample.Keyboard.PressAsync("Enter");
 
         await Expect(sample.Cell(3, 1)).ToHaveTextAsync("7");
         await Expect(sample.Cell(4, 1)).ToHaveTextAsync(string.Empty);
+    }
+
+    [Theory]
+    [MemberData(nameof(Modes))]
+    public async Task TypedTextGoesAwayWithItsRowWhenTheAppRemovesIt(string mode)
+    {
+        var sample = await OpenAsync("object-binding", mode);
+        await Expect(sample.Cell(3, 0)).ToHaveTextAsync("Notebook");
+        var next = await sample.Cell(4, 1).TextContentAsync();
+
+        await sample.Cell(3, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("7");
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "Remove the first line" }).EvaluateAsync("button => button.click()");
+        await Expect(sample.Cell(3, 0)).ToHaveTextAsync("Ballpoint pen");
+        await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync(string.Empty);
+        await sample.Keyboard.PressAsync("Enter");
+
+        await Expect(sample.Cell(3, 1)).ToHaveTextAsync(next!);
     }
 
     [Fact]
@@ -1328,8 +1348,10 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await Expect(sample.Page.Locator(".mussel-sheet-sink")).ToHaveValueAsync("92");
     }
 
-    [Fact]
-    public async Task AReplayedTabAtTheRowEndLeavesTheSheet()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AReplayedTabAtTheRowEndLeavesTheSheet(bool typed)
     {
         var sample = await OpenHoldingCommitsAsync();
         var rowEnd = sample.Page.Locator(".mud-input-control.mud-select").Filter(new() { HasText = "RowEndMode" });
@@ -1341,13 +1363,20 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Keyboard.TypeAsync("11/29");
         await sample.Keyboard.PressAsync("Enter");
         await sample.WaitForHeldCommitsAsync(1);
-        await sample.Keyboard.TypeAsync("11/30");
+        if (typed)
+        {
+            await sample.Keyboard.TypeAsync("11/30");
+        }
+
         await sample.Keyboard.PressAsync("Tab");
         await sample.ReleaseCommitAsync(0);
 
         await sample.Page.WaitForFunctionAsync("() => !document.activeElement?.closest('.mussel-sheet')", null, new() { Timeout = 5000 });
-        await sample.WaitForHeldCommitsAsync(2);
-        await sample.ReleaseCommitAsync(1);
+        if (typed)
+        {
+            await sample.WaitForHeldCommitsAsync(2);
+            await sample.ReleaseCommitAsync(1);
+        }
     }
 
     [Fact]

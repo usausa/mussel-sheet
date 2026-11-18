@@ -54,7 +54,7 @@ internal sealed class Observation
         return new Observation(name ?? column, null, [sheet.Columns[index]]);
     }
 
-    // Null when the observed cells were deleted, or a column inserted between them would join the saved range
+    // Null when the observed cells were deleted, or a row or column between them would join the saved range
     public string? CurrentText(Sheet sheet)
     {
         Refresh(sheet);
@@ -74,7 +74,7 @@ internal sealed class Observation
             return CellRange.Columns(current[0], current[^1]).ToString();
         }
 
-        if (rows.Span(sheet) is not { } span)
+        if (rows.Run(sheet) is not { } span)
         {
             return null;
         }

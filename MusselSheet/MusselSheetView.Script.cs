@@ -76,7 +76,7 @@ public sealed partial class MusselSheetView
             }
 
             var map = MapSignature();
-            if (!string.Equals(sentMap, map, StringComparison.Ordinal) || (pendingShifts.Count > 0))
+            if (!string.Equals(sentMap, map, StringComparison.Ordinal))
             {
                 sentMap = map;
                 List<ScriptShift> shifts = [.. pendingShifts];
@@ -221,7 +221,14 @@ public sealed partial class MusselSheetView
         sentThresholds = null;
         try
         {
-            await current.InvokeVoidAsync("dispose").ConfigureAwait(true);
+            try
+            {
+                await current.InvokeVoidAsync("dispose").ConfigureAwait(true);
+            }
+            catch (JSException)
+            {
+            }
+
             await current.DisposeAsync().ConfigureAwait(true);
         }
         catch (JSDisconnectedException)

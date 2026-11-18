@@ -42,10 +42,11 @@ public sealed partial class MusselSheetView
             return new CustomEditorResult(true, null);
         }
 
+        var result = await CommitValueAsync(edit.Address.Row, edit.Address.Column, edit.Value).ConfigureAwait(true);
         var (row, column) = (edit.Address.Row, edit.Address.Column);
-        var result = await CommitValueAsync(row, column, edit.Value).ConfigureAwait(true);
         var keepOpen = !result.Stored
             && (result.Error is not null)
+            && edit.IsCurrent
             && IsEditable(row, column)
             && ((Sheet.GetSettings(row, column).ValidationMode ?? ValidationMode) != SheetValidationMode.Revert);
         if (keepOpen && ReferenceEquals(edit, customEdit))

@@ -15,7 +15,7 @@ public sealed partial class MusselSheetView
         var anchor = Sheet.Rows[row];
         var inserting = new SheetRowsInsertingEventArgs(Sheet, row + 1, 1);
         await HandleAsync(RowsInserting, inserting).ConfigureAwait(true);
-        if (inserting.Cancel || !IsAttached(anchor))
+        if (inserting.Cancel || !Sheet.Contains(anchor))
         {
             return false;
         }
@@ -183,7 +183,7 @@ public sealed partial class MusselSheetView
     // Null if the rows are already in or the row above is gone; otherwise target shifted to where they went
     private CellRange? PutBack(RowsEdited entry, CellRange target)
     {
-        if (entry.Present || ((entry.Above is { } above) && !IsAttached(above)) || entry.Rows.Any(IsAttached))
+        if (entry.Present || ((entry.Above is { } above) && !Sheet.Contains(above)) || entry.Rows.Any(Sheet.Contains))
         {
             return null;
         }
@@ -201,7 +201,7 @@ public sealed partial class MusselSheetView
     // Null if the rows are not in the sheet, or the app removed some or inserted rows between them
     private CellRange? TakeAway(RowsEdited entry, CellRange target)
     {
-        if (!entry.Present || !IsRun(entry.Rows))
+        if (!entry.Present || (Span(entry.Rows) is null))
         {
             return null;
         }
@@ -218,7 +218,7 @@ public sealed partial class MusselSheetView
 
     private CellRange? PutBack(ColumnsEdited entry, CellRange target)
     {
-        if (entry.Present || ((entry.Left is { } left) && !IsAttached(left)) || entry.Columns.Any(IsAttached))
+        if (entry.Present || ((entry.Left is { } left) && !Sheet.Contains(left)) || entry.Columns.Any(Sheet.Contains))
         {
             return null;
         }
@@ -235,7 +235,7 @@ public sealed partial class MusselSheetView
 
     private CellRange? TakeAway(ColumnsEdited entry, CellRange target)
     {
-        if (!entry.Present || !IsRun(entry.Columns))
+        if (!entry.Present || (Span(entry.Columns) is null))
         {
             return null;
         }
@@ -326,12 +326,6 @@ public sealed partial class MusselSheetView
         return true;
     }
 
-    private bool IsRun(IReadOnlyList<SheetRow> rows) =>
-        (rows.Count > 0) && rows.Select((row, i) => IsAttached(row) && (row.Index == rows[0].Index + i)).All(x => x);
-
-    private bool IsRun(IReadOnlyList<SheetColumn> columns) =>
-        (columns.Count > 0) && columns.Select((column, i) => IsAttached(column) && (column.Index == columns[0].Index + i)).All(x => x);
-
     private CellRange? Shift(CellRange range, Axis axis, int delta)
     {
         if ((Sheet.RowCount == 0) || (Sheet.ColumnCount == 0))
@@ -356,10 +350,4 @@ public sealed partial class MusselSheetView
         var left = Math.Clamp(range.Left, 0, Sheet.ColumnCount - 1);
         return new CellRange(top, left, Math.Clamp(range.Bottom, top, Sheet.RowCount - 1), Math.Clamp(range.Right, left, Sheet.ColumnCount - 1));
     }
-
-    private bool IsAttached(SheetRow row) =>
-        (row.Index < Sheet.RowCount) && ReferenceEquals(Sheet.Rows[row.Index], row);
-
-    private bool IsAttached(SheetColumn column) =>
-        (column.Index < Sheet.ColumnCount) && ReferenceEquals(Sheet.Columns[column.Index], column);
 }

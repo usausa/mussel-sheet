@@ -93,10 +93,37 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
         Sheet.Unbind(this);
     }
 
+    // While one list adds or removes rows for its own items, the other lists of this binding only follow those rows
+    private void FollowRowsOfAnotherList(SheetChangedEventArgs e)
+    {
+        foreach (var list in lists.ToArray())
+        {
+            if (ReferenceEquals(list, Sheet.ChangingList))
+            {
+                continue;
+            }
+
+            if (e.Kind == SheetChangeKind.RowsInserted)
+            {
+                list.OnRowsInserted(e.Index, e.Count);
+            }
+            else if (e.Kind == SheetChangeKind.RowsDeleted)
+            {
+                list.OnRowsRemoved(e.Index, e.Count);
+            }
+        }
+    }
+
     void ISheetBinding.OnSheetChanged(SheetChangedEventArgs e)
     {
-        if (disposed || sync.IsApplying)
+        if (disposed)
         {
+            return;
+        }
+
+        if (sync.IsApplying)
+        {
+            FollowRowsOfAnotherList(e);
             return;
         }
 

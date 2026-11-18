@@ -392,11 +392,13 @@ public sealed partial class MusselSheetView : IAsyncDisposable
         {
             Unsubscribe();
             Sheet.Changed += OnSheetChanged;
+            Sheet.Restructured += OnSheetRestructured;
             Sheet.Rebound += OnSheetRebound;
             Sheet.UseRegisteredOptions(RegisteredOptions);
             subscribed = Sheet;
             layoutVersion = -1;
             history.Clear();
+            pendingShifts.Clear();
         }
 
         history.Limit = UndoLimit;
@@ -477,14 +479,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
     private bool IsEditable(int row, int column) =>
         IsInSheet(row, column) && !Sheet.GetSettings(row, column).IsInputDisabled && !Sheet.IsCovered(row, column);
 
-    // Rows and columns the app inserts or deletes move the active cell in JS; the view's own changes send their selection instead
-    private void OnSheetChanged(object? sender, SheetChangedEventArgs e)
-    {
-        if ((ownStructure == 0) && (ShiftOf(e) is { } shift))
-        {
-            pendingShifts.Add(shift);
-        }
-
+    private void OnSheetChanged(object? sender, SheetChangedEventArgs e) =>
         _ = InvokeAsync(() =>
         {
             if (!IsDisposed)
@@ -494,6 +489,14 @@ public sealed partial class MusselSheetView : IAsyncDisposable
                 StateHasChanged();
             }
         });
+
+    // Rows and columns the app inserts or deletes move the active cell in JS; the view's own changes send their selection instead
+    private void OnSheetRestructured(object? sender, SheetChangedEventArgs e)
+    {
+        if ((ownStructure == 0) && (ShiftOf(e) is { } shift))
+        {
+            pendingShifts.Add(shift);
+        }
     }
 
     private static ScriptShift? ShiftOf(SheetChangedEventArgs e) => e.Kind switch
@@ -546,6 +549,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
         if (subscribed is not null)
         {
             subscribed.Changed -= OnSheetChanged;
+            subscribed.Restructured -= OnSheetRestructured;
             subscribed.Rebound -= OnSheetRebound;
             subscribed = null;
         }

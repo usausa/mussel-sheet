@@ -23,6 +23,8 @@ internal sealed class LateModule : IJSObjectReference
 
     public string? Fail { get; set; }
 
+    public LateModule? Returned { get; set; }
+
     public TaskCompletionSource Resume { get; } = new();
 
     public bool Released { get; private set; }
@@ -44,10 +46,10 @@ internal sealed class LateModule : IJSObjectReference
 
         if (identifier == Hold)
         {
-            return new ValueTask<TValue>(Resume.Task.ContinueWith(_ => typeof(TValue) == typeof(IJSObjectReference) ? (TValue)(object)this : default!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
+            return new ValueTask<TValue>(Resume.Task.ContinueWith(_ => typeof(TValue) == typeof(IJSObjectReference) ? (TValue)(object)(Returned ?? this) : default!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
         }
 
-        return typeof(TValue) == typeof(IJSObjectReference) ? new ValueTask<TValue>((TValue)(object)this) : default;
+        return typeof(TValue) == typeof(IJSObjectReference) ? new ValueTask<TValue>((TValue)(object)(Returned ?? this)) : default;
     }
 
     public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
@@ -61,9 +63,9 @@ internal sealed class LateModule : IJSObjectReference
 
         if (identifier == Hold)
         {
-            return new ValueTask<TValue>(Resume.Task.ContinueWith(_ => typeof(TValue) == typeof(IJSObjectReference) ? (TValue)(object)this : default!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
+            return new ValueTask<TValue>(Resume.Task.ContinueWith(_ => typeof(TValue) == typeof(IJSObjectReference) ? (TValue)(object)(Returned ?? this) : default!, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
         }
 
-        return typeof(TValue) == typeof(IJSObjectReference) ? new ValueTask<TValue>((TValue)(object)this) : default;
+        return typeof(TValue) == typeof(IJSObjectReference) ? new ValueTask<TValue>((TValue)(object)(Returned ?? this)) : default;
     }
 }

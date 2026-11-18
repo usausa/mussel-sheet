@@ -1,5 +1,9 @@
 namespace MusselSheet;
 
+using System.Runtime.CompilerServices;
+
+using MusselSheet.Internal;
+
 public sealed class SheetStructureTests
 {
     [Fact]
@@ -340,7 +344,7 @@ public sealed class SheetStructureTests
     public void RowsJoinTheReadRangeEvenWhenItWasReadDuringTheInsert()
     {
         var sheet = new Sheet(4, 1);
-        var observation = MusselSheet.Internal.Observation.Of(sheet, "A1:A3");
+        var observation = Observation.Of(sheet, "A1:A3");
 
         sheet.InsertRows(3, 1);
         var early = observation.Intersects(sheet, new CellRange(3, 0, 3, 0));
@@ -443,7 +447,7 @@ public sealed class SheetStructureTests
         Assert.Equal(CellKind.Number, sheet.GetSettings(0, 1).Kind);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private static WeakReference DeleteRow(Sheet sheet, int index)
     {
         var row = new WeakReference(sheet.Rows[index]);

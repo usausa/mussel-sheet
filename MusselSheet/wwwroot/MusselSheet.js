@@ -511,7 +511,7 @@ export function deleteSize(value, caret, back) {
 }
 
 export function currentItem(items, text) {
-    const key = toHalfwidth(text);
+    const key = toHalfwidth(text.trim());
     return items.findIndex(x => sameText(toHalfwidth(x.text), key) || sameText(toHalfwidth(x.value), key));
 }
 
@@ -545,8 +545,16 @@ function fill(template, first, second) {
     return second === undefined ? text : text.replace('{1}', second);
 }
 
+// Letter by letter, the same as SameText in C#; a letter whose lower case is longer stays as it is
 function sameText(a, b) {
-    return a.toLowerCase() === b.toLowerCase();
+    const x = [...a];
+    const y = [...b];
+    return (x.length === y.length) && x.every((letter, i) => lowerLetter(letter) === lowerLetter(y[i]));
+}
+
+function lowerLetter(letter) {
+    const lower = letter.toLowerCase();
+    return [...lower].length === 1 ? lower : letter;
 }
 
 // ---- Suggestions and calendar ----
@@ -1410,7 +1418,6 @@ function createButton(className, text, label) {
     return button;
 }
 
-// Must produce the same notation as C# KeyCombo
 // A cell in deleted rows or columns goes to where they were, marked lost
 export function shiftCell(cell, { axis, index, count }) {
     const key = axis === 'row' ? 'r' : 'c';
@@ -1426,6 +1433,7 @@ export function shiftCell(cell, { axis, index, count }) {
     return value < index - count ? { ...cell, [key]: index, lost: true } : { ...cell, [key]: value + count };
 }
 
+// Must produce the same notation as C# KeyCombo
 export function comboOf(k) {
     const key = k.key === ' ' ? 'Space' : k.key.length === 1 ? k.key.toUpperCase() : k.key;
     return `${k.ctrl ? 'Ctrl+' : ''}${k.alt ? 'Alt+' : ''}${k.shift ? 'Shift+' : ''}${key}`;
@@ -1617,6 +1625,9 @@ class SheetController {
         }
         if (lost && this.isEditing()) {
             this.finishEdit();
+        }
+        if (shifts.length > 0) {
+            this.notifyActive();
         }
 
         this.row = clamp(this.row, 0, this.map.rows - 1);
@@ -2522,9 +2533,9 @@ class SheetController {
         } else if (k.key === 'End') {
             caret = lineEnd;
         } else if (k.key === 'ArrowLeft') {
-            caret = Math.max(0, focus - 1);
+            caret = Math.max(0, focus - deleteSize(value, focus, true));
         } else if (k.key === 'ArrowRight') {
-            caret = Math.min(value.length, focus + 1);
+            caret = Math.min(value.length, focus + deleteSize(value, focus, false));
         } else if (k.key === 'ArrowUp') {
             const previous = value.lastIndexOf('\n', lineStart - 2) + 1;
             caret = lineStart === 0 ? 0 : Math.min(previous + (focus - lineStart), lineStart - 1);

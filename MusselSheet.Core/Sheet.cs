@@ -180,6 +180,11 @@ public sealed partial class Sheet
 
         NotifyBindings(e);
         NotifyComputations(e);
+        if (e.Kind is SheetChangeKind.RowsInserted or SheetChangeKind.RowsDeleted or SheetChangeKind.ColumnsInserted or SheetChangeKind.ColumnsDeleted)
+        {
+            Restructured?.Invoke(this, e);
+        }
+
         if (updateDepth > 0)
         {
             pendingReset = true;

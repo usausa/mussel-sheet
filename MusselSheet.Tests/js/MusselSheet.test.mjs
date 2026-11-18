@@ -850,6 +850,13 @@ test('the current list item is found whatever the width of the text', () => {
     assert.equal(currentItem(items, 'ｔｏｋｙｏ'), 1);
     assert.equal(currentItem(items, 'O'), 0);
     assert.equal(currentItem(items, 'nagoya'), -1);
+    assert.equal(currentItem(items, ' tokyo '), 1);
+});
+
+test('list items match letter by letter in lower case, the same as the commit', () => {
+    assert.equal(currentItem([{ text: 'οδος', value: 'x' }], 'ΟΔΟΣ'), -1);
+    assert.equal(currentItem([{ text: 'οδοσ', value: 'x' }], 'ΟΔΟΣ'), 0);
+    assert.equal(currentItem([{ text: 'i' + String.fromCharCode(0x307), value: 'x' }], String.fromCharCode(0x130)), -1);
 });
 
 test('cells follow rows and columns the app inserts or deletes', () => {

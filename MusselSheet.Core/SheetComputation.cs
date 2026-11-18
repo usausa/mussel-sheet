@@ -60,7 +60,7 @@ public sealed class SheetComputation : IDisposable
             return CellRange.Columns(column.Index, column.Index).ToString();
         }
 
-        return rows.Span(sheet) is { } span ? new CellRange(span.Top, column.Index, span.Bottom, column.Index).ToString() : null;
+        return rows.Run(sheet) is { } span ? new CellRange(span.Top, column.Index, span.Bottom, column.Index).ToString() : null;
     }
 
     public void Dispose()

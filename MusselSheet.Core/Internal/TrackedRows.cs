@@ -43,6 +43,26 @@ internal sealed class TrackedRows
 
     public bool Contains(Sheet sheet, SheetRow row) => sheet.Contains(row) && (IsAll || set.Contains(row));
 
+    // Null unless the rows still in the sheet are one run without a gap
+    public (int Top, int Bottom)? Run(Sheet sheet)
+    {
+        if (IsAll || (Span(sheet) is not { } span))
+        {
+            return Span(sheet);
+        }
+
+        var count = 0;
+        foreach (var row in rows)
+        {
+            if (sheet.Contains(row))
+            {
+                count++;
+            }
+        }
+
+        return span.Bottom - span.Top + 1 == count ? span : null;
+    }
+
     public (int Top, int Bottom)? Span(Sheet sheet)
     {
         if (IsAll)
@@ -75,7 +95,7 @@ internal sealed class TrackedRows
             return;
         }
 
-        PutBack(sheet, index, count);
+        PutBack(sheet, index, count, joined);
         if (!region || (Span(sheet) is not { } span))
         {
             return;
@@ -125,7 +145,7 @@ internal sealed class TrackedRows
         rows.RemoveRange(kept, rows.Count - kept);
     }
 
-    private void PutBack(Sheet sheet, int index, int count)
+    private void PutBack(Sheet sheet, int index, int count, ICollection<SheetRow>? joined)
     {
         if (removed is null)
         {
@@ -138,6 +158,7 @@ internal sealed class TrackedRows
             if (removed.Remove(row) && set.Add(row))
             {
                 rows.Add(row);
+                joined?.Add(row);
             }
         }
     }

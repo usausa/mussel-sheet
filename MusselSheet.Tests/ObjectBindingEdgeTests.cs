@@ -44,6 +44,19 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     }
 
     [Fact]
+    public void AMergeLeavesTheCoveredCellOfAValuePropertyEmpty()
+    {
+        var target = new Target { Amount = 5m };
+        var sheet = new Sheet(1, 2);
+        sheet.Configure(CellRange.All, static c => c.Kind = CellKind.Number);
+        using var binding = sheet.Bind(target).Cell("B1", static x => x.Amount);
+
+        sheet.Range("A1:B1").Merge();
+
+        Assert.Equal((0m, null), (target.Amount, sheet.GetValue(0, 1)));
+    }
+
+    [Fact]
     public void AConvertedExpressionStillFindsTheProperty()
     {
         var target = new Target { Count = 3 };
@@ -267,6 +280,57 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     }
 
     [Fact]
+    public void ARowPutBackIsComputedAgainWithTheValueItShowsAgain()
+    {
+        var target = new Target { Amount = 10m };
+        var sheet = new Sheet(3, 3);
+        sheet.Configure(CellRange.All, static c => c.Kind = CellKind.Number);
+        using var binding = sheet.Bind(target).Cell("A2", static x => x.Amount);
+        sheet.ComputeRows("C1:C3", ["A", "B"], static x => x.Get<decimal?>("A") * x.Get<decimal?>("B"));
+        sheet.SetValue(1, 1, 2m);
+        var row = sheet.Rows[1];
+        var rules = sheet.Rules.ToArray();
+
+        sheet.DeleteRows(1, 1);
+        target.Amount = 50m;
+        sheet.PutRows(1, [row], rules, []);
+
+        Assert.Equal(100m, sheet.GetValue(1, 2));
+    }
+
+    [Fact]
+    public void OnlyOneOfTwoEmptyListsAtTheSamePlaceTakesAnInsertedRow()
+    {
+        var first = new ListTarget { Lines = { new Line { Name = "a" }, new Line { Name = "b" } } };
+        var second = new ListTarget { Lines = { new Line { Name = "c" }, new Line { Name = "d" } } };
+        var sheet = new Sheet(6, 1);
+        using var upper = sheet.Bind(first).Rows("A2:A3", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        using var lower = sheet.Bind(second).Rows("A4:A5", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+
+        sheet.DeleteRows(1, 4);
+        sheet.InsertRows(1, 1);
+        sheet.SetValue(1, 0, "x");
+
+        Assert.Equal(1, first.Lines.Count + second.Lines.Count);
+    }
+
+    [Fact]
+    public void AnEmptyListMovesWithTheRowsItsSiblingAdds()
+    {
+        var target = new TwoLists { Lines = { new Line { Name = "a" }, new Line { Name = "b" } }, Others = { new Line { Name = "c" }, new Line { Name = "d" } } };
+        var sheet = new Sheet(8, 1);
+        using var binding = sheet.Bind(target)
+            .Rows("A2:A3", static x => x.Lines, static x => x.Column("A", static y => y.Name))
+            .Rows("A6:A7", static x => x.Others, static x => x.Column("A", static y => y.Name));
+
+        sheet.DeleteRows(5, 2);
+        target.Lines.Add(new Line { Name = "e" });
+        target.Others.Add(new Line { Name = "o" });
+
+        Assert.Equal("o", sheet.GetValue(6, 0));
+    }
+
+    [Fact]
     public void AColumnMustBeInsideTheRows()
     {
         var sheet = new Sheet(2, 3);
@@ -301,6 +365,13 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     public sealed class ListTarget
     {
         public ObservableCollection<Line> Lines { get; } = [];
+    }
+
+    public sealed class TwoLists
+    {
+        public ObservableCollection<Line> Lines { get; } = [];
+
+        public ObservableCollection<Line> Others { get; } = [];
     }
 
     public sealed class Line

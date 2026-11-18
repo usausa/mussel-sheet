@@ -61,7 +61,7 @@ public sealed partial class MusselSheetView
         }
 
         // Reselects the whole area of a range operation, or the changed cells if a corner row or column is gone
-        if ((entry.Area is { } area) && IsAttached(area.Top) && IsAttached(area.Bottom) && IsAttached(area.Left) && IsAttached(area.Right))
+        if ((entry.Area is { } area) && Sheet.Contains(area.Top) && Sheet.Contains(area.Bottom) && Sheet.Contains(area.Left) && Sheet.Contains(area.Right))
         {
             var located = new CellRange(area.Top.Index, area.Left.Index, area.Bottom.Index, area.Right.Index);
             target = target is { } t
@@ -79,7 +79,6 @@ public sealed partial class MusselSheetView
     {
         row = change.Row.Index;
         column = change.Column.Index;
-        return IsAttached(change.Row)
-            && (column < Sheet.ColumnCount) && ReferenceEquals(Sheet.Columns[column], change.Column);
+        return Sheet.Contains(change.Row) && Sheet.Contains(change.Column);
     }
 }

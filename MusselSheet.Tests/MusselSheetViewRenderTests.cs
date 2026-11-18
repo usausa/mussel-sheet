@@ -1,5 +1,8 @@
 namespace MusselSheet;
 
+using System.Collections.ObjectModel;
+using System.Text.Json;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
@@ -10,6 +13,96 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     public MusselSheetViewRenderTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RowsTheAppRemovesMoveTheActiveCellAlsoInAnUpdate(bool update)
+    {
+        var sheet = new Sheet(4, 2);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var sent = JSInterop.Invocations["setMap"].Count;
+
+        await cut.InvokeAsync(() =>
+        {
+            using (update ? sheet.BeginUpdate() : null)
+            {
+                sheet.DeleteRows(0, 1);
+            }
+        });
+
+        await cut.WaitForAssertionAsync(() => Assert.Equal(sent + 1, JSInterop.Invocations["setMap"].Count));
+        Assert.Equal("""[{"axis":"row","index":0,"count":-1}]""", ((JsonElement)JSInterop.Invocations["setMap"][^1].Arguments[1]!).GetRawText());
+    }
+
+    public static TheoryData<string, bool, string> StructureChanges => new()
+    {
+        { "insert rows", false, """[{"axis":"row","index":0,"count":1}]""" },
+        { "insert rows", true, """[{"axis":"row","index":0,"count":1}]""" },
+        { "insert columns", false, """[{"axis":"col","index":0,"count":1}]""" },
+        { "insert columns", true, """[{"axis":"col","index":0,"count":1}]""" },
+        { "delete columns", false, """[{"axis":"col","index":0,"count":-1}]""" },
+        { "delete columns", true, """[{"axis":"col","index":0,"count":-1}]""" }
+    };
+
+    [Theory]
+    [MemberData(nameof(StructureChanges))]
+    public async Task RowsAndColumnsTheAppChangesAreSentAsShifts(string change, bool update, string shifts)
+    {
+        var sheet = new Sheet(4, 2);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var sent = JSInterop.Invocations["setMap"].Count;
+
+        await cut.InvokeAsync(() =>
+        {
+            using (update ? sheet.BeginUpdate() : null)
+            {
+                switch (change)
+                {
+                    case "insert rows":
+                        sheet.InsertRows(0, 1);
+                        break;
+                    case "insert columns":
+                        sheet.InsertColumns(0, 1);
+                        break;
+                    default:
+                        sheet.DeleteColumns(0, 1);
+                        break;
+                }
+            }
+        });
+
+        await cut.WaitForAssertionAsync(() => Assert.Equal(sent + 1, JSInterop.Invocations["setMap"].Count));
+        Assert.Equal(shifts, ((JsonElement)JSInterop.Invocations["setMap"][^1].Arguments[1]!).GetRawText());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RowsABindingTakesAwayInItsOwnUpdateAreSentAsShifts(bool refresh)
+    {
+        var order = new Order { Lines = [new Line { Name = "a" }, new Line { Name = "b" }, new Line { Name = "c" }, new Line { Name = "d" }] };
+        var sheet = new Sheet(6, 1);
+        using var binding = sheet.Bind(order).Rows("A2:A3", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var sent = JSInterop.Invocations["setMap"].Count;
+
+        await cut.InvokeAsync(() =>
+        {
+            if (refresh)
+            {
+                order.Lines = [new Line { Name = "x" }];
+                binding.Refresh();
+            }
+            else
+            {
+                order.Lines.Clear();
+            }
+        });
+
+        await cut.WaitForAssertionAsync(() => Assert.Equal(sent + 1, JSInterop.Invocations["setMap"].Count));
+        Assert.Equal("""[{"axis":"row","index":3,"count":-2}]""", ((JsonElement)JSInterop.Invocations["setMap"][^1].Arguments[1]!).GetRawText());
     }
 
     [Fact]
@@ -30,6 +123,23 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Fact]
+    public async Task AFailedDisposeStillReleasesTheScript()
+    {
+        var instance = new LateModule { Fail = "dispose" };
+        var runtime = new LateRuntime { Module = { Returned = instance } };
+        Services.AddSingleton<IJSRuntime>(runtime);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(3, 3)));
+        await cut.InvokeAsync(() => runtime.Import.SetResult(runtime.Module));
+        await cut.WaitForAssertionAsync(() => Assert.Contains("attach", runtime.Module.Calls));
+
+        await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+
+        Assert.Contains("dispose", instance.Calls);
+        Assert.True(instance.Released);
+        Assert.True(runtime.Module.Released);
+    }
+
+    [Fact]
     public async Task TheScriptThatArrivesAfterTheViewIsGoneIsReleased()
     {
         var runtime = new LateRuntime();
@@ -44,7 +154,7 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Fact]
-    public async Task AViewDisposedWhileItsScriptAttachesStops()
+    public async Task DisposingWhileTheScriptIsAttachingEndsQuietly()
     {
         var runtime = new LateRuntime { Module = { Hold = "attach" } };
         Services.AddSingleton<IJSRuntime>(runtime);
@@ -97,7 +207,7 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Fact]
-    public async Task AFailedCallBeforeTheScriptIsAttachedDoesNotStopTheOthers()
+    public async Task AFailedCallBeforeTheScriptIsAttachedDoesNotStopTheRest()
     {
         var runtime = new LateRuntime { Module = { Fail = "focus" } };
         Services.AddSingleton<IJSRuntime>(runtime);
@@ -361,5 +471,15 @@ public sealed class MusselSheetViewRenderTests : BunitContext
         Assert.Equal(1, rows[0].RenderCount);
         Assert.Equal(2, rows[1].RenderCount);
         Assert.Equal(1, rows[2].RenderCount);
+    }
+
+    private sealed class Order
+    {
+        public ObservableCollection<Line> Lines { get; set; } = [];
+    }
+
+    private sealed class Line
+    {
+        public string? Name { get; set; }
     }
 }

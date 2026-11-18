@@ -31,7 +31,10 @@ public sealed class SamplePage(IBrowserContext context, IPage page) : IAsyncDisp
     public static Task RightClickAsync(ILocator target) => target.ClickAsync(new() { Button = MouseButton.Right });
 
     public Task WaitForSheetAsync() =>
-        page.Locator(".mussel-sheet[data-attached]").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 30_000 });
+        page.WaitForFunctionAsync(
+            "() => { const roots = document.querySelectorAll('.mussel-sheet'); return (roots.length > 0) && [...roots].every((root) => root.hasAttribute('data-attached')); }",
+            null,
+            new() { Timeout = 30_000 });
 
     public static Task<int[]> RectAsync(ILocator target) =>
         target.EvaluateAsync<int[]>("e => { const b = e.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round); }");

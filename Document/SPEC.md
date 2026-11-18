@@ -15,7 +15,7 @@ An input cell accepts user input. An input-disabled cell has `ReadOnly` or `Kind
 
 With `ReadyEnterMode.Edit`, Enter also starts edit or opens the custom editor.
 
-While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu, the edit text read from C# for F2, Alt+Down, a double-click or Ctrl+Enter on a cell that is not drawn or while a change is on its way, and a cut until the clipboard takes the text), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync`, `CommitEditAsync`, `CancelEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and so are `SetActiveCellAsync` and the selection while a custom editor commits. A rejected commit drops them with the keys. Keys before a custom editor opens are dropped.
+While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu, the edit text read from C# for F2, Alt+Down, a double-click or Ctrl+Enter on a cell that is not drawn or while a change is on its way, and a cut until the clipboard takes the text), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards; a queued arrow moves the caret by one letter, with Ctrl too. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync`, `CommitEditAsync`, `CancelEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and so are `SetActiveCellAsync` and the selection while a custom editor commits. A rejected commit drops them with the keys. Keys before a custom editor opens are dropped.
 
 ## 🧾 Sheet
 
@@ -52,7 +52,7 @@ Values are never inherited. Deleting shrinks rules and drops empty ones. These m
 
 ### Merged cells
 
-- Only the app merges. `Merge` keeps the top left value and error mark. The others are removed and do not return after `Unmerge`.
+- Only the app merges. `Merge` keeps the top left value and error mark. The others are removed and do not return after `Unmerge`. A bound cell that gets covered gives its property the value of an empty cell (the default for a value type), and the binding writes nothing into a covered cell.
 - `Merge` throws for a single cell, a range reaching outside the sheet (whole rows and columns included), and a partial overlap with another merge. Merges inside the range are absorbed. `Unmerge` ends every merge touching the range.
 - The settings of the top left cell apply to the whole range.
 - Inserting inside a merge grows it, and inserting at or before its first row or column shifts it. Deleting shrinks it, and a merge reduced to one cell ends.
@@ -414,7 +414,7 @@ A read-only list gets no new elements. Without `Create` or a parameterless const
 ## 💾 Design
 
 - Saved: row and column counts, default sizes that differ from 24 and 100, culture name, frozen counts, heights, widths and headers set on rows and columns, rules in order, merges, `Label` values, and computations. With `includeValues`, all values.
-- Not saved: error marks, change marks, `InputText`, undo history, parameters of the view, functions not in `SheetFunctions`, with the computations using them, and computations whose cells or read cells were deleted, or whose read columns have a column inserted between them.
+- Not saved: error marks, change marks, `InputText`, undo history, parameters of the view, functions not in `SheetFunctions`, with the computations using them, and computations whose cells or read cells were deleted, whose read columns have a column inserted between them, or whose rows have a gap (a row that came back between them by Undo).
 - Functions are saved by name, and `FromDesign` takes them from the same `SheetFunctions`. Names are unique across all function kinds, and adding a name again replaces it.
 - Character sets are saved by `Name`. `FromDesign` takes them from `SheetFunctions` (`AddCharacterSet`) first, then from the built-in ones.
 - A computation saves the name it reads, and the current address when different. A loaded sheet computes at once, and the read-only rule comes from the saved rules.

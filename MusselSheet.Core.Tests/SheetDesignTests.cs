@@ -123,6 +123,24 @@ public sealed class SheetDesignTests
     }
 
     [Fact]
+    public void ComputationsWhoseRowsHaveAGapAreNotSaved()
+    {
+        var functions = new SheetFunctions();
+        functions.AddComputation("写し", x => x.Get<decimal?>("B"));
+        var sheet = new Sheet(8, 4);
+        sheet.ComputeRows("D4:D6", ["B"], functions.Computation("写し"));
+        var total = sheet.Rows[6];
+        var rules = sheet.Rules.ToArray();
+
+        sheet.DeleteRows(6, 1);
+        sheet.InsertRows(6, 1);
+        sheet.PutRows(6, [total], rules, []);
+        var design = sheet.ToDesign(functions);
+
+        Assert.Empty(design.Computations ?? []);
+    }
+
+    [Fact]
     public void FunctionsAreSavedByName()
     {
         var functions = new SheetFunctions();

@@ -38,6 +38,27 @@ public sealed class CellCallbackTests : BunitContext
     }
 
     [Fact]
+    public async Task AFailureAfterTheViewIsGoneDoesNotReachTheRenderer()
+    {
+        var pending = new TaskCompletionSource();
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(2, 2)).Add(x => x.ActiveCellChanged, async _ =>
+        {
+            await pending.Task.ConfigureAwait(true);
+            throw new InvalidOperationException("late");
+        }));
+        var bridge = new SheetScriptBridge(cut.Instance);
+
+        var moved = cut.InvokeAsync(() => bridge.OnActiveCellChangedAsync(1, 1, 1, 1, 1, 1));
+        await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+        pending.SetResult();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => moved);
+        var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
+
+        Assert.NotSame(Renderer.UnhandledException, ended);
+    }
+
+    [Fact]
     public async Task TheValidatorAndCommittingGetTheCorrectedText()
     {
         string? validated = null;
@@ -180,6 +201,26 @@ public sealed class CellCallbackTests : BunitContext
             opened = context;
             builder.AddContent(0, context.Name);
         };
+    }
+
+    [Fact]
+    public async Task ACustomEditorClosesWhenTheCommitHandlerDeletesItsRow()
+    {
+        var sheet = new Sheet(3, 1);
+        sheet.Range("A:A").Configure(static c =>
+        {
+            c.Kind = CellKind.Custom;
+            c.Editor = "color";
+        });
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.CustomEditor, static context => builder => builder.AddContent(0, context.Name))
+            .Add(x => x.CellCommitting, _ => sheet.DeleteRows(1, 1)));
+
+        await cut.InvokeAsync(() => cut.Instance.OpenCustomEditor(1, 0));
+        await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync());
+
+        Assert.Empty(cut.FindAll(".mussel-sheet-custom"));
     }
 
     [Fact]

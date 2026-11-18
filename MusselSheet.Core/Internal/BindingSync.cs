@@ -85,11 +85,11 @@ internal sealed class BindingSync
         Show(target, property, row, column);
     }
 
-    // Does nothing when the value is the same, which keeps the typed text and the error mark
+    // Does nothing when the value is the same, which keeps the typed text and the error mark; a covered cell holds no value
     public void Show(object target, BoundProperty property, int row, int column)
     {
         var value = property.Get(target);
-        if (!property.IsSame(Sheet.GetValue(row, column), value))
+        if (!Sheet.IsCovered(row, column) && !property.IsSame(Sheet.GetValue(row, column), value))
         {
             Apply(() => Sheet.SetValue(row, column, value));
         }

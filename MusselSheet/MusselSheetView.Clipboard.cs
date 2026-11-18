@@ -227,9 +227,14 @@ public sealed partial class MusselSheetView
     private CellRange? Relocate(SheetRow[] rows, SheetColumn[] columns) =>
         (Span(rows) is { } vertical) && (Span(columns) is { } horizontal) ? new CellRange(vertical.First, horizontal.First, vertical.Last, horizontal.Last) : null;
 
-    private (int First, int Last)? Span(SheetRow[] rows)
+    private (int First, int Last)? Span(IReadOnlyList<SheetRow> rows)
     {
-        for (var i = 0; i < rows.Length; i++)
+        if (rows.Count == 0)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < rows.Count; i++)
         {
             if (!Sheet.Contains(rows[i]) || (rows[i].Index != rows[0].Index + i))
             {
@@ -240,9 +245,14 @@ public sealed partial class MusselSheetView
         return (rows[0].Index, rows[^1].Index);
     }
 
-    private (int First, int Last)? Span(SheetColumn[] columns)
+    private (int First, int Last)? Span(IReadOnlyList<SheetColumn> columns)
     {
-        for (var i = 0; i < columns.Length; i++)
+        if (columns.Count == 0)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < columns.Count; i++)
         {
             if (!Sheet.Contains(columns[i]) || (columns[i].Index != columns[0].Index + i))
             {

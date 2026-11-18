@@ -29,8 +29,13 @@ internal static class KeyCombo
         var key = plus ? "+" : parts[^1];
         var (ctrl, alt, shift) = (false, false, false);
         var others = new List<string>();
-        foreach (var modifier in plus ? parts[..^2] : parts[..^1])
+        foreach (var modifier in parts[..^1])
         {
+            if (modifier.Length == 0)
+            {
+                continue;
+            }
+
             switch (modifier.ToUpperInvariant())
             {
                 case "CTRL" or "CONTROL" or "META" or "CMD":

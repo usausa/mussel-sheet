@@ -10,7 +10,10 @@ public sealed partial class Sheet
 
     internal event EventHandler? Rebound;
 
-    internal IRowsBinding? InsertingList { get; set; }
+    // Rows and columns inserted or deleted, raised at once even inside BeginUpdate
+    internal event EventHandler<SheetChangedEventArgs>? Restructured;
+
+    internal IRowsBinding? ChangingList { get; set; }
 
     public SheetBinding<T> Bind<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(T source)
         where T : class

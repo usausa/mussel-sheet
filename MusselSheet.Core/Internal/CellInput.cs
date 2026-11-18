@@ -574,7 +574,7 @@ internal static partial class CellInput
         return null;
     }
 
-    // Letter by letter in lower case, as toLowerCase in the browser
+    // Letter by letter in lower case; the browser lowers each letter the same way
     private static bool SameText(ReadOnlySpan<char> x, ReadOnlySpan<char> y)
     {
         while (!x.IsEmpty && !y.IsEmpty)
