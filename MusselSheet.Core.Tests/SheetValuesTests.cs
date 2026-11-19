@@ -52,6 +52,19 @@ public sealed class SheetValuesTests
         Assert.Equal("abc", text);
     }
 
+    [Theory]
+    [InlineData(1e-30)]
+    [InlineData(1.23456789012345e-15)]
+    [InlineData(1e-30f)]
+    public void ADoubleOrFloatThatADecimalCannotHoldIsNotReadAsOne(object value)
+    {
+        var sheet = new Sheet(1, 1);
+        sheet.SetValue(0, 0, value);
+
+        Assert.False(sheet.TryGetValue<decimal>(0, 0, out _));
+        Assert.Throws<InvalidCastException>(() => sheet.GetValue<decimal>(0, 0));
+    }
+
     [Fact]
     public void DisplayTextFollowsKindAndFormat()
     {
@@ -120,6 +133,9 @@ public sealed class SheetValuesTests
     [InlineData(1e-5f, "0.00001")]
     [InlineData(1e300, "1E+300")]
     [InlineData(Double.NaN, "NaN")]
+    [InlineData(1e-30, "1E-30")]
+    [InlineData(1.23456789012345e-15, "1.23456789012345E-15")]
+    [InlineData(1e-30f, "1E-30")]
     public void TheEditTextOfADoubleOrFloatIsTheDecimalItReadsAs(object value, string text)
     {
         var sheet = new Sheet(1, 1) { Culture = CultureInfo.InvariantCulture };

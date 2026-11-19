@@ -32,6 +32,8 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private readonly ConditionalWeakTable<SheetRow, object?> former = [];
 
+    private readonly ConditionalWeakTable<SheetRow, object?> above = [];
+
     private IList<TItem>? list;
 
     // Row count of the detail frame at bind time; kept even when the app removes elements
@@ -119,7 +121,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     bool IRowsBinding.Holds(SheetRow row) => members.Contains(row);
 
-    bool IRowsBinding.Lost(SheetRow row) => former.TryGetValue(row, out _);
+    bool IRowsBinding.HoldsReadOnlyItem(SheetRow row) => (list is { IsReadOnly: true }) && items.ContainsKey(row);
 
     bool IRowsBinding.IsEmptyAt(int index) => (rows.Count == 0) && (emptyTop == index);
 
@@ -188,9 +190,11 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
     {
         var sheet = sync.Sheet;
         var returning = new List<SheetRow>(count);
+        var returnedAbove = 0;
         for (var r = index; r < index + count; r++)
         {
             var row = sheet.Rows[r];
+            returnedAbove += above.Remove(row) ? 1 : 0;
             if (former.Remove(row))
             {
                 returning.Add(row);
@@ -199,10 +203,9 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
         if (returning.Count == 0)
         {
-            var below = (index == emptyTop) && (sheet.ListOf(sheet.Rows[index]) is { } owner) && (frame.Top < owner.Frame.Top);
-            if ((rows.Count == 0) && (index <= emptyTop) && !below)
+            if ((rows.Count == 0) && (index <= emptyTop))
             {
-                emptyTop += count;
+                emptyTop += returnedAbove;
             }
 
             return;
@@ -241,11 +244,24 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
     }
 
-    void IRowsBinding.OnRowsRemoved(int index, int count)
+    void IRowsBinding.OnRowsRemoved(int index, int count, IReadOnlyList<SheetRow> removed)
     {
         var sheet = sync.Sheet;
         if (!rows.Exists(x => !sheet.Contains(x)))
         {
+            var top = rows.Count == 0 ? emptyTop : rows[0].Index + (rows[0].Index >= index ? count : 0);
+            for (var i = 0; i < removed.Count; i++)
+            {
+                if (index + i < top)
+                {
+                    above.AddOrUpdate(removed[i], null);
+                }
+                else
+                {
+                    above.Remove(removed[i]);
+                }
+            }
+
             if ((rows.Count == 0) && (index < emptyTop))
             {
                 emptyTop = Math.Max(index, emptyTop - count);
@@ -588,7 +604,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             }
             else
             {
-                sheet.InsertRows(index, count);
+                sheet.InsertRows(index, count, inheritSettings: false);
             }
         }
         finally

@@ -115,11 +115,12 @@ public sealed partial class Sheet
             rowList[r].TakenColumns = columns;
         }
 
+        var removed = rowList.GetRange(index, count);
         rowList.RemoveRange(index, count);
         Reindex();
         settings.Replace(rules);
         ReplaceMerges(mergedRanges);
-        Raise(new SheetChangedEventArgs(SheetChangeKind.RowsDeleted, null, index, count));
+        Raise(new SheetChangedEventArgs(SheetChangeKind.RowsDeleted, null, index, count) { RemovedRows = removed });
     }
 
     internal void PutColumns(int index, IReadOnlyList<SheetColumn> columns, IReadOnlyDictionary<SheetRow, CellData?[]>? cells, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges)

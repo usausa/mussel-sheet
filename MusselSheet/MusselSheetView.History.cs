@@ -6,13 +6,13 @@ public sealed partial class MusselSheetView
 {
     internal async Task<int[]?> UndoFromScriptAsync(bool redo)
     {
-        var target = await ApplyHistoryAsync(redo).ConfigureAwait(true);
+        var target = await ApplyHistoryAsync(redo, false).ConfigureAwait(true);
         return target is { } range ? [range.Top, range.Left, range.Bottom, range.Right] : null;
     }
 
     private async Task<bool> RunHistoryAsync(bool redo)
     {
-        var target = await ApplyHistoryAsync(redo).ConfigureAwait(true);
+        var target = await ApplyHistoryAsync(redo, true).ConfigureAwait(true);
         if (target is { } range)
         {
             await InvokeScriptAsync("setSelection", range.Top, range.Left, range.Bottom, range.Right).ConfigureAwait(true);
@@ -21,13 +21,13 @@ public sealed partial class MusselSheetView
         return target is not null;
     }
 
-    private async Task<CellRange?> ApplyHistoryAsync(bool redo)
+    private async Task<CellRange?> ApplyHistoryAsync(bool redo, bool shifts)
     {
         var entry = redo ? history.TakeRedo() : history.TakeUndo();
         var target = entry switch
         {
             CellsEdited edited => await ApplyEditAsync(edited, redo).ConfigureAwait(true),
-            StructureEdited structure => ApplyStructure(structure, redo),
+            StructureEdited structure => ApplyStructure(structure, redo, shifts),
             _ => null
         };
 

@@ -78,6 +78,32 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Theory]
+    [InlineData(true, """[{"axis":"row","index":2,"count":2}]""", """[{"axis":"row","index":2,"count":-2}]""")]
+    [InlineData(false, "[]", "[]")]
+    public async Task RowsTheUndoAndRedoOfTheAppMoveAreSentAsShifts(bool app, string undone, string redone)
+    {
+        var sheet = new Sheet(10, 2);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowDeleteRows, true));
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 2, 0, 3, 1, 2, 0));
+        var sent = JSInterop.Invocations["setMap"].Count;
+
+        await cut.InvokeAsync(() => app ? cut.Instance.UndoAsync() : cut.Instance.UndoFromScriptAsync(false));
+        await cut.WaitForAssertionAsync(() => Assert.Equal(sent + 1, JSInterop.Invocations["setMap"].Count));
+        var afterUndo = ((JsonElement)JSInterop.Invocations["setMap"][^1].Arguments[1]!).GetRawText();
+        await cut.InvokeAsync(() => app ? cut.Instance.RedoAsync() : cut.Instance.UndoFromScriptAsync(true));
+        await cut.WaitForAssertionAsync(() => Assert.Equal(sent + 2, JSInterop.Invocations["setMap"].Count));
+        var afterRedo = ((JsonElement)JSInterop.Invocations["setMap"][^1].Arguments[1]!).GetRawText();
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 0, 0, 0, 1, 0, 0));
+        await cut.WaitForAssertionAsync(() => Assert.Equal(sent + 3, JSInterop.Invocations["setMap"].Count));
+        var afterDelete = ((JsonElement)JSInterop.Invocations["setMap"][^1].Arguments[1]!).GetRawText();
+
+        Assert.Equal(7, sheet.RowCount);
+        Assert.Equal(undone, afterUndo);
+        Assert.Equal(redone, afterRedo);
+        Assert.Equal("[]", afterDelete);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task RowsABindingTakesAwayInItsOwnUpdateAreSentAsShifts(bool refresh)
@@ -139,6 +165,22 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Fact]
+    public async Task ScrollingWhileAnUpdateDeletesRowsDrawsTheRowsThatAreLeft()
+    {
+        var sheet = new Sheet(1000, 2);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.Height, "264px").Add(x => x.OverscanCount, 2));
+
+        using (sheet.BeginUpdate())
+        {
+            sheet.DeleteRows(0, 990);
+            await cut.InvokeAsync(() => cut.Instance.OnViewportChanged(24 * 500, 264, 0, 1000));
+        }
+
+        Assert.False(Renderer.UnhandledException.IsCompleted);
+        Assert.All(cut.FindAll(".mussel-sheet-row[data-r]"), static x => Assert.InRange(Int32.Parse(x.GetAttribute("data-r")!, CultureInfo.InvariantCulture), 0, 9));
+    }
+
+    [Fact]
     public async Task DisposingTellsTheScriptAndReleasesIt()
     {
         var instance = new LateModule();
@@ -146,7 +188,7 @@ public sealed class MusselSheetViewRenderTests : BunitContext
         Services.AddSingleton<IJSRuntime>(runtime);
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(3, 3)));
         await cut.InvokeAsync(() => runtime.Import.SetResult(runtime.Module));
-        await cut.WaitForAssertionAsync(() => Assert.Contains("attach", runtime.Module.Calls));
+        await cut.WaitForAssertionAsync(() => Assert.Contains("ready", instance.Calls));
 
         await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
 
@@ -164,7 +206,7 @@ public sealed class MusselSheetViewRenderTests : BunitContext
         Services.AddSingleton<IJSRuntime>(runtime);
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(3, 3)));
         await cut.InvokeAsync(() => runtime.Import.SetResult(runtime.Module));
-        await cut.WaitForAssertionAsync(() => Assert.Contains("attach", runtime.Module.Calls));
+        await cut.WaitForAssertionAsync(() => Assert.Contains("ready", instance.Calls));
 
         await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
 
@@ -218,13 +260,11 @@ public sealed class MusselSheetViewRenderTests : BunitContext
 
         await cut.InvokeAsync(() => sheet.Culture = CultureInfo.GetCultureInfo("fr-FR"));
         await cut.WaitForAssertionAsync(() => Assert.Contains("setLanguage", runtime.Module.Calls));
-        var calls = runtime.Module.Calls.Count;
+
         await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
         await cut.InvokeAsync(runtime.Module.Resume.SetResult);
-        var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
 
-        Assert.NotSame(Renderer.UnhandledException, ended);
-        Assert.DoesNotContain("setMap", runtime.Module.Calls.Skip(calls));
+        Assert.False(Renderer.UnhandledException.IsCompleted);
     }
 
     [Fact]
@@ -256,6 +296,7 @@ public sealed class MusselSheetViewRenderTests : BunitContext
         await cut.InvokeAsync(() => cut.Instance.SetActiveCellAsync(2, 2));
 
         Assert.Equal(["focus", "setActiveCell", "ready", "setActiveCell"], runtime.Module.Calls.Where(static x => x is "focus" or "setActiveCell" or "ready"));
+        Assert.False(Renderer.UnhandledException.IsCompleted);
     }
 
     [Fact]

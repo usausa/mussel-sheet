@@ -15,7 +15,7 @@ An input cell accepts user input. An input-disabled cell has `ReadOnly` or `Kind
 
 With `ReadyEnterMode.Edit`, Enter also starts edit or opens the custom editor.
 
-While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu, the edit text read from C# for F2, Alt+Down, a double-click or Ctrl+Enter on a cell that is not drawn or while a change is on its way, and a cut until the clipboard takes the text), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards; in edit, a queued arrow moves the caret by one letter, with Ctrl too. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync`, `CommitEditAsync`, `CancelEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and so are `SetActiveCellAsync` and the selection while a custom editor commits. A rejected commit drops them with the keys. Keys before a custom editor opens are dropped.
+While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu, undo and redo with Ctrl+Z and Ctrl+Y, the edit text read from C# for F2, Alt+Down, a double-click or Ctrl+Enter on a cell that is not drawn or while a change is on its way, and a cut until the clipboard takes the text), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards; in edit, a queued arrow moves the caret by one letter, with Ctrl too, and a queued Backspace or Delete deletes one letter, with Ctrl or Alt too. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync`, `CommitEditAsync`, `CancelEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and so are `SetActiveCellAsync` and the selection while a custom editor commits. A rejected commit drops them with the keys, unless the cell being typed was lost while the sheet waited (`Wait` in Commit and validation); then they run. Keys before a custom editor opens are dropped.
 
 ## 🧾 Sheet
 
@@ -34,7 +34,7 @@ Cells in one column can differ in kind, rules and style. By default rows are 24 
 | `EditText` | `InputText` if there is one, otherwise the edit form of the value |
 | `InputText` | The committed text after normalization. Empty text, a date without a year and a corrected value keep none. `SetValue`, `Sheet.Culture` and `Sheet.Options` remove it |
 
-Edit form by kind: `Number` uses format `G`, without group separators, and a `double` or `float` is written as the `decimal` that `GetValue<decimal>` reads (15 or 7 digits), so it has no exponent; a value outside `decimal` keeps its own `G`. `Date` uses `SheetCulture.EditDateFormat` if set, otherwise the culture's short date pattern with a 4-digit year, or `yyyy/MM/dd`, `MM/dd/yyyy` or `dd/MM/yyyy` by field order when the pattern has other characters than `y M d / . -`. `Time` uses `HH:mm`, or `HH:mm:ss` when seconds are not 0. `Checkbox` uses `true` or `false`, and nothing without a value. `List` and `AutoComplete` use the item's display text.
+Edit form by kind: `Number` uses format `G`, without group separators, and a `double` or `float` is written as the `decimal` that `GetValue<decimal>` reads (15 or 7 digits), so it has no exponent; a value `decimal` cannot hold, out of its range or with digits it rounds away (such as `1E-30`), keeps its own `G`, and `GetValue<decimal>` cannot read it. `Date` uses `SheetCulture.EditDateFormat` if set, otherwise the culture's short date pattern with a 4-digit year, or `yyyy/MM/dd`, `MM/dd/yyyy` or `dd/MM/yyyy` by field order when the pattern has other characters than `y M d / . -`. `Time` uses `HH:mm`, or `HH:mm:ss` when seconds are not 0. `Checkbox` uses `true` or `false`, and nothing without a value. `List` and `AutoComplete` use the item's display text.
 
 > Note: A sheet and its view follow `Sheet.Options`, and a view takes `Defaults` once, from the first sheet it shows. If it is not set, the sheet uses the registered options once a view shows it, so `Text` and `EditText` are then what the view shows; until then the sheet uses the built-in languages. To read text with no view, pass the registered options: `new Sheet(rows, columns) { Options = options }`.
 
@@ -140,7 +140,7 @@ Focus moving to a focusable element outside the sheet commits without a move, an
 | `CommitMode` | Behaviour |
 |---|---|
 | `Optimistic` | The browser checks the text and moves at once. C# runs the steps afterwards. Focus leaving the sheet always works this way |
-| `Wait` | The browser checks the text, C# runs the steps, and the move follows the result. A rejected commit drops the queued keys, unless the cell being typed was deleted, hidden or made input-disabled while the sheet waited; then the text is dropped and the queued keys run, with no move even for `Revert`. A stored commit whose cell was deleted or hidden while the sheet waited does not move either, and stays on the cell that took its place; a cell that was only made input-disabled still moves |
+| `Wait` | The browser checks the text, C# runs the steps, and the move follows the result. A rejected commit drops the queued keys, unless the cell being typed was deleted, covered or made input-disabled while the sheet waited; then the text is dropped and the queued keys run, with no move even for `Revert`. A stored commit whose cell was deleted while the sheet waited does not move either, and stays on the cell that took its place; a cell that was covered moves on past the merge, and one that was only made input-disabled still moves |
 
 `CellSettings.ValidationMode` overrides the mode of the view.
 
@@ -154,7 +154,7 @@ Focus moving to a focusable element outside the sheet commits without a move, an
 - `Cancel` in `CellCommitting` stores nothing. The message is `Error`, or else the `Canceled` text. In `Optimistic` it becomes the error mark. In `Wait` the cell stays with the message, and a `Revert` cell moves.
 - Text over 16 MiB in UTF-8 is not read, and nothing is stored. A range paste and Ctrl+Enter show the `TextTooLarge` text as their message, and a commit or paste of one cell is handled like `Cancel` with that text.
 - A range paste, Ctrl+Enter, Ctrl+D, Ctrl+R and the fill handle run the steps per cell. `Stay` and `AcceptAndMark` store with an error mark, `Revert` leaves the cell, and a message gives the counts.
-- If the active cell becomes input-disabled during input or edit, the typed text is dropped. Rows and columns the app inserts or deletes move the active cell, the selection and the text being typed with them; when the row or column being typed in is deleted, the text is dropped. A custom editor commits to the cell it opened on, and to nothing if the app deleted it.
+- If the active cell becomes input-disabled during input or edit, the typed text is dropped. Rows and columns the app inserts or deletes, also with `UndoAsync` and `RedoAsync`, move the active cell, the selection and the text being typed with them; when the row or column being typed in is deleted, the text is dropped. A custom editor commits to the cell it opened on, and to nothing if the app deleted it.
 - `SetActiveCellAsync` commits an edit first. `BeginEditAsync` works in ready. `CommitEditAsync` commits without a move.
 - C# runs the operations from the sheet, `UndoAsync` and `RedoAsync` one at a time in the order they come, also across the views of one `Sheet`. An operation that comes while a handler of an earlier one runs waits for it, and a call that the handler awaits runs at once. An operation whose view is disposed while it waits for its turn, or that comes after, is dropped: a commit from the sheet is canceled, and `UndoAsync`, `RedoAsync` and the commit and cancel of a custom editor do nothing (`UndoAsync` and `RedoAsync` return `false`).
 - An exception from a handler called through the sheet reaches `ErrorBoundary`, as with an ordinary Blazor event, and the sheet treats the operation as failed.
@@ -375,7 +375,7 @@ The `CustomEditor` template opens with F2, double-click, Alt+Down or ▼, never 
 - Every value change goes to the property at once, also inside `BeginUpdate` and from `SetValue`. If the property then reads differently, the cell shows that.
 - `INotifyPropertyChanged` and `INotifyCollectionChanged` update the sheet. `Refresh()` shows plain objects again. `Dispose()` ends the link, and values stay.
 - Conversion follows `GetValue<T>`, and an enum is read from text in any case. An empty cell writes `null`, or the type's default, which the cell then shows. A fraction does not fit a whole number.
-- In a commit, a value that does not fit is an error with a message for the property type, and a property without a public non-`init` setter gives `NotEditable`. A value from the app that does not fit is not written.
+- In a commit, a value that does not fit is an error with a message for the property type, and a property without a public non-`init` setter gives `NotEditable`, as does a value typed for a `DateTimeOffset` property, which is only shown (an empty cell still writes `null`). A value from the app that does not fit is not written.
 - A setter's exception message becomes the error mark.
 - Cells follow their row and column. A cell whose row or column is deleted rests until undo.
 
@@ -383,7 +383,7 @@ The `CustomEditor` template opens with F2, double-click, Alt+Down or ▼, never 
 
 | Event | Result |
 |---|---|
-| Fewer, more elements than rows | The other rows stay empty; rows are inserted like the detail rows |
+| Fewer, more elements than rows | The other rows stay empty; rows are inserted like the detail rows, or with only the rules of whole columns when no detail row is left |
 | A value entered in an empty row | A new element at that position, from `Create` or the parameterless constructor. Blank columns show the element's values |
 | A value cleared in a row | It stays an element |
 | The app adds an element | The next empty row after the previous element, or an inserted row |
@@ -392,9 +392,9 @@ The `CustomEditor` template opens with F2, double-click, Alt+Down or ▼, never 
 | A row inserted below a detail row, or above the first | It joins the detail as an empty row. Between two details, it joins the upper one, and an empty detail counts as being at its place. Rows a detail adds for its elements join only that detail, and an empty detail at that place stays above them when that detail is below it (when both are empty, the bound ranges decide) |
 | The user deletes a row | Its element leaves the list. Undo returns it to the same position of the same detail |
 
-A read-only list gets no new elements. Without `Create` or a parameterless constructor, binding throws.
+A read-only list gets no new elements, and the user cannot delete the rows of its elements. When the app deletes such rows, the elements stay in the list and later changes of the list no longer match the rows. Without `Create` or a parameterless constructor, binding throws.
 
-> Note: If the user deletes every row of the detail, it has no rows left. An app can keep one with `RowsDeleting`.
+> Note: If the user deletes every row of the detail, it has no rows left, and its place stays below the rows that were above it, also when undo puts them back. An app can keep one with `RowsDeleting`.
 
 ## 🧮 Computed cells
 
@@ -419,7 +419,7 @@ A read-only list gets no new elements. Without `Create` or a parameterless const
 - Character sets are saved by `Name`. `FromDesign` takes them from `SheetFunctions` (`AddCharacterSet`) first, then from the built-in ones.
 - A computation saves the name it reads, and the current address when different. A loaded sheet computes at once, and the read-only rule comes from the saved rules.
 - Loading throws `JsonException` for a property it does not know, `NotSupportedException` for an unknown `version`, `InvalidOperationException` for a function name without `SheetFunctions`, and `KeyNotFoundException` for a name not in it.
-- JSON: camelCase names, no `null` items, LF line breaks. Ranges use addresses, and `*` is the whole sheet. Enums use camelCase names. `characterRestriction` is a name. Limits are text (`0`, `2026-01-01`, `09:00:00`). Values have a type: `text`, `number`, `date`, `time` or `check`. A value none of them holds (a negative `TimeSpan` or one of a day or more, a number outside `decimal`) is written as `text`. A `double` or `float` is written with the shortest digits that read back as the same value; it is loaded as a `decimal`, so its edit text and `GetValue<decimal>` can then have more digits than the 15 or 7 they had (`0.1 + 0.2` becomes `0.30000000000000004`). A `DateTime` is written as its date, and a `TimeOnly` or a `TimeSpan` within a day as a time to the second, as `Date` and `Time` cells hold them. The invariant culture is an empty name.
+- JSON: camelCase names, no `null` items, LF line breaks. Ranges use addresses, and `*` is the whole sheet. Enums use camelCase names. `characterRestriction` is a name. Limits are text (`0`, `2026-01-01`, `09:00:00`). Values have a type: `text`, `number`, `date`, `time` or `check`. A value none of them holds (a negative `TimeSpan` or one of a day or more, a number `decimal` cannot hold exactly) is written as `text`. A `double` or `float` is written with the shortest digits that read back as the same value; it is loaded as a `decimal`, so its edit text and `GetValue<decimal>` can then have more digits than the 15 or 7 they had (`0.1 + 0.2` becomes `0.30000000000000004`). A `DateTime` is written as its date, and a `TimeOnly` or a `TimeSpan` within a day as a time to the second, as `Date` and `Time` cells hold them. The invariant culture is an empty name.
 
 > Note: Saving finds a name from the delegate, so attach the delegate returned by `SheetFunctions`. The JSON is not escaped for HTML.
 

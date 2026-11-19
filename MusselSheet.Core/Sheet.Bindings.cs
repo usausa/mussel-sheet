@@ -41,17 +41,17 @@ public sealed partial class Sheet
         return false;
     }
 
-    internal IRowsBinding? ListOf(SheetRow row)
+    internal bool HoldsReadOnlyItem(SheetRow row)
     {
         foreach (var binding in bindings)
         {
-            if (binding.ListOf(row) is { } list)
+            if (binding.HoldsReadOnlyItem(row))
             {
-                return list;
+                return true;
             }
         }
 
-        return null;
+        return false;
     }
 
     internal bool HasEmptyListAt(int index)
@@ -92,15 +92,17 @@ public sealed partial class Sheet
     }
 
     // Bindings are told right away, even inside BeginUpdate
-    private void NotifyBindings(SheetChangedEventArgs e)
+    // The setters can insert or delete rows and columns, so the cells of the range are taken before any binding writes
+    private ValueCells? CellsFor(SheetChangedEventArgs e) =>
+        (e.Kind == SheetChangeKind.Values) && (e.Range is { } range) && bindings.Exists(static x => !x.IsApplying) ? CellsOf(range) : null;
+
+    private void NotifyBindings(SheetChangedEventArgs e, ValueCells? cells)
     {
         if (bindings.Count == 0)
         {
             return;
         }
 
-        // The setters can insert or delete rows and columns, so the cells of the range are taken before any binding writes
-        var cells = (e.Kind == SheetChangeKind.Values) && (e.Range is { } range) ? CellsOf(range) : null;
         foreach (var binding in bindings.ToArray())
         {
             binding.OnSheetChanged(e, cells);

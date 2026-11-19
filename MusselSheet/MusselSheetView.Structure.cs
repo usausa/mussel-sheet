@@ -93,6 +93,11 @@ public sealed partial class MusselSheetView
         }
 
         var rows = RowsOf(selection);
+        if (Array.Exists(rows, Sheet.HoldsReadOnlyItem))
+        {
+            return null;
+        }
+
         var deleting = new SheetRowsDeletingEventArgs(Sheet, selection.Top, count);
         await HandleAsync(RowsDeleting, deleting).ConfigureAwait(true);
         if (deleting.Cancel || (Span(rows) is not { } span) || (count >= Sheet.RowCount))
@@ -155,16 +160,24 @@ public sealed partial class MusselSheetView
         return Clipped(selection, active);
     }
 
-    private CellRange? ApplyStructure(StructureEdited entry, bool redo)
+    private CellRange? ApplyStructure(StructureEdited entry, bool redo, bool shifts)
     {
         var target = redo ? entry.After : entry.Before;
         var put = entry.Inserted == redo;
-        return entry switch
+        historyShifts = shifts;
+        try
         {
-            RowsEdited rows => put ? PutBack(rows, target) : TakeAway(rows, target),
-            ColumnsEdited columns => put ? PutBack(columns, target) : TakeAway(columns, target),
-            _ => null
-        };
+            return entry switch
+            {
+                RowsEdited rows => put ? PutBack(rows, target) : TakeAway(rows, target),
+                ColumnsEdited columns => put ? PutBack(columns, target) : TakeAway(columns, target),
+                _ => null
+            };
+        }
+        finally
+        {
+            historyShifts = false;
+        }
     }
 
     private void OwnStructure(Action change)

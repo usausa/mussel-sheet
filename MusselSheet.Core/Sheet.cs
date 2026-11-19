@@ -184,8 +184,9 @@ public sealed partial class Sheet
             Restructured?.Invoke(this, e);
         }
 
-        NotifyBindings(e);
-        NotifyComputations(e);
+        var cells = CellsFor(e);
+        NotifyBindings(e, cells);
+        NotifyComputations(e, cells is null ? e.Range : cells.CurrentRange(this));
 
         if (updateDepth > 0)
         {

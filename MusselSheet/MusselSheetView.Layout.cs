@@ -125,6 +125,12 @@ public sealed partial class MusselSheetView
 
     private static string SpacerStyle(int height) => String.Create(CultureInfo.InvariantCulture, $"height:{height}px");
 
+    protected override bool ShouldRender()
+    {
+        Refresh();
+        return true;
+    }
+
     private void Refresh()
     {
         if (layoutVersion != Sheet.StructureVersion)

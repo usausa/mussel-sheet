@@ -124,6 +124,21 @@ public sealed class SheetDesignTests
     }
 
     [Fact]
+    public void DoublesAndFloatsThatADecimalCannotHoldAreSavedAsText()
+    {
+        var sheet = new Sheet(1, 3);
+        sheet.SetValue(0, 0, 1e-30);
+        sheet.SetValue(0, 1, 1.2345678901234567e-20);
+        sheet.SetValue(0, 2, 1e-30f);
+
+        var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(sheet.ToDesign(includeValues: true))));
+
+        Assert.Equal("1E-30", copy.GetValue(0, 0));
+        Assert.Equal("1.2345678901234567E-20", copy.GetValue(0, 1));
+        Assert.Equal("1E-30", copy.GetValue(0, 2));
+    }
+
+    [Fact]
     public void DatesAndTimesAreSavedAsDateAndTimeCellsHoldThem()
     {
         var sheet = new Sheet(1, 3);

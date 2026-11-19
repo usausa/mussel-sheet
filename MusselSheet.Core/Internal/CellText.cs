@@ -123,13 +123,20 @@ internal static class CellText
         }
 
         Span<char> text = stackalloc char[32];
+        Span<char> back = stackalloc char[32];
         number = 0m;
         if (value is double real)
         {
-            return real.TryFormat(text, out var written, "G15", CultureInfo.InvariantCulture) && Decimal.TryParse(text[..written], NumberStyles.Float, CultureInfo.InvariantCulture, out number);
+            return real.TryFormat(text, out var written, "G15", CultureInfo.InvariantCulture)
+                && Decimal.TryParse(text[..written], NumberStyles.Float, CultureInfo.InvariantCulture, out number)
+                && ((double)number).TryFormat(back, out var read, "G15", CultureInfo.InvariantCulture)
+                && back[..read].SequenceEqual(text[..written]);
         }
 
-        return ((float)value).TryFormat(text, out var length, "G7", CultureInfo.InvariantCulture) && Decimal.TryParse(text[..length], NumberStyles.Float, CultureInfo.InvariantCulture, out number);
+        return ((float)value).TryFormat(text, out var length, "G7", CultureInfo.InvariantCulture)
+            && Decimal.TryParse(text[..length], NumberStyles.Float, CultureInfo.InvariantCulture, out number)
+            && ((float)number).TryFormat(back, out var size, "G7", CultureInfo.InvariantCulture)
+            && back[..size].SequenceEqual(text[..length]);
     }
 
     // The edit text takes no exponent, so a double or float is written as the decimal it reads as

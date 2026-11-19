@@ -4,13 +4,15 @@ using System.Reflection;
 
 internal interface ISheetBinding
 {
+    bool IsApplying { get; }
+
     void OnSheetChanged(SheetChangedEventArgs e, ValueCells? targets);
 
     BoundProperty? FindProperty(int row, int column);
 
     bool HoldsRow(SheetRow row);
 
-    IRowsBinding? ListOf(SheetRow row);
+    bool HoldsReadOnlyItem(SheetRow row);
 
     bool HasEmptyListAt(int index);
 }
@@ -21,7 +23,7 @@ internal interface IRowsBinding
 
     void OnRowsInserted(int index, int count);
 
-    void OnRowsRemoved(int index, int count);
+    void OnRowsRemoved(int index, int count, IReadOnlyList<SheetRow> removed);
 
     void OnColumnsInserted(int index, int count);
 
@@ -33,7 +35,7 @@ internal interface IRowsBinding
 
     bool Holds(SheetRow row);
 
-    bool Lost(SheetRow row);
+    bool HoldsReadOnlyItem(SheetRow row);
 
     bool IsEmptyAt(int index);
 
@@ -47,6 +49,33 @@ internal sealed class ValueCells(SheetRow[] rows, SheetColumn[] columns)
     public bool Contains(SheetColumn column) => Array.IndexOf(columns, column) >= 0;
 
     public bool Contains(SheetRow row, SheetColumn column) => (Array.IndexOf(Rows, row) >= 0) && Contains(column);
+
+    public CellRange? CurrentRange(Sheet sheet)
+    {
+        var top = Int32.MaxValue;
+        var bottom = -1;
+        foreach (var row in Rows)
+        {
+            if (sheet.Contains(row))
+            {
+                top = Math.Min(top, row.Index);
+                bottom = Math.Max(bottom, row.Index);
+            }
+        }
+
+        var left = Int32.MaxValue;
+        var right = -1;
+        foreach (var column in columns)
+        {
+            if (sheet.Contains(column))
+            {
+                left = Math.Min(left, column.Index);
+                right = Math.Max(right, column.Index);
+            }
+        }
+
+        return (bottom < 0) || (right < 0) ? null : new CellRange(top, left, bottom, right);
+    }
 }
 
 internal sealed class BindingSync

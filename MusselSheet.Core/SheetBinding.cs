@@ -114,10 +114,12 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
             }
             else if (e.Kind == SheetChangeKind.RowsDeleted)
             {
-                list.OnRowsRemoved(e.Index, e.Count);
+                list.OnRowsRemoved(e.Index, e.Count, e.RemovedRows);
             }
         }
     }
+
+    bool ISheetBinding.IsApplying => sync.IsApplying;
 
     void ISheetBinding.OnSheetChanged(SheetChangedEventArgs e, ValueCells? targets)
     {
@@ -168,7 +170,7 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
             case SheetChangeKind.RowsDeleted:
                 foreach (var list in lists.ToArray())
                 {
-                    list.OnRowsRemoved(e.Index, e.Count);
+                    list.OnRowsRemoved(e.Index, e.Count, e.RemovedRows);
                 }
 
                 break;
@@ -203,7 +205,7 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
 
     bool ISheetBinding.HoldsRow(SheetRow row) => !disposed && lists.Exists(x => x.Holds(row));
 
-    IRowsBinding? ISheetBinding.ListOf(SheetRow row) => disposed ? null : lists.Find(x => x.Holds(row) || x.Lost(row));
+    bool ISheetBinding.HoldsReadOnlyItem(SheetRow row) => !disposed && lists.Exists(x => x.HoldsReadOnlyItem(row));
 
     bool ISheetBinding.HasEmptyListAt(int index) => !disposed && lists.Exists(x => x.IsEmptyAt(index));
 

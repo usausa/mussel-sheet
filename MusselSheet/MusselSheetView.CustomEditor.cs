@@ -32,7 +32,7 @@ public sealed partial class MusselSheetView
     // A cell the app deleted while the editor was open takes nothing
     private async Task<CustomEditorResult> CommitCustomCoreAsync(CellEditContext edit, bool optimistic)
     {
-        if (!edit.IsCurrent)
+        if (!Holds(edit))
         {
             if (ReferenceEquals(edit, customEdit))
             {
@@ -47,7 +47,7 @@ public sealed partial class MusselSheetView
         var keepOpen = !optimistic
             && !result.Stored
             && (result.Error is not null)
-            && edit.IsCurrent
+            && Holds(edit)
             && IsEditable(row, column)
             && ((Sheet.GetSettings(row, column).ValidationMode ?? ValidationMode) != SheetValidationMode.Revert);
         if (keepOpen && ReferenceEquals(edit, customEdit))
@@ -74,14 +74,17 @@ public sealed partial class MusselSheetView
                 return false;
             }
 
+            var held = Holds(edit);
             var result = await CommitCustomCoreAsync(edit, false).ConfigureAwait(true);
             if (result.Closed)
             {
                 await InvokeScriptAsync("finishCustom").ConfigureAwait(true);
             }
 
-            return result.Closed && (result.Error is null);
+            return held && result.Closed && (result.Error is null);
         });
+
+    private bool Holds(CellEditContext edit) => ReferenceEquals(edit.Sheet, Sheet) && edit.IsCurrent;
 
     private Task CancelCustomFromTemplateAsync() =>
         RunInTurnAsync(async () =>

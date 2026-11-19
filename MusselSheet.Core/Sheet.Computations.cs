@@ -57,7 +57,7 @@ public sealed partial class Sheet
         return computation;
     }
 
-    private void NotifyComputations(SheetChangedEventArgs e)
+    private void NotifyComputations(SheetChangedEventArgs e, CellRange? values)
     {
         if (computations.Count == 0)
         {
@@ -66,7 +66,7 @@ public sealed partial class Sheet
 
         foreach (var computation in computations.ToArray())
         {
-            computation.OnSheetChanged(e);
+            computation.OnSheetChanged(e, values);
         }
 
         RunComputations();

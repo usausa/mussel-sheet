@@ -195,9 +195,12 @@ internal static class SheetDesigner
         return new CellValueDesign { Cell = cell.ToString(), Type = type, Value = text };
     }
 
-    // A value outside the range of decimal (NaN, infinity) is kept as its text
+    // A value outside the range of decimal (NaN, infinity), or with digits decimal rounds away, is kept as its text
     private static (string Type, string Text) NumberOrText(string text) =>
-        Decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out _) ? ("number", text) : ("text", text);
+        Decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+        && String.Equals(((double)number).ToString("R", CultureInfo.InvariantCulture), text, StringComparison.Ordinal)
+            ? ("number", text)
+            : ("text", text);
 
     private static SheetComputationDesign? ToComputation(Sheet sheet, SheetComputation computation, SheetFunctions? functions)
     {

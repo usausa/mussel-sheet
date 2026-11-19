@@ -94,7 +94,7 @@ const DEFAULT_CALENDAR = {
 
 let noteSequence = 0;
 
-const SHORTCUT_PREFIX = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '') ? '⌘' : 'Ctrl+';
+const SHORTCUT_PREFIX = IS_MAC ? '⌘' : 'Ctrl+';
 
 export function attach(root, dotnet, options, map, language) {
     return new SheetController(root, dotnet, options, map, language);
@@ -1534,7 +1534,6 @@ class SheetController {
         this.viewBusy = false;
         this.viewPending = false;
         this.changing = 0;
-        this.historySelection = null;
 
         this.popupKind = null;
         this.popupItems = [];
@@ -1656,7 +1655,7 @@ class SheetController {
         if (this.map.isEmpty) {
             this.lostWhileWaiting ||= this.state === COMMITTING;
             this.goneWhileWaiting ||= this.state === COMMITTING;
-            if (this.state !== COMMITTING) {
+            if ((this.state !== COMMITTING) && (this.state !== CUSTOM)) {
                 this.finishEdit();
             }
             this.place();
@@ -2228,8 +2227,11 @@ class SheetController {
 
         this.queue = [];
         if (this.isFocusOutside()) {
-            const [inline, data] = textArgs(text);
-            this.sendChange('PasteAsync', row, col, inline, true, data);
+            const current = this.currentRule();
+            if ((current.policy !== 'revert') && !current.disabled) {
+                const [inline, data] = textArgs(text);
+                this.sendChange('PasteAsync', this.row, this.col, inline, true, data);
+            }
             return;
         }
 
@@ -2524,7 +2526,7 @@ class SheetController {
                 break;
         }
 
-        if (k.replay && !k.ctrl && !k.alt && ((k.key === 'Backspace') || (k.key === 'Delete'))) {
+        if (k.replay && ((k.key === 'Backspace') || (k.key === 'Delete'))) {
             this.replayDelete(k.key === 'Backspace');
             return true;
         }
@@ -3246,6 +3248,7 @@ class SheetController {
                 piece.hidden = true;
             }
             this.handle.hidden = true;
+            this.placeCaps();
             this.syncNote();
             return;
         }
@@ -3503,22 +3506,28 @@ class SheetController {
     }
 
     async history(redo) {
-        const before = this.selectionKey();
+        this.setState(COMMITTING);
+        this.updateSink();
         let target = null;
         this.changing++;
         try {
             target = await this.dotnet.invokeMethodAsync('UndoFromScriptAsync', redo);
         } catch {
+            target = null;
         } finally {
             this.changing--;
         }
 
-        // If the user selected another cell while waiting, keep that selection instead; an earlier undo's selection is not the user's
-        const current = this.selectionKey();
-        if (target && !this.disposed && this.state === READY && ((current === before) || (current === this.historySelection))) {
-            this.select({ r: target[0], c: target[1] }, { r: target[2], c: target[3] });
-            this.historySelection = this.selectionKey();
+        if (this.disposed) {
+            return;
         }
+
+        this.setState(READY);
+        this.updateSink();
+        if (target) {
+            this.select({ r: target[0], c: target[1] }, { r: target[2], c: target[3] });
+        }
+        this.replay();
     }
 
     selectionKey() {

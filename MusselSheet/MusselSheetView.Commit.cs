@@ -139,7 +139,8 @@ public sealed partial class MusselSheetView
         {
             _ when BoundProperty.IsWholeNumber(type) => Texts.WholeNumber,
             _ when BoundProperty.IsNumber(type) => Texts.Number,
-            _ when (type == typeof(DateOnly)) || (type == typeof(DateTime)) || (type == typeof(DateTimeOffset)) => InputContext.DateMessage,
+            _ when type == typeof(DateTimeOffset) => Texts.NotEditable,
+            _ when (type == typeof(DateOnly)) || (type == typeof(DateTime)) => InputContext.DateMessage,
             _ when (type == typeof(TimeOnly)) || (type == typeof(TimeSpan)) => Texts.Time,
             _ when type == typeof(bool) => Texts.Check,
             _ => Texts.Pattern

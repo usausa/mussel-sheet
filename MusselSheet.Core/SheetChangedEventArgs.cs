@@ -10,6 +10,8 @@ public sealed class SheetChangedEventArgs : EventArgs
 
     public int Count { get; }
 
+    internal IReadOnlyList<SheetRow> RemovedRows { get; init; } = [];
+
     public SheetChangedEventArgs(SheetChangeKind kind, CellRange? range = null, int index = 0, int count = 0)
     {
         Kind = kind;

@@ -75,7 +75,7 @@ public sealed class SheetComputation : IDisposable
     }
 
     // Ignores changes made while it runs, which also stops computation loops
-    internal void OnSheetChanged(SheetChangedEventArgs e)
+    internal void OnSheetChanged(SheetChangedEventArgs e, CellRange? values)
     {
         if (disposed || running)
         {
@@ -84,7 +84,7 @@ public sealed class SheetComputation : IDisposable
 
         switch (e.Kind)
         {
-            case SheetChangeKind.Values when e.Range is { } range:
+            case SheetChangeKind.Values when values is { } range:
                 MarkChanged(range);
                 break;
             case SheetChangeKind.RowsInserted:
