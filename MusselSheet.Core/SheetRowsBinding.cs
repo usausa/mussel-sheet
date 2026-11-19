@@ -32,7 +32,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     private readonly ConditionalWeakTable<SheetRow, object?> former = [];
 
-    private readonly ConditionalWeakTable<SheetRow, object?> above = [];
+    private readonly ConditionalWeakTable<SheetRow, object?> removedAbove = [];
 
     private IList<TItem>? list;
 
@@ -194,7 +194,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         for (var r = index; r < index + count; r++)
         {
             var row = sheet.Rows[r];
-            returnedAbove += above.Remove(row) ? 1 : 0;
+            returnedAbove += removedAbove.Remove(row) ? 1 : 0;
             if (former.Remove(row))
             {
                 returning.Add(row);
@@ -254,11 +254,11 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             {
                 if (index + i < top)
                 {
-                    above.AddOrUpdate(removed[i], null);
+                    removedAbove.AddOrUpdate(removed[i], null);
                 }
                 else
                 {
-                    above.Remove(removed[i]);
+                    removedAbove.Remove(removed[i]);
                 }
             }
 
