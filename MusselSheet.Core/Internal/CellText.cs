@@ -103,7 +103,7 @@ internal static class CellText
                 DateOnly date when target == typeof(DateTime) => date.ToDateTime(TimeOnly.MinValue),
                 TimeSpan span when target == typeof(TimeOnly) => TimeOnly.FromTimeSpan(span),
                 TimeOnly time when target == typeof(TimeSpan) => time.ToTimeSpan(),
-                double or float when target == typeof(decimal) => ToDecimal(value),
+                double or float when target == typeof(decimal) => TryToDecimal(value, out var number) ? number : null,
                 IConvertible convertible when typeof(IConvertible).IsAssignableFrom(target) => Convert.ChangeType(convertible, target, CultureInfo.InvariantCulture),
                 _ => null
             };
@@ -114,15 +114,26 @@ internal static class CellText
         }
     }
 
-    internal static decimal ToDecimal(object value) =>
-        value is double or float ? Decimal.Parse(DecimalText(value), NumberStyles.Float, CultureInfo.InvariantCulture) : Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+    internal static bool TryToDecimal(object value, out decimal number)
+    {
+        if (value is not (double or float))
+        {
+            number = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        Span<char> text = stackalloc char[32];
+        number = 0m;
+        if (value is double real)
+        {
+            return real.TryFormat(text, out var written, "G15", CultureInfo.InvariantCulture) && Decimal.TryParse(text[..written], NumberStyles.Float, CultureInfo.InvariantCulture, out number);
+        }
+
+        return ((float)value).TryFormat(text, out var length, "G7", CultureInfo.InvariantCulture) && Decimal.TryParse(text[..length], NumberStyles.Float, CultureInfo.InvariantCulture, out number);
+    }
 
     // The edit text takes no exponent, so a double or float is written as the decimal it reads as
-    private static object EditNumber(object value) =>
-        (value is double or float) && Decimal.TryParse(DecimalText(value), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : value;
-
-    private static string DecimalText(object value) =>
-        value is double number ? number.ToString("G15", CultureInfo.InvariantCulture) : ((float)value).ToString("G7", CultureInfo.InvariantCulture);
+    private static object EditNumber(object value) => (value is double or float) && TryToDecimal(value, out var number) ? number : value;
 
     public static string Format(IFormattable value, string format, CultureInfo culture)
     {

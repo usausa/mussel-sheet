@@ -38,9 +38,9 @@ public sealed partial class MusselSheetView
 
     private async Task<CellRange?> ApplyEditAsync(CellsEdited entry, bool redo)
     {
-        CellRange? target = null;
         var reason = redo ? CellChangeReason.Redo : CellChangeReason.Undo;
         var changes = redo ? entry.Changes : entry.Changes.Reverse();
+        var applied = new List<CellChange>();
         using (Sheet.BeginUpdate())
         {
             foreach (var change in changes)
@@ -53,10 +53,19 @@ public sealed partial class MusselSheetView
                 var snapshot = redo ? change.After : change.Before;
                 var old = Sheet.GetValue(row, column);
                 Sheet.SetInput(row, column, snapshot.Value, snapshot.Input, snapshot.Error);
+                applied.Add(change);
+                await HandleAsync(CellCommitted, new CellCommittedEventArgs(Sheet, new CellAddress(change.Row.Index, change.Column.Index), old, snapshot.Value, snapshot.Error, reason)).ConfigureAwait(true);
+            }
+        }
+
+        CellRange? target = null;
+        foreach (var change in applied)
+        {
+            if (TryLocate(change, out var row, out var column))
+            {
                 target = target is { } t
                     ? new CellRange(Math.Min(t.Top, row), Math.Min(t.Left, column), Math.Max(t.Bottom, row), Math.Max(t.Right, column))
                     : CellRange.Cell(row, column);
-                await HandleAsync(CellCommitted, new CellCommittedEventArgs(Sheet, new CellAddress(row, column), old, snapshot.Value, snapshot.Error, reason)).ConfigureAwait(true);
             }
         }
 

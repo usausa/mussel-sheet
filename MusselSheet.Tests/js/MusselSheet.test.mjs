@@ -679,6 +679,8 @@ test('keys are written in the order Ctrl, Alt, Shift, with the key in upper case
     assert.equal(comboOf({ key: ' ', ctrl: false, alt: true, shift: false }), 'Alt+SPACE');
     assert.equal(comboOf({ key: 'Pause', ctrl: true, alt: false, shift: false }), 'Ctrl+PAUSE');
     assert.equal(comboOf({ key: 'F13', ctrl: false, alt: false, shift: false }), 'F13');
+    assert.equal(comboOf({ key: 'ß', ctrl: true, alt: false, shift: false }), 'Ctrl+ß');
+    assert.equal(comboOf({ key: '\u0131', ctrl: true, alt: false, shift: false }), 'Ctrl+I');
 });
 
 test('the context menu leaves out hidden built-in items and adds the items of the app at the end', () => {

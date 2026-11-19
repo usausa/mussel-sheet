@@ -1,5 +1,7 @@
 namespace MusselSheet.E2ETests;
 
+using System.Text.RegularExpressions;
+
 using static Microsoft.Playwright.Assertions;
 
 // IME composition and clipboard events are synthesized: a real IME is checked by hand, and the OS clipboard is unused
@@ -398,6 +400,20 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await Expect(sample.Grid).ToHaveAttributeAsync("aria-colcount", "51");
         await Expect(sample.Cell(0, 3)).ToHaveTextAsync("3");
         await Expect(sample.Selection).ToHaveTextAsync("Selection: C1:C1000");
+    }
+
+    [Fact]
+    public async Task CallsThatFailLeaveNoUnhandledRejections()
+    {
+        var sample = await OpenAsync("large-sheets", "server");
+        await sample.RejectCallsAsync("CommitAsync", "OnViewportChanged");
+
+        await sample.Cell(1, 1).ClickAsync();
+        await sample.Page.Keyboard.TypeAsync("7");
+        await sample.Page.Keyboard.PressAsync("Enter");
+        await sample.ScrollSheetAsync(0, 300);
+
+        Assert.Equal(0, await sample.UnhandledRejectionsAsync(2));
     }
 
     [Theory]
@@ -1609,7 +1625,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         }
 
         var early = popup.Locator(".mussel-sheet-cal-day[data-date='2025-12-31']");
-        await Expect(early).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("mussel-sheet-disabled"));
+        await Expect(early).ToHaveClassAsync(new Regex("mussel-sheet-disabled"));
         await early.ClickAsync();
         await Expect(popup).ToBeVisibleAsync();
 
@@ -1633,6 +1649,22 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Keyboard.PressAsync("ArrowDown");
         await sample.Keyboard.PressAsync("Enter");
         await Expect(cell).ToHaveTextAsync("Alder Logistics");
+        await Expect(items).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task AutoCompleteClosesForTextOfWhiteSpaceThatOnlyDotNetTrims()
+    {
+        var sample = await OpenAsync("cell-kinds", "server");
+        var cell = sample.Cell(15, 1);
+        var items = sample.Page.Locator(".mussel-sheet-popup.mussel-sheet-open .mussel-sheet-item");
+
+        await cell.ClickAsync();
+        await sample.Keyboard.TypeAsync("a");
+        await Expect(items).Not.ToHaveCountAsync(0);
+        await sample.Page.Locator(".mussel-sheet-sink").SelectTextAsync();
+        await sample.Keyboard.InsertTextAsync("\u0085");
+
         await Expect(items).ToHaveCountAsync(0);
     }
 
@@ -1666,7 +1698,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
 
         await sample.Cell(0, 1).ClickAsync();
         await sample.Keyboard.PressAsync("PageDown");
-        await Expect(sample.ActiveCell).ToHaveTextAsync(new System.Text.RegularExpressions.Regex("^Active cell: B1[0-9]$"));
+        await Expect(sample.ActiveCell).ToHaveTextAsync(new Regex("^Active cell: B1[0-9]$"));
         await sample.Keyboard.PressAsync("PageUp");
         await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B1");
     }

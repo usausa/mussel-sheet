@@ -78,6 +78,8 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     private string? sentOptions;
 
+    private (MusselSheetOptions Options, Dictionary<string, string?> Ready, Dictionary<string, string?> Editing)? keyTables;
+
     private bool defaultsApplied;
 
     // Browser UTC offset in minutes, so a year-less date uses the user's date on Server too
@@ -324,9 +326,9 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     public Task CancelEditAsync() => InvokeScriptAsync("cancelEdit");
 
-    public Task<bool> UndoAsync() => RunInTurnAsync(() => RunHistoryAsync(false));
+    public Task<bool> UndoAsync() => RunInTurnAsync(() => IsDisposed ? Task.FromResult(false) : RunHistoryAsync(false));
 
-    public Task<bool> RedoAsync() => RunInTurnAsync(() => RunHistoryAsync(true));
+    public Task<bool> RedoAsync() => RunInTurnAsync(() => IsDisposed ? Task.FromResult(false) : RunHistoryAsync(true));
 
     internal Task OnMenuItemAsync(string name, int top, int left, int bottom, int right, int row, int column) =>
         HandleAsync(MenuItemClicked, new SheetMenuItemClickedEventArgs(Sheet, name, new CellRange(top, left, bottom, right), new CellAddress(row, column)));

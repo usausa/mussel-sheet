@@ -4,18 +4,20 @@ using System.Reflection;
 
 internal interface ISheetBinding
 {
-    void OnSheetChanged(SheetChangedEventArgs e);
+    void OnSheetChanged(SheetChangedEventArgs e, ValueCells? targets);
 
     BoundProperty? FindProperty(int row, int column);
 
     bool HoldsRow(SheetRow row);
+
+    IRowsBinding? ListOf(SheetRow row);
 
     bool HasEmptyListAt(int index);
 }
 
 internal interface IRowsBinding
 {
-    void OnValues(CellRange range);
+    void OnValues(ValueCells cells);
 
     void OnRowsInserted(int index, int count);
 
@@ -31,9 +33,20 @@ internal interface IRowsBinding
 
     bool Holds(SheetRow row);
 
+    bool Lost(SheetRow row);
+
     bool IsEmptyAt(int index);
 
     void Detach();
+}
+
+internal sealed class ValueCells(SheetRow[] rows, SheetColumn[] columns)
+{
+    public SheetRow[] Rows { get; } = rows;
+
+    public bool Contains(SheetColumn column) => Array.IndexOf(columns, column) >= 0;
+
+    public bool Contains(SheetRow row, SheetColumn column) => (Array.IndexOf(Rows, row) >= 0) && Contains(column);
 }
 
 internal sealed class BindingSync
@@ -66,7 +79,7 @@ internal sealed class BindingSync
     // Skips values the property type cannot take; a setter exception becomes the error mark; true when the cell is to show the property back
     public bool Write(object target, BoundProperty property, SheetRow row, SheetColumn column)
     {
-        if (!property.CanWrite || !Holds(row, column) || !property.TryConvert(Sheet.GetValue(row.Index, column.Index), out var value))
+        if (!property.CanWrite || !IsCurrent(row, column) || !property.TryConvert(Sheet.GetValue(row.Index, column.Index), out var value))
         {
             return false;
         }
@@ -85,7 +98,7 @@ internal sealed class BindingSync
         }
 
         // The setter can insert or delete rows and columns, so the cell is found again
-        if (!Holds(row, column))
+        if (!IsCurrent(row, column))
         {
             return false;
         }
@@ -109,7 +122,7 @@ internal sealed class BindingSync
         }
     }
 
-    private bool Holds(SheetRow row, SheetColumn column) => Sheet.Contains(row) && Sheet.Contains(column);
+    private bool IsCurrent(SheetRow row, SheetColumn column) => Sheet.Contains(row) && Sheet.Contains(column);
 
     public void Clear(int row, int column)
     {

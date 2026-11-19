@@ -139,6 +139,24 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Fact]
+    public async Task DisposingTellsTheScriptAndReleasesIt()
+    {
+        var instance = new LateModule();
+        var runtime = new LateRuntime { Module = { Returned = instance } };
+        Services.AddSingleton<IJSRuntime>(runtime);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(3, 3)));
+        await cut.InvokeAsync(() => runtime.Import.SetResult(runtime.Module));
+        await cut.WaitForAssertionAsync(() => Assert.Contains("attach", runtime.Module.Calls));
+
+        await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+
+        Assert.Equal(["attach"], runtime.Module.Calls);
+        Assert.Contains("dispose", instance.Calls);
+        Assert.True(instance.Released);
+        Assert.True(runtime.Module.Released);
+    }
+
+    [Fact]
     public async Task AFailedDisposeStillReleasesTheScript()
     {
         var instance = new LateModule { Fail = "dispose" };
@@ -183,8 +201,7 @@ public sealed class MusselSheetViewRenderTests : BunitContext
         await cut.InvokeAsync(runtime.Module.Resume.SetResult);
 
         await cut.WaitForAssertionAsync(() => Assert.True(instance.Released));
-        var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
-        Assert.NotSame(Renderer.UnhandledException, ended);
+        Assert.False(Renderer.UnhandledException.IsCompleted);
         Assert.Equal(["dispose"], instance.Calls);
         Assert.True(runtime.Module.Released);
     }

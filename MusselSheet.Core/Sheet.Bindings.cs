@@ -1,6 +1,7 @@
 namespace MusselSheet;
 
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 
 using MusselSheet.Internal;
 
@@ -38,6 +39,19 @@ public sealed partial class Sheet
         }
 
         return false;
+    }
+
+    internal IRowsBinding? ListOf(SheetRow row)
+    {
+        foreach (var binding in bindings)
+        {
+            if (binding.ListOf(row) is { } list)
+            {
+                return list;
+            }
+        }
+
+        return null;
     }
 
     internal bool HasEmptyListAt(int index)
@@ -85,9 +99,20 @@ public sealed partial class Sheet
             return;
         }
 
+        // The setters can insert or delete rows and columns, so the cells of the range are taken before any binding writes
+        var cells = (e.Kind == SheetChangeKind.Values) && (e.Range is { } range) ? CellsOf(range) : null;
         foreach (var binding in bindings.ToArray())
         {
-            binding.OnSheetChanged(e);
+            binding.OnSheetChanged(e, cells);
         }
+    }
+
+    private ValueCells CellsOf(CellRange range)
+    {
+        var top = Math.Max(range.Top, 0);
+        var left = Math.Max(range.Left, 0);
+        var rows = CollectionsMarshal.AsSpan(rowList)[top..Math.Max(Math.Min(range.Bottom + 1, rowList.Count), top)];
+        var columns = CollectionsMarshal.AsSpan(columnList)[left..Math.Max(Math.Min(range.Right + 1, columnList.Count), left)];
+        return new ValueCells(rows.ToArray(), columns.ToArray());
     }
 }

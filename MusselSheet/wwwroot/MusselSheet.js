@@ -36,12 +36,13 @@ const LIST_PAGE = 8;
 
 const INLINE_TEXT_LIMIT = 4096;
 
+const ASCII_TEXT = /^[\x00-\x7F]*$/;
+
 // Nudges the IME toward direct input; on Windows, inputmode becomes the IME input scope
 const HALFWIDTH_INPUT_MODE = 'url';
 
 // Option types a character on a Mac
 const IS_MAC = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '');
-const REPLAYED_CARET_KEYS = new Set(['Home', 'End', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 const QUEUED_KEYS = new Set(['Enter', 'Tab', 'Escape', 'Backspace', 'Delete', 'F2', 'Home', 'End', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 const READY_CTRL_KEYS = new Set(['a', 'd', 'r', ';']);
 
@@ -563,9 +564,13 @@ function fill(template, first, second) {
 
 // Letter by letter, the same as SameText in C#; a letter whose lower case is longer stays as it is
 function lowerText(text) {
+    if (ASCII_TEXT.test(text)) {
+        return text.toLowerCase();
+    }
+
     return Array.from(text, (letter) => {
         const lower = letter.toLowerCase();
-        return [...lower].length === 1 ? lower : letter;
+        return lower.length === letter.length ? lower : letter;
     }).join('');
 }
 
@@ -1466,9 +1471,16 @@ export function shiftSelection({ row, col, anchor, extent, tabStartCol = -1 }, s
     return { row: active.r, col: active.c, anchor: fit(anchor), extent: fit(extent), lost: lost || (active.r !== row) || (active.c !== col), tabStartCol: tabStartCol < cols ? tabStartCol : -1 };
 }
 
+function upperKey(text) {
+    return Array.from(text, (letter) => {
+        const upper = letter.toUpperCase();
+        return upper.length === letter.length ? upper : letter;
+    }).join('');
+}
+
 // Must produce the same notation as C# KeyCombo
 export function comboOf(k) {
-    const key = k.key === ' ' ? 'SPACE' : k.key.toUpperCase();
+    const key = k.key === ' ' ? 'SPACE' : upperKey(k.key);
     return `${k.ctrl ? 'Ctrl+' : ''}${k.alt ? 'Alt+' : ''}${k.shift ? 'Shift+' : ''}${key}`;
 }
 
@@ -1513,6 +1525,7 @@ class SheetController {
         this.tabStartCol = -1;
         this.queue = [];
         this.lostWhileWaiting = false;
+        this.goneWhileWaiting = false;
         this.compositionEndAt = -Infinity;
         this.disposed = false;
         this.activeTimer = 0;
@@ -1641,7 +1654,11 @@ class SheetController {
         this.closeMenu();
         this.map = new SheetMap(map, this.language);
         if (this.map.isEmpty) {
-            this.finishEdit();
+            this.lostWhileWaiting ||= this.state === COMMITTING;
+            this.goneWhileWaiting ||= this.state === COMMITTING;
+            if (this.state !== COMMITTING) {
+                this.finishEdit();
+            }
             this.place();
             return;
         }
@@ -1653,8 +1670,9 @@ class SheetController {
         this.extent = moved.extent;
         this.tabStartCol = moved.tabStartCol;
         const covered = this.map.isCovered(this.row, this.col);
-        const lost = moved.lost || covered || this.map.isDisabled(this.row, this.col);
+        const lost = moved.lost || this.map.isDisabled(this.row, this.col);
         this.lostWhileWaiting ||= lost && (this.state === COMMITTING);
+        this.goneWhileWaiting ||= moved.lost && (this.state === COMMITTING);
         if (lost && this.isEditing()) {
             this.finishEdit();
         }
@@ -2209,6 +2227,12 @@ class SheetController {
         }
 
         this.queue = [];
+        if (this.isFocusOutside()) {
+            const [inline, data] = textArgs(text);
+            this.sendChange('PasteAsync', row, col, inline, true, data);
+            return;
+        }
+
         this.rejectPaste(rule, text, response.error);
     }
 
@@ -2505,7 +2529,7 @@ class SheetController {
             return true;
         }
 
-        if (k.replay && !k.alt && REPLAYED_CARET_KEYS.has(k.key) && (!k.ctrl || (k.key === 'Home') || (k.key === 'End'))) {
+        if (k.replay && !k.alt && ((k.key === 'Home') || (k.key === 'End'))) {
             this.replayCaret(k);
             return true;
         }
@@ -3331,6 +3355,7 @@ class SheetController {
     startEdit(then = null) {
         const row = this.row;
         const col = this.col;
+        this.lostWhileWaiting = false;
         const text = this.textAtOnce(row, col);
         if (text !== null) {
             this.enterEdit(row, col, text, then);
@@ -3345,7 +3370,7 @@ class SheetController {
     }
 
     enterEdit(row, col, text, then) {
-        if ((row === this.row) && (col === this.col) && (this.state === READY)) {
+        if ((row === this.row) && (col === this.col) && (this.state === READY) && !this.lostWhileWaiting && this.canEdit(this.currentRule())) {
             this.setState(EDIT);
             this.sink.value = text;
             this.showEditor();
@@ -3419,6 +3444,7 @@ class SheetController {
 
         this.closePopup();
         this.lostWhileWaiting = false;
+        this.goneWhileWaiting = false;
         this.setState(COMMITTING);
         this.updateSink();
         let response;
@@ -3433,15 +3459,17 @@ class SheetController {
             return;
         }
 
-        if (response.ok || response.stored || rule.policy === 'revert') {
+        if (!response.ok && !response.stored && this.lostWhileWaiting) {
             this.finishEdit();
-            moveAction?.();
             this.replay();
             return;
         }
 
-        if (this.lostWhileWaiting) {
+        if (response.ok || response.stored || rule.policy === 'revert') {
             this.finishEdit();
+            if (!this.goneWhileWaiting) {
+                moveAction?.();
+            }
             this.replay();
             return;
         }
@@ -3671,7 +3699,7 @@ class SheetController {
             return;
         }
 
-        if (!force && !text.trim()) {
+        if (!force && !trimText(text)) {
             this.closePopup();
             return;
         }

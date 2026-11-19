@@ -352,6 +352,32 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         Assert.Equal(["u", "x", "c", "d"], Enumerable.Range(1, 4).Select(r => sheet.GetValue(r, 0)));
     }
 
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(false, 2)]
+    [InlineData(true, 1)]
+    [InlineData(true, 2)]
+    public async Task AnEmptyListStaysAboveTheRowsThatUndoBringsBackToTheListBelow(bool sameBind, int count)
+    {
+        var first = new ListTarget { Lines = { new Line { Name = "a" }, new Line { Name = "b" } } };
+        var second = new ListTarget { Lines = { new Line { Name = "c" }, new Line { Name = "d" } } };
+        var target = new TwoLists { Lines = { new Line { Name = "a" }, new Line { Name = "b" } }, Others = { new Line { Name = "c" }, new Line { Name = "d" } } };
+        var sheet = new Sheet(6, 1);
+        var upper = sameBind ? target.Lines : first.Lines;
+        using var together = sameBind ? sheet.Bind(target).Rows("A2:A3", static x => x.Lines, static x => x.Column("A", static y => y.Name)).Rows("A4:A5", static x => x.Others, static x => x.Column("A", static y => y.Name)) : null;
+        // Bound first, the lower list takes its rows back before the upper list sees them
+        using var below = sameBind ? null : sheet.Bind(second).Rows("A4:A5", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        using var above = sameBind ? null : sheet.Bind(first).Rows("A2:A3", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowDeleteRows, true));
+
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 1, 0, 2, 0, 1, 0));
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 1, 0, count, 0, 1, 0));
+        await cut.InvokeAsync(cut.Instance.UndoAsync);
+        upper.Add(new Line { Name = "u" });
+
+        Assert.Equal(["u", "c", "d"], Enumerable.Range(1, 3).Select(r => sheet.GetValue(r, 0)));
+    }
+
     [Fact]
     public void OfTwoEmptyListsAtOnePlaceTheUpperStaysAboveTheRowsOfTheLower()
     {
@@ -420,6 +446,26 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     }
 
     [Fact]
+    public async Task ACommitWhoseSetterAddsARowAboveGivesTheCellWhereItEnds()
+    {
+        var target = new HookedLists { Upper = { new Hooked() }, Lower = { new Hooked() } };
+        target.Lower[0].AfterSet = () => target.Upper.Add(new Hooked());
+        var sheet = new Sheet(2, 1);
+        using var binding = sheet.Bind(target)
+            .Rows("A1:A1", static x => x.Upper, static x => x.Column("A", static y => y.Value))
+            .Rows("A2:A2", static x => x.Lower, static x => x.Column("A", static y => y.Value));
+        var addresses = new List<CellAddress>();
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, e => addresses.Add(e.Address)));
+        var bridge = new SheetScriptBridge(cut.Instance);
+
+        await cut.InvokeAsync(() => bridge.CommitAsync(1, 0, "5", false, null));
+        var undone = await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false));
+
+        Assert.Equal([new CellAddress(2, 0), new CellAddress(3, 0)], addresses);
+        Assert.Equal([3, 0, 3, 0], undone!);
+    }
+
+    [Fact]
     public async Task ACommitWhoseSetterRemovesTheRowLeavesTheNextRowAloneOnUndo()
     {
         var target = Removables(5m, 7m, 9m);
@@ -446,6 +492,24 @@ public sealed class ObjectBindingEdgeTests : BunitContext
 
         Assert.Equal([5m, 4m], target.Lines.Select(static x => x.Quantity));
         Assert.Equal(4m, sheet.GetValue(1, 0));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ValuesSetOverTwoListsReachTheRowsThatASetterAboveMoves(bool sameBind)
+    {
+        var target = new HookedLists { Upper = { new Hooked(), new Hooked() }, Lower = { new Hooked(), new Hooked() } };
+        target.Upper[0].AfterSet = () => target.Upper.Add(new Hooked());
+        var sheet = new Sheet(4, 1);
+        using var together = sameBind ? sheet.Bind(target).Rows("A1:A2", static x => x.Upper, static x => x.Column("A", static y => y.Value)).Rows("A3:A4", static x => x.Lower, static x => x.Column("A", static y => y.Value)) : null;
+        using var above = sameBind ? null : sheet.Bind(target).Rows("A1:A2", static x => x.Upper, static x => x.Column("A", static y => y.Value));
+        using var below = sameBind ? null : sheet.Bind(target).Rows("A3:A4", static x => x.Lower, static x => x.Column("A", static y => y.Value));
+
+        sheet.SetValues(0, 0, [[200m], [1m], [2m], [3m]]);
+
+        Assert.Equal([200m, 1m, 0m], target.Upper.Select(static x => x.Value));
+        Assert.Equal([2m, 3m], target.Lower.Select(static x => x.Value));
     }
 
     [Fact]
@@ -496,6 +560,52 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         Assert.Equal(9m, sheet.GetValue(1, 0));
     }
 
+    [Fact]
+    public void ANewElementOnTheLastRowWhoseSetterRemovesItReadsNoOtherRow()
+    {
+        var target = Removables(5m);
+        var sheet = new Sheet(1, 2);
+        using var binding = sheet.Bind(target).Rows("A1:B1", static x => x.Lines, x =>
+        {
+            x.Create = () => new Removable { Owner = target.Lines };
+            x.Column("A", static y => y.Quantity).Column("B", static y => y.Note);
+        });
+        sheet.InsertRows(1, 1);
+
+        sheet.SetValue(1, 0, -1m);
+
+        Assert.Equal([5m], target.Lines.Select(static x => x.Quantity));
+        Assert.Equal(1, sheet.RowCount);
+    }
+
+    [Fact]
+    public void ANewElementKeepsAValueItsPropertyCannotTake()
+    {
+        var target = new TargetList();
+        var sheet = new Sheet(2, 2);
+        using var binding = sheet.Bind(target).Rows("A1:B2", static x => x.Items, static x => x.Column("A", static y => y.Count).Column("B", static y => y.Guarded));
+
+        sheet.SetValue(0, 0, 1.5m);
+
+        Assert.Equal(0, Assert.Single(target.Items).Count);
+        Assert.Equal(1.5m, sheet.GetValue(0, 0));
+        Assert.Equal("ok", sheet.GetValue(0, 1));
+    }
+
+    [Fact]
+    public void ANewElementKeepsTheValueAndTheMarkOfASetterThatThrows()
+    {
+        var target = new TargetList();
+        var sheet = new Sheet(2, 2);
+        using var binding = sheet.Bind(target).Rows("A1:B2", static x => x.Items, static x => x.Column("A", static y => y.Count).Column("B", static y => y.Guarded));
+
+        sheet.SetValue(0, 1, "bad");
+
+        Assert.Equal("ok", Assert.Single(target.Items).Guarded);
+        Assert.Equal("bad", sheet.GetValue(0, 1));
+        Assert.Equal("Not allowed", sheet.GetError(0, 1));
+    }
+
     private static RemovableTarget Removables(params decimal[] quantities)
     {
         var target = new RemovableTarget();
@@ -535,6 +645,11 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         public ObservableCollection<Line> Lines { get; } = [];
     }
 
+    public sealed class TargetList
+    {
+        public ObservableCollection<Target> Items { get; } = [];
+    }
+
     public sealed class TwoLists
     {
         public ObservableCollection<Line> Lines { get; } = [];
@@ -567,6 +682,13 @@ public sealed class ObjectBindingEdgeTests : BunitContext
                 AfterSet?.Invoke();
             }
         }
+    }
+
+    public sealed class HookedLists
+    {
+        public ObservableCollection<Hooked> Upper { get; } = [];
+
+        public ObservableCollection<Hooked> Lower { get; } = [];
     }
 
     public sealed class RemovableTarget

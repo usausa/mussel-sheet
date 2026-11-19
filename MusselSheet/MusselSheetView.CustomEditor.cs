@@ -44,7 +44,8 @@ public sealed partial class MusselSheetView
 
         var result = await CommitValueAsync(edit.Address.Row, edit.Address.Column, edit.Value, optimistic).ConfigureAwait(true);
         var (row, column) = (edit.Address.Row, edit.Address.Column);
-        var keepOpen = !result.Stored
+        var keepOpen = !optimistic
+            && !result.Stored
             && (result.Error is not null)
             && edit.IsCurrent
             && IsEditable(row, column)
@@ -68,7 +69,7 @@ public sealed partial class MusselSheetView
     private Task<bool> CommitCustomFromTemplateAsync(CellEditContext edit) =>
         RunInTurnAsync(async () =>
         {
-            if (!ReferenceEquals(edit, customEdit))
+            if (IsDisposed || !ReferenceEquals(edit, customEdit))
             {
                 return false;
             }
@@ -85,7 +86,7 @@ public sealed partial class MusselSheetView
     private Task CancelCustomFromTemplateAsync() =>
         RunInTurnAsync(async () =>
         {
-            if (customEdit is null)
+            if (IsDisposed || (customEdit is null))
             {
                 return;
             }

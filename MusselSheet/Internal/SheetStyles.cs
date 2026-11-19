@@ -246,7 +246,7 @@ internal sealed class SheetStyles
             css.Append(CultureInfo.InvariantCulture, $"font-size:{size}px;");
         }
 
-        // The class indents the side of the cell's own alignment, so a patch that moves or changes it writes both sides
+        // The class indents the side of the cell's own alignment, so a patch writes only the sides whose indent it changes
         var (leftAfter, rightAfter) = Indents(alignment, patch.IndentLevel ?? style.IndentLevel);
         AppendPadding(css, "padding-left", leftBefore, leftAfter);
         AppendPadding(css, "padding-right", rightBefore, rightAfter);

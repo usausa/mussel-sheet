@@ -208,7 +208,7 @@ These are shared with the other Mussel libraries. Their light defaults follow th
 | `--mussel-critical` | Error marks and messages |
 | `--mussel-font-family` | Font family |
 
-These are for the sheet only. Set them on the sheet itself: on `.mussel-sheet`, or on a `class` given to `MusselSheetView`.  
+These are for the sheet only. Set them on `.mussel-sheet` or on a `class` given to the view; the view declares them on its own element, so a value on a container does not reach it.  
 
 | Variable | Use |
 |---|---|

@@ -119,20 +119,14 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
     bool IRowsBinding.Holds(SheetRow row) => members.Contains(row);
 
+    bool IRowsBinding.Lost(SheetRow row) => former.TryGetValue(row, out _);
+
     bool IRowsBinding.IsEmptyAt(int index) => (rows.Count == 0) && (emptyTop == index);
 
-    void IRowsBinding.OnValues(CellRange range)
+    void IRowsBinding.OnValues(ValueCells cells)
     {
         var sheet = sync.Sheet;
-        var top = Math.Max(range.Top, 0);
-        // The setters can insert or delete rows, so the rows of the range are taken before writing
-        var targets = new SheetRow[Math.Max(Math.Min(range.Bottom, sheet.RowCount - 1) - top + 1, 0)];
-        for (var i = 0; i < targets.Length; i++)
-        {
-            targets[i] = sheet.Rows[top + i];
-        }
-
-        foreach (var row in targets)
+        foreach (var row in cells.Rows)
         {
             if (!members.Contains(row))
             {
@@ -143,7 +137,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             {
                 foreach (var link in columns)
                 {
-                    if (IsCurrent(link) && (link.Column.Index >= range.Left) && (link.Column.Index <= range.Right) && sync.Write(item, link.Property, row, link.Column))
+                    if (IsCurrent(link) && cells.Contains(link.Column) && sync.Write(item, link.Property, row, link.Column))
                     {
                         ShowCell(row, link);
                     }
@@ -205,7 +199,8 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
 
         if (returning.Count == 0)
         {
-            if ((rows.Count == 0) && (index <= emptyTop))
+            var below = (index == emptyTop) && (sheet.ListOf(sheet.Rows[index]) is { } owner) && (frame.Top < owner.Frame.Top);
+            if ((rows.Count == 0) && (index <= emptyTop) && !below)
             {
                 emptyTop += count;
             }
@@ -488,7 +483,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         for (var i = 0; i < rows.Count; i++)
         {
             var row = rows[i];
-            if (!items.TryGetValue(row, out var bound) || !ReferenceEquals(bound, item) || !sync.Sheet.Contains(row))
+            if (!items.TryGetValue(row, out var bound) || !ReferenceEquals(bound, item))
             {
                 continue;
             }
@@ -516,17 +511,26 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         items[row] = item;
         remembered.AddOrUpdate(row, item);
         Subscribe(item);
+        List<ColumnLink>? kept = null;
         foreach (var link in columns)
         {
-            if (IsCurrent(link) && (sync.Sheet.GetValue(row.Index, link.Column.Index) is not null))
+            if (!sync.Sheet.Contains(row))
             {
-                sync.Write(item, link.Property, row, link.Column);
+                return;
+            }
+
+            if (IsCurrent(link) && (sync.Sheet.GetValue(row.Index, link.Column.Index) is not null) && !sync.Write(item, link.Property, row, link.Column))
+            {
+                (kept ??= []).Add(link);
             }
         }
 
         foreach (var link in columns)
         {
-            ShowCell(row, link);
+            if ((kept is null) || !kept.Contains(link))
+            {
+                ShowCell(row, link);
+            }
         }
     }
 

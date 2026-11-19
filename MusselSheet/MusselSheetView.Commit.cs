@@ -162,7 +162,6 @@ public sealed partial class MusselSheetView
 
         (row, column) = (sheetRow.Index, sheetColumn.Index);
         var settings = Sheet.GetSettings(row, column);
-        var address = new CellAddress(row, column);
 
         if (committing.Cancel)
         {
@@ -213,7 +212,7 @@ public sealed partial class MusselSheetView
             batch.Add(change);
         }
 
-        await HandleAsync(CellCommitted, new CellCommittedEventArgs(Sheet, address, before.Value, value, error, reason)).ConfigureAwait(true);
+        await HandleAsync(CellCommitted, new CellCommittedEventArgs(Sheet, new CellAddress(sheetRow.Index, sheetColumn.Index), before.Value, value, error, reason)).ConfigureAwait(true);
         return new CommitResult(error is null, error, true);
     }
 

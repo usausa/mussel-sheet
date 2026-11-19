@@ -114,20 +114,7 @@ internal static class FillSeries
     private static bool TryNumber(object? value, out decimal number)
     {
         number = 0m;
-        if (!CellText.IsNumber(value))
-        {
-            return false;
-        }
-
-        try
-        {
-            number = CellText.ToDecimal(value);
-            return true;
-        }
-        catch (Exception ex) when (ex is OverflowException or FormatException)
-        {
-            return false;
-        }
+        return CellText.IsNumber(value) && CellText.TryToDecimal(value, out number);
     }
 
     private static bool TryDates(IReadOnlyList<object?> values, out DateOnly[] dates)

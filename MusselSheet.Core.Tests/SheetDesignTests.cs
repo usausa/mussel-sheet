@@ -109,6 +109,21 @@ public sealed class SheetDesignTests
     }
 
     [Fact]
+    public void DoublesAndFloatsAreSavedWithTheDigitsThatReadBackAsTheSameValue()
+    {
+        var sheet = new Sheet(1, 2);
+        sheet.SetValue(0, 0, 0.1 + 0.2);
+        sheet.SetValue(0, 1, 1f / 3);
+
+        var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(sheet.ToDesign(includeValues: true))));
+
+        Assert.Equal(0.30000000000000004m, copy.GetValue(0, 0));
+        Assert.Equal(0.1 + 0.2, copy.GetValue<double>(0, 0));
+        Assert.Equal(0.33333334m, copy.GetValue(0, 1));
+        Assert.Equal(1f / 3, copy.GetValue<float>(0, 1));
+    }
+
+    [Fact]
     public void DatesAndTimesAreSavedAsDateAndTimeCellsHoldThem()
     {
         var sheet = new Sheet(1, 3);

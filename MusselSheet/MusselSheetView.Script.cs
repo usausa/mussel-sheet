@@ -109,6 +109,7 @@ public sealed partial class MusselSheetView
             SheetSkipReadOnlyMode.All => "all",
             _ => "enterTab"
         };
+        var (readyKeys, editingKeys) = KeysOf(Options);
         return new ScriptOptionsData(
             enterDirection,
             ReadyEnterMode == SheetReadyEnterMode.Edit ? "edit" : "move",
@@ -126,10 +127,21 @@ public sealed partial class MusselSheetView
             FillHandleEnabled,
             FrozenRowCount,
             FrozenColumnCount,
-            KeyCombo.NormalizeAll(Options.ReadyKeys),
-            KeyCombo.NormalizeAll(Options.EditingKeys),
+            readyKeys,
+            editingKeys,
             [.. Options.Menu.Hidden],
             [.. Options.Menu.Items.Select(static x => new ScriptItem(x.Name, x.TextFor(CultureInfo.CurrentUICulture)))]);
+    }
+
+    private (Dictionary<string, string?> Ready, Dictionary<string, string?> Editing) KeysOf(MusselSheetOptions options)
+    {
+        if ((keyTables is not { } cached) || !ReferenceEquals(cached.Options, options))
+        {
+            cached = (options, KeyCombo.NormalizeAll(options.ReadyKeys), KeyCombo.NormalizeAll(options.EditingKeys));
+            keyTables = cached;
+        }
+
+        return (cached.Ready, cached.Editing);
     }
 
     private async Task AttachAsync()
@@ -164,10 +176,7 @@ public sealed partial class MusselSheetView
                 {
                     await controller.InvokeVoidAsync(call.Identifier, call.Args).ConfigureAwait(true);
                 }
-                catch (JSException)
-                {
-                }
-                catch (OperationCanceledException)
+                catch (Exception ex) when (ex is JSException or OperationCanceledException)
                 {
                 }
             }

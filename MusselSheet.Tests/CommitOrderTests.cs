@@ -151,6 +151,94 @@ public sealed class CommitOrderTests : BunitContext
     }
 
     [Fact]
+    public async Task ACommitFromTheScriptThatWaitsWhileItsViewIsDisposedWritesNothing()
+    {
+        var sheet = new Sheet(2, 1);
+        var held = new TaskCompletionSource();
+        var first = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitting, _ => held.Task));
+        var second = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var a = new SheetScriptBridge(first.Instance);
+        var b = new SheetScriptBridge(second.Instance);
+        Task? waiting = null;
+        Task? queued = null;
+
+        await first.InvokeAsync(() =>
+        {
+            waiting = a.CommitAsync(0, 0, "5", true, null);
+            queued = b.CommitAsync(1, 0, "7", true, null);
+        });
+        await second.InvokeAsync(() => second.Instance.DisposeAsync().AsTask());
+        await first.InvokeAsync(held.SetResult);
+        await waiting!.WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued!);
+        Assert.Null(sheet.GetValue(1, 0));
+    }
+
+    [Fact]
+    public async Task AnUndoThatWaitsWhileItsViewIsDisposedDoesNothing()
+    {
+        var sheet = new Sheet(2, 1);
+        var held = new TaskCompletionSource();
+        var first = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitting, _ => held.Task));
+        var second = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var a = new SheetScriptBridge(first.Instance);
+        var b = new SheetScriptBridge(second.Instance);
+        await second.InvokeAsync(() => b.CommitAsync(0, 0, "5", false, null));
+        var stored = sheet.GetValue(0, 0);
+        Task? waiting = null;
+        Task<bool>? queued = null;
+
+        await first.InvokeAsync(() =>
+        {
+            waiting = a.CommitAsync(1, 0, "7", true, null);
+            queued = second.Instance.UndoAsync();
+        });
+        await second.InvokeAsync(() => second.Instance.DisposeAsync().AsTask());
+        await first.InvokeAsync(held.SetResult);
+        await waiting!.WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
+
+        Assert.False(await queued!.WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken));
+        Assert.NotNull(stored);
+        Assert.Equal(stored, sheet.GetValue(0, 0));
+    }
+
+    [Fact]
+    public async Task ACommitFromTheTemplateThatWaitsWhileItsViewIsDisposedWritesNothing()
+    {
+        var sheet = new Sheet(2, 1);
+        sheet["A2"].Configure(c => c.Kind = CellKind.Custom);
+        var held = new TaskCompletionSource();
+        CellEditContext? edit = null;
+        var first = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitting, _ => held.Task));
+        var second = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.CustomEditor, context =>
+            {
+                edit = context;
+                return static _ => { };
+            }));
+        var a = new SheetScriptBridge(first.Instance);
+        var b = new SheetScriptBridge(second.Instance);
+        await second.InvokeAsync(() => b.OpenCustomEditorAsync(1, 0));
+        edit!.Value = "red";
+        Task? waiting = null;
+        Task<bool>? queued = null;
+
+        await first.InvokeAsync(() =>
+        {
+            waiting = a.CommitAsync(0, 0, "5", true, null);
+            queued = edit.CommitAsync();
+        });
+        await second.InvokeAsync(() => second.Instance.DisposeAsync().AsTask());
+        await first.InvokeAsync(held.SetResult);
+        await waiting!.WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken);
+
+        Assert.False(await queued!.WaitAsync(Timeout, Xunit.TestContext.Current.CancellationToken));
+        Assert.Null(sheet.GetValue(1, 0));
+    }
+
+    [Fact]
     public async Task TheGateOpensAgainAfterAHandlerThrows()
     {
         var sheet = new Sheet(2, 1);

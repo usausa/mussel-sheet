@@ -119,7 +119,7 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
         }
     }
 
-    void ISheetBinding.OnSheetChanged(SheetChangedEventArgs e)
+    void ISheetBinding.OnSheetChanged(SheetChangedEventArgs e, ValueCells? targets)
     {
         if (disposed)
         {
@@ -134,10 +134,10 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
 
         switch (e.Kind)
         {
-            case SheetChangeKind.Values when e.Range is { } range:
+            case SheetChangeKind.Values when targets is not null:
                 foreach (var link in cells.ToArray())
                 {
-                    if (IsCurrent(link) && range.Contains(link.Row.Index, link.Column.Index) && sync.Write(Source, link.Property, link.Row, link.Column))
+                    if (IsCurrent(link) && targets.Contains(link.Row, link.Column) && sync.Write(Source, link.Property, link.Row, link.Column))
                     {
                         sync.Show(Source, link.Property, link.Row.Index, link.Column.Index);
                     }
@@ -145,7 +145,7 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
 
                 foreach (var list in lists.ToArray())
                 {
-                    list.OnValues(range);
+                    list.OnValues(targets);
                 }
 
                 break;
@@ -202,6 +202,8 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
     }
 
     bool ISheetBinding.HoldsRow(SheetRow row) => !disposed && lists.Exists(x => x.Holds(row));
+
+    IRowsBinding? ISheetBinding.ListOf(SheetRow row) => disposed ? null : lists.Find(x => x.Holds(row) || x.Lost(row));
 
     bool ISheetBinding.HasEmptyListAt(int index) => !disposed && lists.Exists(x => x.IsEmptyAt(index));
 

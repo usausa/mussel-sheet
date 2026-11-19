@@ -154,6 +154,26 @@ public sealed class EditorTests : BunitContext
     }
 
     [Fact]
+    public async Task FocusLeavingTheSheetClosesTheCustomEditorThatAHandlerCancelsWithAMark()
+    {
+        var sheet = CustomSheet();
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.CustomEditor, Editor)
+            .Add(x => x.CellCommitting, static e => e.Cancel = true));
+        await cut.InvokeAsync(() => cut.Instance.OpenCustomEditor(0, 0)).ConfigureAwait(true);
+
+        var result = await cut.InvokeAsync(() => cut.Instance.CommitCustomEditorAsync(true)).ConfigureAwait(true);
+
+        Assert.True(result.Closed);
+        Assert.Equal(JapaneseTexts.Default.Canceled, result.Error);
+        Assert.Equal(JapaneseTexts.Default.Canceled, sheet.GetError(0, 0));
+        Assert.Empty(cut.FindAll(".mussel-sheet-custom"));
+
+        static RenderFragment Editor(CellEditContext context) => builder => builder.AddContent(0, context.Error);
+    }
+
+    [Fact]
     public async Task CustomEditorNeedsATemplateAndAnEditableCustomCell()
     {
         var sheet = new Sheet(1, 3);
