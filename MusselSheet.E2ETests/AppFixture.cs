@@ -89,8 +89,9 @@ public sealed partial class AppFixture : IAsyncLifetime
         }
 
         var context = await browser.NewContextAsync(new() { JavaScriptEnabled = javaScriptEnabled, ViewportSize = new() { Width = 1280, Height = 900 } }).ConfigureAwait(false);
-        var page = await context.NewPageAsync().ConfigureAwait(false);
-        return new SamplePage(context, page);
+        var page = new SamplePage(context, await context.NewPageAsync().ConfigureAwait(false), Log);
+        page.Watch();
+        return page;
     }
 
     private static string FindSolutionDirectory()

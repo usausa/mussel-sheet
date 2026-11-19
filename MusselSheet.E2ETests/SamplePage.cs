@@ -1,7 +1,11 @@
 namespace MusselSheet.E2ETests;
 
-public sealed class SamplePage(IBrowserContext context, IPage page) : IAsyncDisposable
+using System.Collections.Concurrent;
+
+public sealed class SamplePage(IBrowserContext context, IPage page, Func<string> appLog) : IAsyncDisposable
 {
+    private readonly ConcurrentQueue<string> events = new();
+
     public IPage Page => page;
 
     public IKeyboard Keyboard => page.Keyboard;
@@ -29,6 +33,14 @@ public sealed class SamplePage(IBrowserContext context, IPage page) : IAsyncDisp
     public ILocator MenuItem(string action) => page.Locator($".mussel-sheet-menu-item[data-action='{action}']");
 
     public static Task RightClickAsync(ILocator target) => target.ClickAsync(new() { Button = MouseButton.Right });
+
+    public void Watch()
+    {
+        page.Console += (_, m) => events.Enqueue($"{DateTime.Now:HH:mm:ss.fff} console {m.Type}: {m.Text}");
+        page.PageError += (_, e) => events.Enqueue($"{DateTime.Now:HH:mm:ss.fff} pageerror: {e}");
+        page.RequestFailed += (_, r) => events.Enqueue($"{DateTime.Now:HH:mm:ss.fff} requestfailed: {r.Url} {r.Failure}");
+        page.FrameNavigated += (_, f) => events.Enqueue($"{DateTime.Now:HH:mm:ss.fff} navigated: {f.Url}");
+    }
 
     public Task WaitForSheetAsync() =>
         page.WaitForFunctionAsync(
@@ -169,5 +181,54 @@ public sealed class SamplePage(IBrowserContext context, IPage page) : IAsyncDisp
         return await page.EvaluateAsync<int>("() => new Promise(resolve => setTimeout(() => resolve(window.unhandled), 300))").ConfigureAwait(true);
     }
 
-    public ValueTask DisposeAsync() => context.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        if ((TestContext.Current.TestState?.Result == TestResult.Failed) && (Environment.GetEnvironmentVariable("MUSSELSHEET_E2E_DUMP") is { Length: > 0 } folder))
+        {
+            await DumpAsync(folder).ConfigureAwait(false);
+        }
+
+        await context.DisposeAsync().ConfigureAwait(false);
+    }
+
+    private async Task DumpAsync(string folder)
+    {
+        Directory.CreateDirectory(folder);
+        var name = String.Concat((TestContext.Current.Test?.TestDisplayName ?? "test").Select(static x => Char.IsAsciiLetterOrDigit(x) ? x : '_'));
+        string state;
+        try
+        {
+            state = await page.EvaluateAsync<string>(
+                """
+                () => {
+                    const root = document.querySelector('.mussel-sheet');
+                    const sink = root?.querySelector('.mussel-sheet-sink');
+                    const tip = root?.querySelector('.mussel-sheet-tip');
+                    const error = document.getElementById('blazor-error-ui');
+                    return JSON.stringify({
+                        url: location.href,
+                        attached: root?.hasAttribute('data-attached'),
+                        mode: root?.querySelector('.mussel-sheet-layer')?.dataset.mode,
+                        sink: sink?.value,
+                        caret: sink ? [sink.selectionStart, sink.selectionEnd] : null,
+                        focus: document.activeElement?.className,
+                        tip: (tip && !tip.hidden) ? tip.textContent : null,
+                        active: document.querySelector('.sample-active')?.textContent,
+                        selection: document.querySelector('.sample-selection')?.textContent,
+                        rows: root?.querySelectorAll('.mussel-sheet-row').length,
+                        log: [...document.querySelectorAll('.sample-log li')].slice(0, 10).map((x) => x.textContent),
+                        errorUi: error ? getComputedStyle(error).display : null,
+                        reconnecting: document.querySelector('#components-reconnect-modal')?.open ?? null
+                    });
+                }
+                """).ConfigureAwait(false);
+            await page.ScreenshotAsync(new() { Path = Path.Combine(folder, name + ".png") }).ConfigureAwait(false);
+        }
+        catch (PlaywrightException e)
+        {
+            state = e.Message;
+        }
+
+        await File.WriteAllTextAsync(Path.Combine(folder, name + ".txt"), $"{state}{Environment.NewLine}{String.Join(Environment.NewLine, events)}{Environment.NewLine}--- app{Environment.NewLine}{appLog()}").ConfigureAwait(false);
+    }
 }
