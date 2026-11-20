@@ -76,9 +76,17 @@ public sealed partial class AppFixture : IAsyncLifetime
     public async Task<SamplePage> OpenAsync(string path, string mode)
     {
         var page = await OpenBlankAsync().ConfigureAwait(false);
-        await page.Page.GotoAsync($"{BaseAddress}render-mode/{mode}?redirect={Uri.EscapeDataString($"/{path}")}").ConfigureAwait(false);
-        await page.WaitForSheetAsync().ConfigureAwait(false);
-        return page;
+        try
+        {
+            await page.Page.GotoAsync($"{BaseAddress}render-mode/{mode}?redirect={Uri.EscapeDataString($"/{path}")}").ConfigureAwait(false);
+            await page.WaitForSheetAsync().ConfigureAwait(false);
+            return page;
+        }
+        catch
+        {
+            await page.CloseAsync(true).ConfigureAwait(false);
+            throw;
+        }
     }
 
     public async Task<SamplePage> OpenBlankAsync(bool javaScriptEnabled = true)

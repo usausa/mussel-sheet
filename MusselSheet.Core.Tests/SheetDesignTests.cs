@@ -123,6 +123,22 @@ public sealed class SheetDesignTests
         Assert.Equal(1f / 3, copy.GetValue<float>(0, 1));
     }
 
+    [Theory]
+    [InlineData(14 * 0.1, "1.4000000000000001")]
+    [InlineData(0.2 + 10.1, "10.299999999999999")]
+    [InlineData(11 * 1.1, "12.100000000000001")]
+    [InlineData(1.0 / 11, "0.09090909090909091")]
+    public void DoublesOfSeventeenDigitsAreSavedAsNumbersThatReadBackAsTheSameValue(double value, string digits)
+    {
+        var sheet = new Sheet(1, 1);
+        sheet.SetValue(0, 0, value);
+
+        var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(sheet.ToDesign(includeValues: true))));
+
+        Assert.Equal(Decimal.Parse(digits, CultureInfo.InvariantCulture), copy.GetValue(0, 0));
+        Assert.Equal(value, copy.GetValue<double>(0, 0));
+    }
+
     [Fact]
     public void DoublesAndFloatsThatADecimalCannotHoldAreSavedAsText()
     {

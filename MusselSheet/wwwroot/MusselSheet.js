@@ -114,7 +114,7 @@ const BOUND_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const BOUND_TIME = /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/;
 
 // No language is written here: it arrives as data, with the date forms compiled by C#
-export function compileLanguage(language = {}) {
+function compileLanguage(language = {}) {
     return {
         messages: language.messages ?? {},
         calendar: language.calendar ?? DEFAULT_CALENDAR,
@@ -2161,8 +2161,6 @@ class SheetController {
             if (result.message) {
                 this.notice(result.message);
             }
-        } else {
-            this.placeHandle();
         }
         this.replay();
     }
@@ -2228,7 +2226,7 @@ class SheetController {
         this.queue = [];
         if (this.isFocusOutside()) {
             const current = this.currentRule();
-            if ((current.policy !== 'revert') && !current.disabled) {
+            if (current.policy !== 'revert') {
                 const [inline, data] = textArgs(text);
                 this.sendChange('PasteAsync', this.row, this.col, inline, true, data);
             }
@@ -2808,7 +2806,7 @@ class SheetController {
 
     // Returns false at the row end when set to leave the sheet, so the browser's default Tab moves focus out
     tabMove(back) {
-        if (this.hasRange()) {
+        if (!this.map.isEmpty && this.hasRange()) {
             this.moveInRange('row', back);
             return true;
         }
@@ -3509,13 +3507,10 @@ class SheetController {
         this.setState(COMMITTING);
         this.updateSink();
         let target = null;
-        this.changing++;
         try {
             target = await this.dotnet.invokeMethodAsync('UndoFromScriptAsync', redo);
         } catch {
             target = null;
-        } finally {
-            this.changing--;
         }
 
         if (this.disposed) {
@@ -3917,7 +3912,7 @@ class SheetController {
     }
 
     placeCustom() {
-        if (!this.custom) {
+        if (!this.custom || this.map.isEmpty) {
             return;
         }
 
@@ -4735,7 +4730,7 @@ class SheetController {
         this.drag = null;
         if (mode === 'fill') {
             this.placeFillRange(null);
-            if (e && target) {
+            if (e && target && this.state === READY) {
                 this.runFill(source, target, e.ctrlKey || e.altKey);
             }
         }

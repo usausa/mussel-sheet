@@ -100,7 +100,7 @@ public sealed partial class MusselSheetView
 
         var deleting = new SheetRowsDeletingEventArgs(Sheet, selection.Top, count);
         await HandleAsync(RowsDeleting, deleting).ConfigureAwait(true);
-        if (deleting.Cancel || (Span(rows) is not { } span) || (count >= Sheet.RowCount))
+        if (deleting.Cancel || (Span(rows) is not { } span) || (count >= Sheet.RowCount) || Array.Exists(rows, Sheet.HoldsReadOnlyItem))
         {
             return null;
         }
@@ -211,10 +211,10 @@ public sealed partial class MusselSheetView
         return Shift(target, Axis.Row, index - entry.Index);
     }
 
-    // Null if the rows are not in the sheet, or the app removed some or inserted rows between them
+    // Null if the rows are not in the sheet, the app removed some or inserted rows between them, or one holds an element of a read-only list
     private CellRange? TakeAway(RowsEdited entry, CellRange target)
     {
-        if (!entry.Present || (Span(entry.Rows) is null))
+        if (!entry.Present || (Span(entry.Rows) is null) || entry.Rows.Any(Sheet.HoldsReadOnlyItem))
         {
             return null;
         }

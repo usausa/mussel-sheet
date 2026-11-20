@@ -878,6 +878,33 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
+    public async Task AFillReleasedWhileAnUndoWaitsIsDropped()
+    {
+        var sample = await OpenAsync("fill-handle", "server");
+        var handle = sample.Page.Locator(".mussel-sheet-fill");
+        await sample.Cell(1, 5).ClickAsync();
+        await sample.Keyboard.TypeAsync("Jones");
+        await sample.Keyboard.PressAsync("Enter");
+        await Expect(sample.Cell(1, 5)).ToHaveTextAsync("Jones");
+        await sample.HoldCommitsAsync("UndoFromScriptAsync");
+        await sample.RecordCallsAsync();
+
+        await sample.Cell(1, 2).ClickAsync();
+        await handle.HoverAsync();
+        await sample.Page.Mouse.DownAsync();
+        await sample.Cell(3, 2).HoverAsync();
+        await sample.Keyboard.PressAsync("Control+z");
+        await sample.WaitForHeldCommitsAsync(1);
+        await sample.Page.Mouse.UpAsync();
+        await sample.ReleaseCommitAsync(0);
+
+        await Expect(sample.Cell(1, 5)).ToHaveTextAsync("Smith");
+        await Expect(sample.Page.Locator(".mussel-sheet-layer[data-mode='ready']")).ToHaveCountAsync(1);
+        Assert.DoesNotContain("AutoFillAsync", await sample.CallsAsync());
+        await Expect(sample.Cell(2, 2)).ToHaveTextAsync(string.Empty);
+    }
+
+    [Fact]
     public async Task ObjectBindingWorks()
     {
         var sample = await OpenAsync("object-binding", "server");
@@ -1076,39 +1103,43 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     [Fact]
     public async Task APasteRejectedAfterTheFocusLeftIsStoredWhereTheCellMoved()
     {
-        var sample = await OpenAsync("playground", "wasm");
-        var commitMode = sample.Page.Locator(".mud-input-control.mud-select").Filter(new() { HasText = "CommitMode" });
-        await commitMode.ClickAsync();
-        await sample.Page.Locator(".mud-popover-open .mud-list-item").Filter(new() { HasText = "Wait" }).ClickAsync();
-        await Expect(commitMode.Locator("input").First).ToHaveValueAsync("Wait");
-        await sample.Page.EvaluateAsync(
-            """
-            () => {
-                const proto = DotNet.DotNetObject.prototype;
-                const invoke = proto.invokeMethodAsync;
-                window.heldPastes = [];
-                window.resent = [];
-                proto.invokeMethodAsync = function (name, ...args) {
-                    if ((name === 'PasteAsync') && (args[3] === false)) {
-                        return new Promise((resolve) => window.heldPastes.push(() => resolve({ ok: false, error: 'Rejected', stored: false })));
-                    }
-                    if (name === 'PasteAsync') {
-                        window.resent.push(JSON.stringify([args[0], args[1]]));
-                    }
-                    return invoke.call(this, name, ...args);
-                };
-            }
-            """);
-
-        await sample.Cell(2, 1).ClickAsync();
-        await sample.DispatchClipboardAsync("paste", "5");
-        await sample.Page.WaitForFunctionAsync("() => window.heldPastes.length === 1");
-        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "Insert at row 2" }).ClickAsync();
-        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B4");
-        await sample.Page.EvaluateAsync("() => window.heldPastes[0]()");
+        var sample = await OpenRejectingAPasteAsync("Stay");
 
         await sample.Page.WaitForFunctionAsync("() => window.resent.length === 1");
         Assert.Equal("[3,1]", await sample.Page.EvaluateAsync<string>("() => window.resent[0]"));
+        await Expect(sample.Cell(3, 1)).ToHaveTextAsync("5");
+    }
+
+    [Fact]
+    public async Task APasteRejectedAfterTheFocusLeftIsNotSentAgainToARevertCell()
+    {
+        var sample = await OpenRejectingAPasteAsync("Revert");
+
+        await Expect(sample.Page.Locator(".mussel-sheet-layer[data-mode='ready']")).ToHaveCountAsync(1);
+        Assert.Equal(0, await sample.Page.EvaluateAsync<int>("() => window.resent.length"));
+        await Expect(sample.Cell(3, 1)).Not.ToHaveTextAsync("5");
+    }
+
+    [Fact]
+    public async Task TheUndoAndRedoButtonsSelectTheRowsTheyMove()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.RowHeader(2).ClickAsync();
+        await sample.RowHeader(3).ClickAsync(new() { Modifiers = [KeyboardModifier.Shift] });
+        await SamplePage.RightClickAsync(sample.RowHeader(3));
+        await sample.MenuItem("deleteRows").ClickAsync();
+        await Expect(sample.Grid).ToHaveAttributeAsync("aria-rowcount", "11");
+
+        const string settled = "() => new Promise(resolve => setTimeout(() => resolve(document.querySelector('.sample-selection').textContent), 300))";
+
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "Undo", Exact = true }).ClickAsync();
+        await Expect(sample.Selection).ToHaveTextAsync("Selection: A3:E4");
+        Assert.Equal("Selection: A3:E4", await sample.Page.EvaluateAsync<string>(settled));
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "Redo", Exact = true }).ClickAsync();
+        await Expect(sample.Grid).ToHaveAttributeAsync("aria-rowcount", "11");
+
+        await Expect(sample.Selection).ToHaveTextAsync("Selection: A3:E4");
+        Assert.Equal("Selection: A3:E4", await sample.Page.EvaluateAsync<string>(settled));
     }
 
     [Fact]
@@ -2072,10 +2103,11 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         Assert.Equal(app.BaseAddress, sample.Page.Url);
     }
 
-    [Fact]
-    public async Task TheRootLosesItsMarkAndTheElementsOfTheScriptWhenTheSheetIsDisposed()
+    [Theory]
+    [MemberData(nameof(Modes))]
+    public async Task TheRootLosesItsMarkAndTheElementsOfTheScriptWhenTheSheetIsDisposed(string mode)
     {
-        var sample = await OpenAsync("form", "server");
+        var sample = await OpenAsync("form", mode);
         await sample.Page.EvaluateAsync("() => { window.firstRoot = document.querySelector('.mussel-sheet[data-attached]'); }");
 
         await sample.Page.GetByRole(AriaRole.Link, new() { Name = "Playground" }).ClickAsync();
@@ -2130,6 +2162,45 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Page.Locator(".mud-popover-open .mud-list-item").Filter(new() { HasText = "Wait" }).ClickAsync().ConfigureAwait(true);
         await Expect(commitMode.Locator("input").First).ToHaveValueAsync("Wait").ConfigureAwait(true);
         await sample.HoldCommitsAsync().ConfigureAwait(true);
+        return sample;
+    }
+
+    private async Task<SamplePage> OpenRejectingAPasteAsync(string validationMode)
+    {
+        var sample = await OpenAsync("playground", "wasm").ConfigureAwait(true);
+        foreach (var (name, value) in new[] { ("CommitMode", "Wait"), ("ValidationMode", validationMode) })
+        {
+            var select = sample.Page.Locator(".mud-input-control.mud-select").Filter(new() { HasText = name });
+            await select.ClickAsync().ConfigureAwait(true);
+            await sample.Page.Locator(".mud-popover-open .mud-list-item").Filter(new() { HasText = value }).ClickAsync().ConfigureAwait(true);
+            await Expect(select.Locator("input").First).ToHaveValueAsync(value).ConfigureAwait(true);
+        }
+
+        await sample.Page.EvaluateAsync(
+            """
+            () => {
+                const proto = DotNet.DotNetObject.prototype;
+                const invoke = proto.invokeMethodAsync;
+                window.heldPastes = [];
+                window.resent = [];
+                proto.invokeMethodAsync = function (name, ...args) {
+                    if ((name === 'PasteAsync') && (args[3] === false)) {
+                        return new Promise((resolve) => window.heldPastes.push(() => resolve({ ok: false, error: 'Rejected', stored: false })));
+                    }
+                    if (name === 'PasteAsync') {
+                        window.resent.push(JSON.stringify([args[0], args[1]]));
+                    }
+                    return invoke.call(this, name, ...args);
+                };
+            }
+            """).ConfigureAwait(true);
+
+        await sample.Cell(2, 1).ClickAsync().ConfigureAwait(true);
+        await sample.DispatchClipboardAsync("paste", "5").ConfigureAwait(true);
+        await sample.Page.WaitForFunctionAsync("() => window.heldPastes.length === 1").ConfigureAwait(true);
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "Insert at row 2" }).ClickAsync().ConfigureAwait(true);
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B4").ConfigureAwait(true);
+        await sample.Page.EvaluateAsync("() => window.heldPastes[0]()").ConfigureAwait(true);
         return sample;
     }
 

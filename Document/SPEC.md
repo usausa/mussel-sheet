@@ -15,7 +15,7 @@ An input cell accepts user input. An input-disabled cell has `ReadOnly` or `Kind
 
 With `ReadyEnterMode.Edit`, Enter also starts edit or opens the custom editor.
 
-While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu, undo and redo with Ctrl+Z and Ctrl+Y, the edit text read from C# for F2, Alt+Down, a double-click or Ctrl+Enter on a cell that is not drawn or while a change is on its way, and a cut until the clipboard takes the text), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards; in edit, a queued arrow moves the caret by one letter, with Ctrl too, and a queued Backspace or Delete deletes one letter, with Ctrl or Alt too. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync`, `CommitEditAsync`, `CancelEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and so are `SetActiveCellAsync` and the selection while a custom editor commits. A rejected commit drops them with the keys, unless the cell being typed was lost while the sheet waited (`Wait` in Commit and validation); then they run. Keys before a custom editor opens are dropped.
+While the sheet waits for C# (a `Wait` commit, a range paste, a fill, Ctrl+arrows, a row added by Enter, an insert or delete from the menu, undo and redo with Ctrl+Z and Ctrl+Y, the edit text read from C# for F2, Alt+Down, a double-click or Ctrl+Enter on a cell that is not drawn or while a change is on its way, and a cut until the clipboard takes the text), characters, arrows, Enter, Tab, Esc, Backspace, Delete, F2, Home, End, PageUp, PageDown, Ctrl+Z and Ctrl+Y are queued and run afterwards; in input and edit, a queued Backspace or Delete deletes one letter, with Ctrl or Alt too, and in edit, a queued arrow moves the caret by one letter, with Ctrl too. Other keys, the mouse and IME input are ignored. `SetActiveCellAsync`, `BeginEditAsync`, `CommitEditAsync`, `CancelEditAsync` and the selection set by `UndoAsync` and `RedoAsync` are queued with the keys in the order they come, and so are `SetActiveCellAsync` and the selection while a custom editor commits. A rejected commit drops them with the keys, unless the cell being typed was lost while the sheet waited (`Wait` in Commit and validation); then they run. Keys before a custom editor opens are dropped.
 
 ## 🧾 Sheet
 
@@ -154,7 +154,7 @@ Focus moving to a focusable element outside the sheet commits without a move, an
 - `Cancel` in `CellCommitting` stores nothing. The message is `Error`, or else the `Canceled` text. In `Optimistic` it becomes the error mark. In `Wait` the cell stays with the message, and a `Revert` cell moves.
 - Text over 16 MiB in UTF-8 is not read, and nothing is stored. A range paste and Ctrl+Enter show the `TextTooLarge` text as their message, and a commit or paste of one cell is handled like `Cancel` with that text.
 - A range paste, Ctrl+Enter, Ctrl+D, Ctrl+R and the fill handle run the steps per cell. `Stay` and `AcceptAndMark` store with an error mark, `Revert` leaves the cell, and a message gives the counts.
-- If the active cell becomes input-disabled during input or edit, the typed text is dropped. Rows and columns the app inserts or deletes, also with `UndoAsync` and `RedoAsync`, move the active cell, the selection and the text being typed with them; when the row or column being typed in is deleted, the text is dropped. A custom editor commits to the cell it opened on, and to nothing if the app deleted it.
+- If the active cell becomes input-disabled during input or edit, the typed text is dropped. Rows and columns the app inserts or deletes, also with `UndoAsync` and `RedoAsync`, move the active cell, the selection and the text being typed with them; when the row or column being typed in is deleted, the text is dropped. A custom editor commits to the cell it opened on, and to nothing if the app deleted it or replaced `Sheet`.
 - `SetActiveCellAsync` commits an edit first. `BeginEditAsync` works in ready. `CommitEditAsync` commits without a move.
 - C# runs the operations from the sheet, `UndoAsync` and `RedoAsync` one at a time in the order they come, also across the views of one `Sheet`. An operation that comes while a handler of an earlier one runs waits for it, and a call that the handler awaits runs at once. An operation whose view is disposed while it waits for its turn, or that comes after, is dropped: a commit from the sheet is canceled, and `UndoAsync`, `RedoAsync` and the commit and cancel of a custom editor do nothing (`UndoAsync` and `RedoAsync` return `false`).
 - An exception from a handler called through the sheet reaches `ErrorBoundary`, as with an ordinary Blazor event, and the sheet treats the operation as failed.
@@ -339,7 +339,7 @@ Each view has its own history, up to `UndoLimit`. A new `Sheet` clears it, and s
 - A structure step brings back the same rows and columns with values, error marks, sizes, settings and merges, and restores the selection. It raises no `RowsInserting` or similar events.
 - Steps follow their rows and columns through the app's inserts and deletes. A cell that is gone or covered by a merge is skipped. A returning row puts its values back into their columns: a column inserted meanwhile stays empty, and the value of a deleted column does not return.
 - Rules the app appended after a structure step stay. After other rule changes, returning rows inherit from an adjacent row.
-- A structure step does nothing if the app removed its rows or the row above them, or inserted rows between them.
+- A structure step does nothing if the app removed its rows or the row above them, inserted rows between them, or a row it would remove shows an element of a read-only list.
 
 ## 🔽 Popups
 
@@ -375,7 +375,7 @@ The `CustomEditor` template opens with F2, double-click, Alt+Down or ▼, never 
 - Every value change goes to the property at once, also inside `BeginUpdate` and from `SetValue`. If the property then reads differently, the cell shows that.
 - `INotifyPropertyChanged` and `INotifyCollectionChanged` update the sheet. `Refresh()` shows plain objects again. `Dispose()` ends the link, and values stay.
 - Conversion follows `GetValue<T>`, and an enum is read from text in any case. An empty cell writes `null`, or the type's default, which the cell then shows. A fraction does not fit a whole number.
-- In a commit, a value that does not fit is an error with a message for the property type, and a property without a public non-`init` setter gives `NotEditable`, as does a value typed for a `DateTimeOffset` property, which is only shown (an empty cell still writes `null`). A value from the app that does not fit is not written.
+- In a commit, a value that does not fit is an error with a message for the property type, and a property without a public non-`init` setter gives `NotEditable`, as does a value typed for a `DateTimeOffset` property, which is only shown (an empty cell still writes `null` or the type's default). A value from the app that does not fit is not written.
 - A setter's exception message becomes the error mark.
 - Cells follow their row and column. A cell whose row or column is deleted rests until undo.
 
@@ -383,7 +383,7 @@ The `CustomEditor` template opens with F2, double-click, Alt+Down or ▼, never 
 
 | Event | Result |
 |---|---|
-| Fewer, more elements than rows | The other rows stay empty; rows are inserted like the detail rows, or with only the rules of whole columns when no detail row is left |
+| Fewer, more elements than rows | The other rows stay empty; rows are inserted like the detail rows, or like `InsertRows` with `inheritSettings: false` when no detail row is left (Rows and columns) |
 | A value entered in an empty row | A new element at that position, from `Create` or the parameterless constructor. Blank columns show the element's values |
 | A value cleared in a row | It stays an element |
 | The app adds an element | The next empty row after the previous element, or an inserted row |

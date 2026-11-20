@@ -2,6 +2,7 @@ namespace MusselSheet.Internal;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Numerics;
 
 internal static class CellText
 {
@@ -104,6 +105,8 @@ internal static class CellText
                 TimeSpan span when target == typeof(TimeOnly) => TimeOnly.FromTimeSpan(span),
                 TimeOnly time when target == typeof(TimeSpan) => time.ToTimeSpan(),
                 double or float when target == typeof(decimal) => TryToDecimal(value, out var number) ? number : null,
+                decimal number when target == typeof(double) => ToFloatingPoint<double>(number),
+                decimal number when target == typeof(float) => ToFloatingPoint<float>(number),
                 IConvertible convertible when typeof(IConvertible).IsAssignableFrom(target) => Convert.ChangeType(convertible, target, CultureInfo.InvariantCulture),
                 _ => null
             };
@@ -137,6 +140,14 @@ internal static class CellText
             && Decimal.TryParse(text[..length], NumberStyles.Float, CultureInfo.InvariantCulture, out number)
             && ((float)number).TryFormat(back, out var size, "G7", CultureInfo.InvariantCulture)
             && back[..size].SequenceEqual(text[..length]);
+    }
+
+    internal static T ToFloatingPoint<T>(decimal value)
+        where T : IBinaryFloatingPointIeee754<T>
+    {
+        Span<char> text = stackalloc char[32];
+        _ = value.TryFormat(text, out var written, default, CultureInfo.InvariantCulture);
+        return T.Parse(text[..written], NumberStyles.Float, CultureInfo.InvariantCulture);
     }
 
     // The edit text takes no exponent, so a double or float is written as the decimal it reads as

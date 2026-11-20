@@ -91,11 +91,11 @@ public sealed partial class Sheet
         PutRows(index, CreateRows(count, source.Height), RangeTransform.Insert(settings.Rules, Axis.Row, index, count, true, after), RangeTransform.InsertMerges(merges, Axis.Row, index, count));
     }
 
-    // Bindings are told right away, even inside BeginUpdate
     // The setters can insert or delete rows and columns, so the cells of the range are taken before any binding writes
     private ValueCells? CellsFor(SheetChangedEventArgs e) =>
         (e.Kind == SheetChangeKind.Values) && (e.Range is { } range) && bindings.Exists(static x => !x.IsApplying) ? CellsOf(range) : null;
 
+    // Bindings are told right away, even inside BeginUpdate
     private void NotifyBindings(SheetChangedEventArgs e, ValueCells? cells)
     {
         if (bindings.Count == 0)

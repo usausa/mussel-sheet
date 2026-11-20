@@ -40,6 +40,17 @@ public sealed class SheetValuesTests
     }
 
     [Fact]
+    public void DecimalsReadAsTheNearestDoubleAndFloat()
+    {
+        var sheet = new Sheet(1, 2);
+        sheet.SetValue(0, 0, 1.4000000000000001m);
+        sheet.SetValue(0, 1, 1.000000059604644775390626m);
+
+        Assert.Equal(14 * 0.1, sheet.GetValue<double>(0, 0));
+        Assert.Equal(1.0000001f, sheet.GetValue<float>(0, 1));
+    }
+
+    [Fact]
     public void GetValueThrowsWhenTheValueCannotBeConverted()
     {
         var sheet = new Sheet(1, 2);

@@ -464,6 +464,69 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     }
 
     [Fact]
+    public async Task UndoingAnInsertKeepsTheRowThatAnElementOfAReadOnlyListFilled()
+    {
+        var inner = new ObservableCollection<Line> { new() { Name = "a" }, new() { Name = "b" }, new() { Name = "c" } };
+        var target = new ReadOnlyListTarget(inner);
+        var sheet = new Sheet(5, 1);
+        using var binding = sheet.Bind(target).Rows("A1:A3", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowInsertRows, true));
+        var bridge = new SheetScriptBridge(cut.Instance);
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("insertRowsBelow", 0, 0, 0, 0, 0, 0));
+        inner.Insert(1, new Line { Name = "x" });
+
+        var undone = await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false));
+        inner.RemoveAt(2);
+
+        Assert.Null(undone);
+        Assert.Equal(["a", "x", "c"], target.Lines.Select(static x => x.Name));
+        Assert.Equal(["a", "x", "c"], Enumerable.Range(0, 3).Select(r => sheet.GetValue(r, 0)));
+    }
+
+    [Fact]
+    public async Task RedoingADeleteKeepsTheRowThatAnElementOfAReadOnlyListFilled()
+    {
+        var inner = new ObservableCollection<Line> { new() { Name = "a" }, new() { Name = "b" }, new() { Name = "c" } };
+        var target = new ReadOnlyListTarget(inner);
+        var sheet = new Sheet(5, 1);
+        using var binding = sheet.Bind(target).Rows("A1:A3", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowDeleteRows, true).Add(x => x.AllowInsertRows, true));
+        var bridge = new SheetScriptBridge(cut.Instance);
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("insertRowsBelow", 2, 0, 2, 0, 2, 0));
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 3, 0, 3, 0, 3, 0));
+        await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false));
+        inner.Add(new Line { Name = "x" });
+
+        var redone = await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(true));
+        inner.RemoveAt(1);
+
+        Assert.Null(redone);
+        Assert.Equal(["a", "c", "x"], target.Lines.Select(static x => x.Name));
+        Assert.Equal(["a", "c", "x"], Enumerable.Range(0, 3).Select(r => sheet.GetValue(r, 0)));
+    }
+
+    [Fact]
+    public async Task TheUserCannotDeleteARowThatRowsDeletingFillsWithAnElementOfAReadOnlyList()
+    {
+        var inner = new ObservableCollection<Line> { new() { Name = "a" }, new() { Name = "b" } };
+        var target = new ReadOnlyListTarget(inner);
+        var sheet = new Sheet(4, 1);
+        using var binding = sheet.Bind(target).Rows("A1:A2", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.AllowDeleteRows, true)
+            .Add(x => x.AllowInsertRows, true)
+            .Add(x => x.RowsDeleting, _ => inner.Add(new Line { Name = "x" })));
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("insertRowsBelow", 1, 0, 1, 0, 1, 0));
+
+        var deleted = await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 2, 0, 2, 0, 2, 0));
+
+        Assert.Null(deleted);
+        Assert.Equal(["a", "b", "x"], target.Lines.Select(static x => x.Name));
+        Assert.Equal(["a", "b", "x"], Enumerable.Range(0, 3).Select(r => sheet.GetValue(r, 0)));
+    }
+
+    [Fact]
     public void OfTwoEmptyListsAtOnePlaceTheUpperStaysAboveTheRowsOfTheLower()
     {
         var target = new TwoLists { Lines = { new Line { Name = "a" }, new Line { Name = "b" } }, Others = { new Line { Name = "c" }, new Line { Name = "d" } } };

@@ -198,7 +198,7 @@ internal static class SheetDesigner
     // A value outside the range of decimal (NaN, infinity), or with digits decimal rounds away, is kept as its text
     private static (string Type, string Text) NumberOrText(string text) =>
         Decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
-        && String.Equals(((double)number).ToString("R", CultureInfo.InvariantCulture), text, StringComparison.Ordinal)
+        && String.Equals(CellText.ToFloatingPoint<double>(number).ToString("R", CultureInfo.InvariantCulture), text, StringComparison.Ordinal)
             ? ("number", text)
             : ("text", text);
 
