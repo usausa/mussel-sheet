@@ -13,6 +13,11 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         Closed
     }
 
+    public interface INamed
+    {
+        string? Name { get; set; }
+    }
+
     public ObjectBindingEdgeTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -24,6 +29,43 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         var target = new Target();
         var sheet = new Sheet(1, 1);
         using var binding = sheet.Bind(target).Cell("A1", static x => x.Guarded);
+
+        sheet.SetValue(0, 0, "bad");
+
+        Assert.Equal("Not allowed", sheet.GetError(0, 0));
+        Assert.Equal("ok", target.Guarded);
+    }
+
+    [Fact]
+    public void APropertyOfAnInterfaceIsReadAndWritten()
+    {
+        var target = new Named { Name = "a" };
+        var sheet = new Sheet(1, 1);
+        using var binding = sheet.Bind<INamed>(target).Cell("A1", static x => x.Name);
+
+        Assert.Equal("a", sheet.GetValue(0, 0));
+        sheet.SetValue(0, 0, "b");
+
+        Assert.Equal("b", target.Name);
+    }
+
+    [Fact]
+    public void AGetterThatThrowsIsNotWrappedOnEveryPath()
+    {
+        var target = new Broken();
+        var sheet = new Sheet(1, 2);
+        using var binding = sheet.Bind(target);
+
+        Assert.Equal("Broken", Assert.Throws<InvalidOperationException>(() => binding.Cell("A1", static x => x.Value)).Message);
+        Assert.Equal("Broken", Assert.Throws<InvalidOperationException>(() => binding.Cell("B1", static x => (object)x.Value)).Message);
+    }
+
+    [Fact]
+    public void ASetterBehindAConversionThatThrowsMarksTheCell()
+    {
+        var target = new Target();
+        var sheet = new Sheet(1, 1);
+        using var binding = sheet.Bind(target).Cell("A1", static x => (object)x.Guarded);
 
         sheet.SetValue(0, 0, "bad");
 
@@ -851,6 +893,18 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         }
 
         = "ok";
+    }
+
+    public sealed class Broken
+    {
+        public string Reason { get; } = "Broken";
+
+        public string Value => throw new InvalidOperationException(Reason);
+    }
+
+    public sealed class Named : INamed
+    {
+        public string? Name { get; set; }
     }
 
     public sealed class ListTarget

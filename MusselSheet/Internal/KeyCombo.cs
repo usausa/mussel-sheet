@@ -22,7 +22,7 @@ internal static class KeyCombo
         var key = plus ? "+" : parts[^1];
         var (ctrl, alt, shift) = (false, false, false);
         var others = new List<string>();
-        foreach (var modifier in parts[..^1])
+        foreach (var modifier in parts.AsSpan(..^1))
         {
             if (modifier.Length == 0)
             {

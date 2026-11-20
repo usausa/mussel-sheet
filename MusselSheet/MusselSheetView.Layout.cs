@@ -139,7 +139,7 @@ public sealed partial class MusselSheetView
             rowLayout.Reset(Sheet.RowCount, i => Sheet.Rows[i].ActualHeight);
             columnLayout.Reset(Sheet.ColumnCount, i => Sheet.Columns[i].ActualWidth);
             contentWidth = HeaderWidth + columnLayout.Total;
-            styles.Update(Sheet, HeaderWidth, FrozenColumnCount);
+            styles.Update(Sheet, rowLayout, columnLayout, HeaderWidth, FrozenColumnCount);
             UpdateColumns(true);
         }
 
@@ -169,7 +169,7 @@ public sealed partial class MusselSheetView
         firstColumn = first;
         lastColumn = last;
         ColumnVersion++;
-        styles.UpdateColumns(Sheet, FrozenColumnCount, RestFirst, RestLast);
+        styles.UpdateColumns(columnLayout, FrozenColumnCount, RestFirst, RestLast);
         return true;
     }
 

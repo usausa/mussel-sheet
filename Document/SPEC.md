@@ -376,7 +376,7 @@ The `CustomEditor` template opens with F2, double-click, Alt+Down or ▼, never 
 - `INotifyPropertyChanged` and `INotifyCollectionChanged` update the sheet. `Refresh()` shows plain objects again. `Dispose()` ends the link, and values stay.
 - Conversion follows `GetValue<T>`, and an enum is read from text in any case. An empty cell writes `null`, or the type's default, which the cell then shows. A fraction does not fit a whole number.
 - In a commit, a value that does not fit is an error with a message for the property type, and a property without a public non-`init` setter gives `NotEditable`, as does a value typed for a `DateTimeOffset` property, which is only shown (an empty cell still writes `null` or the type's default). A value from the app that does not fit is not written.
-- A setter's exception message becomes the error mark.
+- A setter's exception message becomes the error mark, and a getter's exception reaches the caller as it is, not wrapped in `TargetInvocationException`.
 - Cells follow their row and column. A cell whose row or column is deleted rests until undo.
 
 `Rows` maps the rows of a range to list elements from the top. The range must be inside the sheet, and each `Column` inside the range.

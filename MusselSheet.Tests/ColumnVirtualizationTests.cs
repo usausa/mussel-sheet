@@ -51,6 +51,27 @@ public sealed class ColumnVirtualizationTests : BunitContext
     }
 
     [Fact]
+    public async Task ScrollingDoesNotCopyTheColumnWidths()
+    {
+        var sheet = new Sheet(1, 10_000);
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.Width, "500px")
+            .Add(x => x.OverscanColumnCount, 0));
+        await cut.InvokeAsync(() => cut.Instance.OnViewportChanged(0, 300, 500_000, 500));
+
+        var allocated = await cut.InvokeAsync(() =>
+        {
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            cut.Instance.OnViewportChanged(0, 300, 600_000, 500);
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        });
+
+        Assert.Contains(".mussel-sheet-rest{padding-left:600000px}", Css(cut), StringComparison.Ordinal);
+        Assert.True(allocated < 64 * 1024, $"{allocated} bytes");
+    }
+
+    [Fact]
     public void AutoWidthRendersAllColumns()
     {
         var sheet = new Sheet(1, 30);

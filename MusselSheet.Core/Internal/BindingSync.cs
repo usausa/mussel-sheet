@@ -1,7 +1,5 @@
 namespace MusselSheet.Internal;
 
-using System.Reflection;
-
 internal interface ISheetBinding
 {
     bool IsApplying { get; }
@@ -120,9 +118,9 @@ internal sealed class BindingSync
             {
                 property.Set(target, value);
             }
-            catch (TargetInvocationException ex) when (ex.InnerException is not null)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                error = ex.InnerException.Message;
+                error = ex.Message;
             }
         }
 

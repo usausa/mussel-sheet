@@ -10,14 +10,19 @@ internal sealed class BoundProperty
 
     private readonly object? emptyValue;
 
-    private BoundProperty(PropertyInfo property, object? emptyValue)
+    private readonly Func<object, object?>? getter;
+
+    private readonly Action<object, object?>? setter;
+
+    private BoundProperty(PropertyInfo property, object? emptyValue, Func<object, object?>? getter, Action<object, object?>? setter)
     {
         info = property;
-        var setter = property.SetMethod;
-        CanWrite = (setter is { IsPublic: true }) && !Array.Exists(setter.ReturnParameter.GetRequiredCustomModifiers(), x => x == typeof(IsExternalInit));
+        CanWrite = (property.SetMethod is { } method) && Writable(method);
         var underlying = Nullable.GetUnderlyingType(property.PropertyType);
         ValueType = underlying ?? property.PropertyType;
         this.emptyValue = emptyValue;
+        this.getter = getter;
+        this.setter = setter;
     }
 
     public string Name => info.Name;
@@ -36,7 +41,10 @@ internal sealed class BoundProperty
 
         if ((body is MemberExpression { Member: PropertyInfo property } member) && (member.Expression == expression.Parameters[0]))
         {
-            return new BoundProperty(property, default(TValue));
+            var direct = typeof(TValue) == property.PropertyType;
+            var getter = direct && (property.GetMethod is { IsPublic: true } get) ? Getter<T, TValue>(get) : null;
+            var setter = direct && (property.SetMethod is { } set) && Writable(set) ? Setter<T, TValue>(set) : null;
+            return new BoundProperty(property, default(TValue), getter, setter);
         }
 
         throw new ArgumentException("The expression must be a property of the parameter, such as x => x.Name.", nameof(expression));
@@ -48,9 +56,19 @@ internal sealed class BoundProperty
 
     public static bool IsNumber(Type type) => IsWholeNumber(type) || (type == typeof(decimal)) || (type == typeof(double)) || (type == typeof(float));
 
-    public object? Get(object target) => info.GetValue(target);
+    public object? Get(object target) => getter is not null ? getter(target) : info.GetValue(target, BindingFlags.DoNotWrapExceptions, null, null, null);
 
-    public void Set(object target, object? value) => info.SetValue(target, value);
+    public void Set(object target, object? value)
+    {
+        if (setter is not null)
+        {
+            setter(target, value);
+        }
+        else
+        {
+            info.SetValue(target, value, BindingFlags.DoNotWrapExceptions, null, null, null);
+        }
+    }
 
     public bool TryConvert(object? value, out object? result)
     {
@@ -84,6 +102,21 @@ internal sealed class BoundProperty
     // Compared after converting to the property type, so a decimal 5 in the cell equals an int 5
     public bool IsSame(object? cell, object? value) =>
         Equals(cell, value) || ((cell is not null) && (value is not null) && TryConvert(cell, out var converted) && Equals(converted, value));
+
+    private static bool Writable(MethodInfo setter) =>
+        setter.IsPublic && !Array.Exists(setter.ReturnParameter.GetRequiredCustomModifiers(), static x => x == typeof(IsExternalInit));
+
+    private static Func<object, object?> Getter<T, TValue>(MethodInfo method)
+    {
+        var typed = method.CreateDelegate<Func<T, TValue>>();
+        return target => typed((T)target);
+    }
+
+    private static Action<object, object?> Setter<T, TValue>(MethodInfo method)
+    {
+        var typed = method.CreateDelegate<Action<T, TValue>>();
+        return (target, value) => typed((T)target, (TValue)value!);
+    }
 
     private static bool HasFraction(object value) => value switch
     {

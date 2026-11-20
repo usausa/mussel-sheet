@@ -27,7 +27,7 @@ internal sealed class SheetStyles
     public string Css { get; private set; } = string.Empty;
 
     // Colors are collected from the rules up front, so their classes exist before any cell renders
-    public void Update(Sheet sheet, int rowHeaderWidth, int frozenColumns)
+    public void Update(Sheet sheet, AxisLayout rows, AxisLayout columns, int rowHeaderWidth, int frozenColumns)
     {
         colors.Clear();
         cellClasses.Clear();
@@ -54,18 +54,26 @@ internal sealed class SheetStyles
             Register(style.Borders.Left?.Color);
         }
 
-        var widths = sheet.Columns.Select(x => x.ActualWidth).ToArray();
-        var frozen = Math.Clamp(frozenColumns, 0, widths.Length);
-        var header = rowHeaderWidth > 0 ? [rowHeaderWidth] : Array.Empty<int>();
+        var frozen = Math.Clamp(frozenColumns, 0, columns.Count);
         var css = new StringBuilder();
-        AppendTemplate(css, $".{Scope} .mussel-sheet-row,.{Scope} .mussel-sheet-colhead", [.. header, .. widths[..frozen], widths[frozen..].Sum()]);
+        BeginTemplate(css, $".{Scope} .mussel-sheet-row,.{Scope} .mussel-sheet-colhead", none: false);
+        if (rowHeaderWidth > 0)
+        {
+            AppendWidth(css, rowHeaderWidth);
+        }
 
-        // The frozen boundary is a box-shadow on the last frozen column, repeated in the error rule that overrides it
-        var left = rowHeaderWidth;
         for (var c = 0; c < frozen; c++)
         {
-            css.Append(CultureInfo.InvariantCulture, $".{Scope} .mussel-sheet-row>.mussel-sheet-cell[data-c=\"{c}\"],.{Scope} .mussel-sheet-colhead-cell[data-c=\"{c}\"]{{position:sticky;left:{left}px;z-index:2}}");
-            left += widths[c];
+            AppendWidth(css, columns.End(c) - columns.Start(c));
+        }
+
+        AppendWidth(css, columns.Total - columns.Start(frozen));
+        css.Append('}');
+
+        // The frozen boundary is a box-shadow on the last frozen column, repeated in the error rule that overrides it
+        for (var c = 0; c < frozen; c++)
+        {
+            css.Append(CultureInfo.InvariantCulture, $".{Scope} .mussel-sheet-row>.mussel-sheet-cell[data-c=\"{c}\"],.{Scope} .mussel-sheet-colhead-cell[data-c=\"{c}\"]{{position:sticky;left:{rowHeaderWidth + columns.Start(c)}px;z-index:2}}");
         }
 
         if (frozen > 0)
@@ -80,8 +88,8 @@ internal sealed class SheetStyles
         {
             var name = String.Create(CultureInfo.InvariantCulture, $"m{mergeClasses.Count}");
             mergeClasses[range] = name;
-            var width = widths[range.Left..(range.Right + 1)].Sum();
-            var height = Enumerable.Range(range.Top, range.Bottom - range.Top + 1).Sum(r => sheet.Rows[r].ActualHeight);
+            var width = columns.Start(range.Right + 1) - columns.Start(range.Left);
+            var height = rows.Start(range.Bottom + 1) - rows.Start(range.Top);
             css.Append(CultureInfo.InvariantCulture, $".{Scope} .{name}{{--mussel-sheet-merge-w:{width}px;--mussel-sheet-merge-h:{height}px}}");
         }
 
@@ -106,15 +114,20 @@ internal sealed class SheetStyles
         Css = baseCss + restCss;
     }
 
-    public void UpdateColumns(Sheet sheet, int frozenColumns, int first, int last)
+    public void UpdateColumns(AxisLayout columns, int frozenColumns, int first, int last)
     {
-        var widths = sheet.Columns.Select(x => x.ActualWidth).ToArray();
-        var frozen = Math.Clamp(frozenColumns, 0, widths.Length);
-        var start = Math.Clamp(first, frozen, widths.Length);
-        var end = Math.Clamp(last + 1, start, widths.Length);
+        var frozen = Math.Clamp(frozenColumns, 0, columns.Count);
+        var start = Math.Clamp(first, frozen, columns.Count);
+        var end = Math.Clamp(last + 1, start, columns.Count);
         var css = new StringBuilder();
-        css.Append(CultureInfo.InvariantCulture, $".{Scope} .mussel-sheet-rest{{padding-left:{widths[frozen..start].Sum()}px}}");
-        AppendTemplate(css, $".{Scope} .mussel-sheet-rest", widths[start..end]);
+        css.Append(CultureInfo.InvariantCulture, $".{Scope} .mussel-sheet-rest{{padding-left:{columns.Start(start) - columns.Start(frozen)}px}}");
+        BeginTemplate(css, $".{Scope} .mussel-sheet-rest", none: start == end);
+        for (var c = start; c < end; c++)
+        {
+            AppendWidth(css, columns.End(c) - columns.Start(c));
+        }
+
+        css.Append('}');
         restCss = css.ToString();
         Css = baseCss + restCss;
     }
@@ -275,21 +288,17 @@ internal sealed class SheetStyles
         }
     }
 
-    private static void AppendTemplate(StringBuilder css, string selector, int[] widths)
+    private static void BeginTemplate(StringBuilder css, string selector, bool none)
     {
         css.Append(CultureInfo.InvariantCulture, $"{selector}{{grid-template-columns:");
-        if (widths.Length == 0)
+        if (none)
         {
             css.Append(" none");
         }
-
-        foreach (var width in widths)
-        {
-            css.Append(CultureInfo.InvariantCulture, $" {width}px");
-        }
-
-        css.Append('}');
     }
+
+    private static void AppendWidth(StringBuilder css, int width) =>
+        css.Append(CultureInfo.InvariantCulture, $" {width}px");
 
     private static void AppendInlineColor(StringBuilder css, string property, string? color)
     {
