@@ -144,10 +144,13 @@ public sealed class SheetComputation : IDisposable
         {
             var targets = dirty.Where(sheet.Contains).OrderBy(x => x.Index).ToArray();
             dirty.Clear();
-            foreach (var row in targets)
+            sheet.HoldComputations(() =>
             {
-                Calculate(row);
-            }
+                foreach (var row in targets)
+                {
+                    Calculate(row);
+                }
+            });
         }
         finally
         {

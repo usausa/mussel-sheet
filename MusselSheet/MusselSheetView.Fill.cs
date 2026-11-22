@@ -125,9 +125,12 @@ public sealed partial class MusselSheetView
         var (sourceRows, sourceColumns, targetRows, targetColumns) = (RowsOf(source), ColumnsOf(source), RowsOf(target), ColumnsOf(target));
         var filling = new SheetFillingEventArgs(Sheet, source, target);
         await HandleAsync(Filling, filling).ConfigureAwait(true);
-        if (filling.Cancel || (Relocate(sourceRows, sourceColumns) is not { } movedSource) || (Relocate(targetRows, targetColumns) is not { } movedTarget))
+        var kept = Relocate(sourceRows, sourceColumns);
+        if (filling.Cancel || (kept is not { } movedSource) || (Relocate(targetRows, targetColumns) is not { } movedTarget))
         {
-            return new PasteResult(source.Top, source.Left, source.Bottom, source.Right, null);
+            await SyncMapAsync().ConfigureAwait(true);
+            var answer = kept ?? source;
+            return new PasteResult(answer.Top, answer.Left, answer.Bottom, answer.Right, null);
         }
 
         (source, target) = (movedSource, movedTarget);
@@ -136,6 +139,7 @@ public sealed partial class MusselSheetView
         var count = vertical ? source.Bottom - source.Top + 1 : source.Right - source.Left + 1;
         var lines = new Dictionary<int, Func<int, object?>?>();
         var (marked, rejected) = await InputCellsAsync(target, TextAt, CellChangeReason.Fill, whole).ConfigureAwait(true);
+        await SyncMapAsync().ConfigureAwait(true);
         return new PasteResult(whole.Top, whole.Left, whole.Bottom, whole.Right, PasteMessage(marked, rejected, 0, 0));
 
         string? TextAt(int row, int column)

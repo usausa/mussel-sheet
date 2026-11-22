@@ -129,6 +129,21 @@ public sealed class CommitPipelineTests : BunitContext
     }
 
     [Fact]
+    public async Task AValueReplacedWhileCommittingKeepsNoTypedText()
+    {
+        var sheet = NumberSheet();
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitting, static x => x.Value = x.Value is decimal number ? Math.Round(number, 0) : x.Value));
+
+        await Commit(cut, 0, 0, "1.6", true);
+        await Commit(cut, 1, 0, "3", true);
+
+        Assert.Equal(2m, sheet.GetValue(0, 0));
+        Assert.Null(sheet.GetInputText(0, 0));
+        Assert.Equal("2", sheet.GetEditText(0, 0));
+        Assert.Equal("3", sheet.GetInputText(1, 0));
+    }
+
+    [Fact]
     public async Task ValidatorRunsAfterTheBuiltInRules()
     {
         var sheet = new Sheet(1, 1);

@@ -76,6 +76,10 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     private bool historyShifts;
 
+    private int renderHold;
+
+    private bool renderHeld;
+
     private string? sentLanguage;
 
     private string? sentOptions;
@@ -504,6 +508,11 @@ public sealed partial class MusselSheetView : IAsyncDisposable
     // Rows and columns the app inserts or deletes, also with UndoAsync and RedoAsync, move the active cell in JS; the view's own changes send their selection instead
     private void OnSheetRestructured(object? sender, SheetChangedEventArgs e)
     {
+        if (ownStructure == 0)
+        {
+            FollowStructure(e);
+        }
+
         if (((ownStructure == 0) || historyShifts) && (ShiftOf(e) is { } shift))
         {
             pendingShifts.Add(shift);

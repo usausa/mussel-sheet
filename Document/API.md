@@ -42,6 +42,7 @@ The sheet component. `Sheet` is required, and other attributes such as `class` a
 | `MenuItemClicked` | `SheetMenuItemClickedEventArgs` | An item registered in `MusselSheetOptions.Menu` |
 
 `CellChangeReason` tells where a value came from: `Input`, `ClearContents`, `Toggle`, `Undo`, `Redo`, `Paste`, `Cut` or `Fill`.  
+A range paste, clear, cut or fill, and its undo and redo, raise these events for each cell, so a component that handles them renders for each cell (at once in WebAssembly); the view itself renders once at the end.  
 No event comes before editing starts, because input starts in the browser without waiting for C#. To block input, set `ReadOnly` beforehand.  
 
 ### Members

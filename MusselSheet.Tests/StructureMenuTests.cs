@@ -113,6 +113,227 @@ public sealed class StructureMenuTests : BunitContext
     }
 
     [Fact]
+    public async Task UndoingADeleteAfterTheAppInsertsAColumnBringsBackTheSettingsOfTheRow()
+    {
+        var sheet = FormSheet();
+        sheet.Range("A2").Configure(c => c.MaxLength = 5);
+        var cut = RenderSheet(sheet);
+        await Change(cut, "deleteRows", new CellRange(1, 0, 1, 1), 1, 0);
+
+        await cut.InvokeAsync(() => sheet.InsertColumns(0, 1));
+        await Undo(cut, false);
+
+        Assert.Equal(5, sheet.GetSettings(1, 1).MaxLength);
+        Assert.Equal(CellKind.Number, sheet.GetSettings(1, 2).Kind);
+    }
+
+    [Fact]
+    public async Task UndoingADeleteAfterTheAppInsertsColumnsWithoutSettingsBringsBackTheSettingsOfTheColumn()
+    {
+        var sheet = new Sheet(2, 4);
+        sheet.Range("B:B").Configure(c => c.Kind = CellKind.Number);
+        sheet.Range("D:D").Configure(c => c.Kind = CellKind.Date);
+        var cut = RenderSheet(sheet);
+        await Change(cut, "deleteColumns", new CellRange(0, 1, 1, 1), 0, 1);
+
+        await cut.InvokeAsync(() => sheet.InsertColumns(0, 1, inheritSettings: false));
+        await Undo(cut, false);
+
+        Assert.Equal(CellKind.Number, sheet.GetSettings(0, 2).Kind);
+        Assert.Equal(CellKind.Date, sheet.GetSettings(0, 4).Kind);
+    }
+
+    [Fact]
+    public async Task UndoingAnInsertKeepsTheSettingsARowTheAppAddedTookFromIt()
+    {
+        var sheet = FormSheet();
+        var cut = RenderSheet(sheet);
+        await Change(cut, "insertRowsBelow", new CellRange(2, 0, 2, 1), 2, 0);
+
+        await cut.InvokeAsync(() => sheet.InsertRows(4, 1));
+        await Undo(cut, false);
+
+        Assert.Equal(CellKind.Number, sheet.GetSettings(3, 1).Kind);
+        Assert.Equal(CellKind.Label, sheet.GetSettings(4, 1).Kind);
+    }
+
+    [Fact]
+    public async Task SettingsOfAStepThatCouldNotFollowTheAppDoNotLandOnOtherRows()
+    {
+        var sheet = new Sheet(6, 2);
+        sheet.Range("B4:B5").Configure(c => c.Kind = CellKind.Number);
+        var cut = RenderSheet(sheet);
+        await Change(cut, "deleteRows", new CellRange(3, 0, 4, 1), 3, 0);
+        await Change(cut, "deleteRows", new CellRange(2, 0, 2, 1), 2, 0);
+
+        await cut.InvokeAsync(() => sheet.InsertRows(0, 1));
+        await Undo(cut, false);
+        await Undo(cut, false);
+
+        for (var row = 3; row <= 5; row++)
+        {
+            Assert.Equal(CellKind.Text, sheet.GetSettings(row, 1).Kind);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UndoingADeleteAfterTheAppInsertsARowPutsItsMergeBackWhereTheRowGoes(bool behindAnotherDelete)
+    {
+        var sheet = new Sheet(6, 3);
+        sheet.Range("A3:B3").Merge();
+        var cut = RenderSheet(sheet);
+        await Change(cut, "deleteRows", new CellRange(2, 0, 2, 2), 2, 0);
+        if (behindAnotherDelete)
+        {
+            await Change(cut, "deleteRows", new CellRange(4, 0, 4, 2), 4, 0);
+        }
+
+        await cut.InvokeAsync(() => sheet.InsertRows(0, 1));
+        await Undo(cut, false);
+        if (behindAnotherDelete)
+        {
+            await Undo(cut, false);
+        }
+
+        CellRange[] expected = [new(3, 0, 3, 1)];
+        Assert.Equal(expected, sheet.MergeAreas);
+    }
+
+    [Fact]
+    public async Task AMergeOfAStepThatCouldNotFollowTheAppIsNotPutOnOtherRows()
+    {
+        var sheet = new Sheet(6, 3);
+        sheet.Range("A4:B4").Merge();
+        sheet.SetValue(2, 1, "x");
+        var cut = RenderSheet(sheet);
+        await Change(cut, "deleteRows", new CellRange(3, 0, 3, 2), 3, 0);
+        await Change(cut, "deleteRows", new CellRange(2, 0, 2, 2), 2, 0);
+
+        await cut.InvokeAsync(() => sheet.InsertRows(0, 1));
+        await Undo(cut, false);
+        await Undo(cut, false);
+
+        Assert.Empty(sheet.MergeAreas);
+        Assert.Equal("x", sheet.GetValue(3, 1));
+        Assert.Null(sheet.GetMergeArea(3, 1));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UndoingADeleteAfterTheAppMergesCellsElsewherePutsBackBothMerges(bool insertedAfter)
+    {
+        var sheet = new Sheet(6, 3);
+        sheet.Range("A3:B3").Merge();
+        var cut = RenderSheet(sheet);
+        await Change(cut, "deleteRows", new CellRange(2, 0, 2, 2), 2, 0);
+
+        await cut.InvokeAsync(() => sheet.Range("A4:B4").Merge());
+        if (insertedAfter)
+        {
+            await cut.InvokeAsync(() => sheet.InsertRows(0, 1));
+        }
+
+        await Undo(cut, false);
+
+        CellRange[] expected = insertedAfter ? [new(3, 0, 3, 1), new(5, 0, 5, 1)] : [new(2, 0, 2, 1), new(4, 0, 4, 1)];
+        Assert.Equal(expected, sheet.MergeAreas.OrderBy(static x => x.Top));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AStepDoesNothingWhenTheAppMergedCellsAcrossWhereItsLinesGoBack(bool columns)
+    {
+        var sheet = new Sheet(5, 5);
+        sheet.SetValue(2, 2, "c");
+        var cut = RenderSheet(sheet);
+        if (columns)
+        {
+            await Change(cut, "deleteColumns", new CellRange(0, 2, 4, 2), 0, 2);
+            await cut.InvokeAsync(() => sheet.Range("B3:C3").Merge());
+        }
+        else
+        {
+            await Change(cut, "deleteRows", new CellRange(2, 0, 2, 4), 2, 0);
+            await cut.InvokeAsync(() => sheet.Range("C2:C3").Merge());
+        }
+
+        var merges = sheet.MergeAreas.ToArray();
+        await Undo(cut, false);
+        Assert.Equal(4, columns ? sheet.ColumnCount : sheet.RowCount);
+        Assert.Equal(merges, sheet.MergeAreas);
+
+        await Undo(cut, true);
+        Assert.Equal(4, columns ? sheet.ColumnCount : sheet.RowCount);
+        Assert.Equal(merges, sheet.MergeAreas);
+    }
+
+    [Fact]
+    public async Task AMergeThatSpannedTheDeletedRowsComesBackWholeAfterTheAppMergesElsewhere()
+    {
+        var sheet = new Sheet(6, 3);
+        sheet.Range("A1:A5").Merge();
+        var cut = RenderSheet(sheet);
+        await Change(cut, "deleteRows", new CellRange(2, 1, 2, 2), 2, 1);
+
+        await cut.InvokeAsync(() => sheet.Range("C1:C2").Merge());
+        await Undo(cut, false);
+
+        CellRange[] expected = [new(0, 0, 4, 0), new(0, 2, 1, 2)];
+        Assert.Equal(6, sheet.RowCount);
+        Assert.Equal(expected, sheet.MergeAreas.OrderBy(static x => x.Left));
+    }
+
+    [Fact]
+    public async Task AMergeTheAppRemovedAfterAStepDoesNotComeBack()
+    {
+        var sheet = new Sheet(6, 3);
+        sheet.Range("A3:B4").Merge();
+        sheet.Range("A6:B6").Merge();
+        var cut = RenderSheet(sheet);
+        await Change(cut, "deleteRows", new CellRange(3, 0, 3, 2), 3, 0);
+
+        await cut.InvokeAsync(() => sheet.Range("A3:B3").Unmerge());
+        await Undo(cut, false);
+
+        CellRange[] expected = [new(5, 0, 5, 1)];
+        Assert.Equal(expected, sheet.MergeAreas);
+    }
+
+    [Fact]
+    public async Task RedoingAnInsertAfterTheAppInsertsRowsBringsBackTheSettingsOfTheRow()
+    {
+        var sheet = FormSheet();
+        var cut = RenderSheet(sheet);
+        await Change(cut, "insertRowsBelow", new CellRange(1, 0, 1, 1), 1, 0);
+        await cut.InvokeAsync(() => sheet.Range("A3").Configure(c => c.MaxLength = 3));
+        await Undo(cut, false);
+
+        await cut.InvokeAsync(() => sheet.InsertRows(0, 1));
+        await Undo(cut, true);
+
+        Assert.Equal(3, sheet.GetSettings(3, 0).MaxLength);
+    }
+
+    [Fact]
+    public async Task RedoingAnInsertAfterTheAppAddsARowKeepsTheSettingsTheRowTook()
+    {
+        var sheet = FormSheet();
+        var cut = RenderSheet(sheet);
+        await Change(cut, "insertRowsBelow", new CellRange(1, 0, 1, 1), 1, 0);
+        await Undo(cut, false);
+
+        await cut.InvokeAsync(() => sheet.AddRows(1));
+        await Undo(cut, true);
+
+        Assert.Equal(CellKind.Number, sheet.GetSettings(2, 1).Kind);
+        Assert.Equal(CellKind.Label, sheet.GetSettings(5, 1).Kind);
+    }
+
+    [Fact]
     public async Task EditsBeforeADeleteCanStillBeUndone()
     {
         var sheet = FormSheet();

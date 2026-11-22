@@ -12,20 +12,7 @@
 <div class="mt-2 mb-1">@ChildContent</div>
 @if (Log is not null)
 {
-    <div class="sample-row sample-status">
-        <span class="sample-active">Active cell: @Log.ActiveCell</span>
-        <span class="sample-selection">Selection: @Log.Selection</span>
-    </div>
-    @Output
-    @if (Log.Lines.Count > 0)
-    {
-        <ol class="sample-log">
-            @foreach (var line in Log.Lines)
-            {
-                <li>@line</li>
-            }
-        </ol>
-    }
+    <SampleLog Log="Log" Output="Output" />
 }
 else
 {

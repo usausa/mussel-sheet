@@ -147,7 +147,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
                     }
                 }
             }
-            else if (columns.Exists(x => IsCurrent(x) && (sheet.GetValue(row.Index, x.Column.Index) is not null)))
+            else if (!sheet.IsComputing && columns.Exists(x => IsCurrent(x) && (sheet.GetValue(row.Index, x.Column.Index) is not null)))
             {
                 AddItemFor(row);
             }

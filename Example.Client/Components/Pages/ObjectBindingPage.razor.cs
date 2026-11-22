@@ -10,7 +10,7 @@ public sealed partial class ObjectBindingPage
 
     private const int MaxDetailRows = 10;
 
-    private static readonly string[] ModelFiles = ["Order.cs", "OrderLine.cs"];
+    private static readonly string[] ModelFiles = ["Order.cs", "OrderLine.cs", "Amounts.cs"];
 
     private static readonly string[] Customers = ["Aster Trading", "Birch Printing", "Clover Foods"];
 
@@ -73,6 +73,7 @@ public sealed partial class ObjectBindingPage
                 c.Kind = CellKind.Number;
                 c.Format = "N0";
                 c.Minimum = 0;
+                c.Maximum = 100000000;
             });
             sheet.Range("D4:D7").Configure(static c =>
             {

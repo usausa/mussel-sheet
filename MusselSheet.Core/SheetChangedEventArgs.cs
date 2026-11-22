@@ -12,6 +12,8 @@ public sealed class SheetChangedEventArgs : EventArgs
 
     internal IReadOnlyList<SheetRow> RemovedRows { get; init; } = [];
 
+    internal int? InheritedFrom { get; init; }
+
     public SheetChangedEventArgs(SheetChangeKind kind, CellRange? range = null, int index = 0, int count = 0)
     {
         Kind = kind;

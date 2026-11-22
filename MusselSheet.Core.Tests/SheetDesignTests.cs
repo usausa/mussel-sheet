@@ -290,6 +290,30 @@ public sealed class SheetDesignTests
         Assert.Equal(350m, copy.GetValue(4, 3));
     }
 
+    [Theory]
+    [InlineData("D4:D6")]
+    [InlineData("4:6")]
+    [InlineData("C4:D6")]
+    public void ARangeRegisteredWithRowsStillGrowsWhenSavedWithOneRow(string observed)
+    {
+        var functions = new SheetFunctions();
+        functions.AddComputation("合計", x => x.Values(observed).OfType<decimal>().Sum());
+        var sheet = new Sheet(8, 4);
+        sheet.SetValues(3, 3, [[1m], [2m], [3m]]);
+        sheet.Compute("A8", [observed], functions.Computation("合計"));
+        sheet.DeleteRows(4, 2);
+
+        var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(sheet.ToDesign(functions, includeValues: true))), functions);
+        foreach (var target in new[] { sheet, copy })
+        {
+            target.InsertRows(4, 1);
+            target.SetValue(4, 3, 10m);
+        }
+
+        Assert.Equal(11m, sheet.GetValue(6, 0));
+        Assert.Equal(11m, copy.GetValue(6, 0));
+    }
+
     [Fact]
     public void AComputationOverTheWholeSheetReadsTheColumnsAddedAfterLoading()
     {

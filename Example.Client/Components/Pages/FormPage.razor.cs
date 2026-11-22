@@ -1,5 +1,7 @@
 namespace Example.Client.Components.Pages;
 
+using Example.Client.Models;
+
 public sealed partial class FormPage
 {
     private const int FirstDetailRow = 3;
@@ -51,6 +53,7 @@ public sealed partial class FormPage
                 c.Kind = CellKind.Number;
                 c.Format = "N0";
                 c.Minimum = 0;
+                c.Maximum = 100000000;
             });
             sheet.Range("D4:D9").Configure(static c =>
             {
@@ -106,13 +109,14 @@ public sealed partial class FormPage
     private static void Calculate(Sheet sheet)
     {
         var totalRow = FindTotalRow(sheet);
-        var total = 0m;
+        var amounts = new List<decimal>();
         for (var row = FirstDetailRow; row < totalRow; row++)
         {
             if (sheet.TryGetValue<decimal>(row, 1, out var quantity) && sheet.TryGetValue<decimal>(row, 2, out var price))
             {
-                sheet.SetValue(row, 3, quantity * price);
-                total += quantity * price;
+                var amount = Amounts.OrNull(() => quantity * price);
+                sheet.SetValue(row, 3, amount);
+                amounts.Add(amount ?? 0m);
             }
             else
             {
@@ -122,7 +126,7 @@ public sealed partial class FormPage
 
         if (totalRow < sheet.RowCount)
         {
-            sheet.SetValue(totalRow, 3, total);
+            sheet.SetValue(totalRow, 3, Amounts.OrNull(() => amounts.Sum()));
         }
     }
 

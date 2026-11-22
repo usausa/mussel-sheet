@@ -193,7 +193,7 @@ public sealed partial class MusselSheetView
 
         // Nothing to do when value and error are unchanged; a different typed text alone is not a change
         var before = Sheet.GetSnapshot(row, column);
-        var after = new CellSnapshot(value, draft.Input, error);
+        var after = new CellSnapshot(value, Equals(committing.Value, draft.Value) ? draft.Input : null, error);
         if (Equals(before.Value, after.Value) && String.Equals(before.Error, after.Error, StringComparison.Ordinal))
         {
             return new CommitResult(error is null, error, true);

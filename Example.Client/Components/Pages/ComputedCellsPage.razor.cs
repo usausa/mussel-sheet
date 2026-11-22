@@ -1,5 +1,7 @@
 namespace Example.Client.Components.Pages;
 
+using Example.Client.Models;
+
 public sealed partial class ComputedCellsPage
 {
     private const int FirstDetailRow = 3;
@@ -37,6 +39,7 @@ public sealed partial class ComputedCellsPage
                 c.Kind = CellKind.Number;
                 c.Format = "0.00";
                 c.Minimum = 0;
+                c.Maximum = 100000000;
             });
             sheet.Range("D2").Configure(static c => c.Kind = CellKind.Number);
             sheet.Range("B4:C6").Configure(static c =>
@@ -44,6 +47,7 @@ public sealed partial class ComputedCellsPage
                 c.Kind = CellKind.Number;
                 c.Format = "N0";
                 c.Minimum = 0;
+                c.Maximum = 100000000;
             });
             sheet.Range("D4:D8").Configure(static c =>
             {
@@ -71,12 +75,12 @@ public sealed partial class ComputedCellsPage
             sheet["C8"].Value = "Total (with tax)";
 
             // Each row reads its own B and C, and every row is calculated again when D1 changes
-            sheet.ComputeRows("D4:D6", ["B", "C", "D1"], static x => x.Get<decimal?>("B") * x.Get<decimal?>("C") * x.Get<decimal>("D1"));
+            sheet.ComputeRows("D4:D6", ["B", "C", "D1"], static x => Amounts.OrNull(() => x.Get<decimal?>("B") * x.Get<decimal?>("C") * x.Get<decimal>("D1")));
 
             // The watched ranges grow when rows are added inside them
             sheet.Compute("D2", ["A4:A6"], static x => (decimal)x.Values("A4:A6").Count(static v => v is string { Length: > 0 }));
-            sheet.Compute("D7", ["D4:D6"], static x => x.Values("D4:D6").OfType<decimal>().Sum());
-            sheet.Compute("D8", ["D7"], static x => Math.Round(x.Get<decimal>("D7") * (1 + TaxRate), 0, MidpointRounding.AwayFromZero));
+            sheet.Compute("D7", ["D4:D6"], static x => Amounts.OrNull(() => x.Values("D4:D6").OfType<decimal>().Sum()));
+            sheet.Compute("D8", ["D7"], static x => Amounts.OrNull(() => x.Get<decimal?>("D7") is { } subtotal ? Math.Round(subtotal * (1 + TaxRate), 0, MidpointRounding.AwayFromZero) : null));
         }
 
         return sheet;

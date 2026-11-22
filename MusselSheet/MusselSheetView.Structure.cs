@@ -202,6 +202,11 @@ public sealed partial class MusselSheetView
         }
 
         var index = entry.Above is null ? 0 : entry.Above.Index + 1;
+        if (MergedAcross(entry, Axis.Row, index))
+        {
+            return null;
+        }
+
         var before = Sheet.Rules.ToArray();
         var rules = RulesToPut(entry, Axis.Row, index, entry.Rows.Count, Sheet.RowCount);
         var (merges, mergesBefore) = MergesToPut(entry, Axis.Row, index, entry.Rows.Count);
@@ -237,6 +242,11 @@ public sealed partial class MusselSheetView
         }
 
         var index = entry.Left is null ? 0 : entry.Left.Index + 1;
+        if (MergedAcross(entry, Axis.Column, index))
+        {
+            return null;
+        }
+
         var before = Sheet.Rules.ToArray();
         var rules = RulesToPut(entry, Axis.Column, index, entry.Columns.Count, Sheet.ColumnCount);
         var (merges, mergesBefore) = MergesToPut(entry, Axis.Column, index, entry.Columns.Count);
@@ -262,6 +272,100 @@ public sealed partial class MusselSheetView
         (entry.MergesWith, entry.MergesWithout) = (mergesBefore, merges);
         return Shift(target, Axis.Column, index - entry.Index);
     }
+
+    private void FollowStructure(SheetChangedEventArgs e)
+    {
+        var axis = e.Kind is SheetChangeKind.RowsInserted or SheetChangeKind.RowsDeleted ? Axis.Row : Axis.Column;
+        var inserted = e.Kind is SheetChangeKind.RowsInserted or SheetChangeKind.ColumnsInserted;
+        FollowRules(history.UndoOrder, e, axis, inserted);
+        FollowRules(history.RedoOrder, e, axis, inserted);
+        FollowMerges(history.UndoOrder, e, axis, inserted);
+        FollowMerges(history.RedoOrder, e, axis, inserted);
+    }
+
+    private void FollowRules(IEnumerable<EditEntry> entries, SheetChangedEventArgs e, Axis axis, bool inserted)
+    {
+        var rules = Sheet.Rules;
+        var (index, source) = (e.Index, e.InheritedFrom);
+        var following = true;
+        foreach (var step in entries.OfType<StructureEdited>())
+        {
+            if (following && (step.RulesWith is { } with) && (step.RulesWithout is { } without))
+            {
+                var current = Moved(step.Present ? with : without, axis, inserted, index, e.Count, source);
+                if (rules.Take(current.Count).SequenceEqual(current) && (OtherSide(step, e, axis, index, source) is { FromStep: false } other))
+                {
+                    IReadOnlyList<SettingsRule> kept = rules.Take(current.Count).ToArray();
+                    IReadOnlyList<SettingsRule> moved = Moved(step.Present ? without : with, axis, inserted, other.Index, e.Count, other.Source);
+                    (step.RulesWith, step.RulesWithout) = step.Present ? (kept, moved) : (moved, kept);
+                    (rules, index, source) = (moved, other.Index, other.Source);
+                    continue;
+                }
+            }
+
+            following = false;
+            (step.RulesWith, step.RulesWithout) = (null, null);
+        }
+    }
+
+    private void FollowMerges(IEnumerable<EditEntry> entries, SheetChangedEventArgs e, Axis axis, bool inserted)
+    {
+        var index = e.Index;
+        var following = true;
+        foreach (var step in entries.OfType<StructureEdited>())
+        {
+            if (following && (step.MergesWith is { } with) && (step.MergesWithout is { } without) && (OtherSide(step, e, axis, index, null) is { } other))
+            {
+                IReadOnlyList<CellRange> current = MovedMerges(step.Present ? with : without, axis, inserted, index, e.Count);
+                IReadOnlyList<CellRange> moved = MovedMerges(step.Present ? without : with, axis, inserted, other.Index, e.Count);
+                (step.MergesWith, step.MergesWithout) = step.Present ? (current, moved) : (moved, current);
+                index = other.Index;
+                continue;
+            }
+
+            following = false;
+            (step.MergesWith, step.MergesWithout) = (null, null);
+        }
+    }
+
+    private (int Index, int? Source, bool FromStep)? OtherSide(StructureEdited step, SheetChangedEventArgs e, Axis axis, int index, int? source)
+    {
+        if ((step is RowsEdited) != (axis == Axis.Row))
+        {
+            return (index, source, false);
+        }
+
+        if (PlaceOf(step) is not { } place)
+        {
+            return null;
+        }
+
+        var fromStep = (e.InheritedFrom is { } from) && (from >= place.First) && (from <= place.Last);
+        return (e.Index > place.Last ? index + place.Shift : index, e.InheritedFrom > place.Last ? source + place.Shift : source, fromStep);
+    }
+
+    private (int First, int Last, int Shift)? PlaceOf(StructureEdited step) => step switch
+    {
+        RowsEdited { Present: true } rows => Span(rows.Rows) is { } span ? (span.First, span.Last, -rows.Rows.Count) : null,
+        RowsEdited rows => (((rows.Above is { } above) && !Sheet.Contains(above)) || rows.Rows.Any(Sheet.Contains)) ? null : Gap(rows.Above?.Index ?? -1, rows.Rows.Count),
+        ColumnsEdited { Present: true } columns => Span(columns.Columns) is { } span ? (span.First, span.Last, -columns.Columns.Count) : null,
+        ColumnsEdited columns => (((columns.Left is { } left) && !Sheet.Contains(left)) || columns.Columns.Any(Sheet.Contains)) ? null : Gap(columns.Left?.Index ?? -1, columns.Columns.Count),
+        _ => null
+    };
+
+    private static (int First, int Last, int Shift) Gap(int after, int count) => (after + 1, after, count);
+
+    private static List<SettingsRule> Moved(IReadOnlyList<SettingsRule> rules, Axis axis, bool inserted, int index, int count, int? source) =>
+        inserted ? RangeTransform.Insert(rules, axis, index, count, source is not null, source) : RangeTransform.Remove(rules, axis, index, count);
+
+    private static List<CellRange> MovedMerges(IReadOnlyList<CellRange> merges, Axis axis, bool inserted, int index, int count) =>
+        inserted ? RangeTransform.InsertMerges(merges, axis, index, count) : RangeTransform.RemoveMerges(merges, axis, index, count);
+
+    private bool MergedAcross(StructureEdited entry, Axis axis, int index) =>
+        (entry.MergesWithout is { } without) && Sheet.MergeAreas.Any(x => Straddles(x, axis, index) && !without.Contains(x));
+
+    private static bool Straddles(CellRange merge, Axis axis, int index) =>
+        axis == Axis.Row ? (merge.Top < index) && (merge.Bottom >= index) : (merge.Left < index) && (merge.Right >= index);
 
     // The earlier rules if unchanged, plus shifted ones the app appended; otherwise inherited from the neighbor
     private List<SettingsRule> RulesToPut(StructureEdited entry, Axis axis, int index, int count, int total)
@@ -297,7 +401,7 @@ public sealed partial class MusselSheetView
         return RangeTransform.Remove(current, axis, index, count);
     }
 
-    // The earlier merges if unchanged, which brings back dropped ones; otherwise the current ones shifted
+    // The earlier merges if unchanged, which brings back dropped ones; otherwise the current ones shifted, with the step's own merges where no merge is
     private (IReadOnlyList<CellRange> Next, IReadOnlyList<CellRange> Before) MergesToPut(StructureEdited entry, Axis axis, int index, int count)
     {
         var before = Sheet.MergeAreas.ToArray();
@@ -306,7 +410,30 @@ public sealed partial class MusselSheetView
             return (with, before);
         }
 
-        return (RangeTransform.InsertMerges(before, axis, index, count), before);
+        var next = RangeTransform.InsertMerges(before, axis, index, count);
+        foreach (var merge in entry.MergesWith ?? [])
+        {
+            var left = RangeTransform.RemoveMerges([merge], axis, index, count);
+            if ((left is [var kept]) && !before.Contains(kept))
+            {
+                continue;
+            }
+
+            CellRange? current = left is [var image] ? RangeTransform.InsertMerges([image], axis, index, count)[0] : null;
+            if ((current == merge) || next.Exists(x => (x != current) && x.Intersects(merge)))
+            {
+                continue;
+            }
+
+            if (current is { } old)
+            {
+                next.Remove(old);
+            }
+
+            next.Add(merge);
+        }
+
+        return (next, before);
     }
 
     private (IReadOnlyList<CellRange> Next, IReadOnlyList<CellRange> Before) MergesToTake(StructureEdited entry, Axis axis, int index, int count)

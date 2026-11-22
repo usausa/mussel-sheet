@@ -117,11 +117,14 @@ public sealed partial class MusselSheetView
         var range = new CellRange(selection.Top, selection.Left, bottom - cutRows, right - cutColumns);
 
         var (pasteRows, pasteColumns) = (RowsOf(range), ColumnsOf(range));
+        var (selectedRows, selectedColumns) = (RowsOf(selection), ColumnsOf(selection));
         var pasting = new SheetPastingEventArgs(Sheet, range, values);
         await HandleAsync(Pasting, pasting).ConfigureAwait(true);
         if (pasting.Cancel || (Relocate(pasteRows, pasteColumns) is not { } moved))
         {
-            return new PasteResult(selection.Top, selection.Left, selection.Bottom, selection.Right, null);
+            await SyncMapAsync().ConfigureAwait(true);
+            var kept = Relocate(selectedRows, selectedColumns) ?? selection;
+            return new PasteResult(kept.Top, kept.Left, kept.Bottom, kept.Right, null);
         }
 
         range = moved;
@@ -136,6 +139,7 @@ public sealed partial class MusselSheetView
                 return index < cells.Length ? cells[index] : null;
             },
             CellChangeReason.Paste).ConfigureAwait(true);
+        await SyncMapAsync().ConfigureAwait(true);
         return new PasteResult(range.Top, range.Left, range.Bottom, range.Right, PasteMessage(marked, rejected, cutRows, cutColumns));
     }
 
@@ -158,6 +162,7 @@ public sealed partial class MusselSheetView
             }
         }
 
+        using var rendering = HoldRender();
         using (Sheet.BeginUpdate())
         {
             for (var r = 0; r < rows.Length; r++)
@@ -203,6 +208,7 @@ public sealed partial class MusselSheetView
         var generation = history.Generation;
         var (rows, columns) = (RowsOf(range), ColumnsOf(range));
         var edited = AreaOf(range);
+        using var rendering = HoldRender();
         using (Sheet.BeginUpdate())
         {
             foreach (var sheetRow in rows)

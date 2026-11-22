@@ -1,5 +1,7 @@
 namespace Example.Client.Components.Pages;
 
+using Example.Client.Models;
+
 public sealed partial class GettingStartedPage
 {
     private readonly SheetEventLog log = new();
@@ -21,6 +23,7 @@ public sealed partial class GettingStartedPage
             c.Format = "N0";
         });
         sheet.Range("D:D").Configure(static c => c.ReadOnly = true);
+        sheet.Range("B:C").Configure(static c => c.Maximum = 100000000);
 
         sheet.SetValues(0, 0,
         [
@@ -37,7 +40,7 @@ public sealed partial class GettingStartedPage
         var row = e.Address.Row;
         if (sheet.TryGetValue<decimal>(row, 1, out var quantity) && sheet.TryGetValue<decimal>(row, 2, out var price))
         {
-            sheet.SetValue(row, 3, quantity * price);
+            sheet.SetValue(row, 3, Amounts.OrNull(() => quantity * price));
         }
         else
         {

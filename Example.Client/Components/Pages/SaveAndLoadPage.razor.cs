@@ -1,5 +1,7 @@
 namespace Example.Client.Components.Pages;
 
+using Example.Client.Models;
+
 public sealed partial class SaveAndLoadPage
 {
     private readonly SheetEventLog log = new();
@@ -18,8 +20,8 @@ public sealed partial class SaveAndLoadPage
         var functions = new SheetFunctions();
         functions.AddValidator("QuantityLimit", static x => x.Value is > 100m ? "The quantity is up to 100." : null);
         functions.AddFormatter("Dollars", static x => x.Value is null ? null : $"${x.Text}");
-        functions.AddComputation("Amount", static x => x.Get<decimal?>("B") * x.Get<decimal?>("C"));
-        functions.AddComputation("Total", static x => x.Values("D4:D6").OfType<decimal>().Sum());
+        functions.AddComputation("Amount", static x => Amounts.OrNull(() => x.Get<decimal?>("B") * x.Get<decimal?>("C")));
+        functions.AddComputation("Total", static x => Amounts.OrNull(() => x.Values("D4:D6").OfType<decimal>().Sum()));
         return functions;
     }
 
@@ -65,6 +67,7 @@ public sealed partial class SaveAndLoadPage
                 c.Kind = CellKind.Number;
                 c.Format = "N0";
                 c.Minimum = 0;
+                c.Maximum = 100000000;
             });
             sheet.Range("B4:B6").Configure(c => c.Validator = functions.Validator("QuantityLimit"));
             sheet.Range("D4:D7").Configure(static c =>

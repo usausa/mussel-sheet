@@ -41,6 +41,7 @@ public sealed partial class MusselSheetView
         var reason = redo ? CellChangeReason.Redo : CellChangeReason.Undo;
         var changes = redo ? entry.Changes : entry.Changes.Reverse();
         var applied = new List<CellChange>();
+        using var rendering = HoldRender();
         using (Sheet.BeginUpdate())
         {
             foreach (var change in changes)

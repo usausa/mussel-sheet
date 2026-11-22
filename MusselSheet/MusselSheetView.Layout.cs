@@ -127,12 +127,39 @@ public sealed partial class MusselSheetView
 
     protected override bool ShouldRender()
     {
+        if (renderHold > 0)
+        {
+            renderHeld = true;
+            return false;
+        }
+
         Refresh();
         return true;
     }
 
+    private RenderHold HoldRender()
+    {
+        renderHold++;
+        return new RenderHold(ReleaseRender);
+    }
+
+    private void ReleaseRender()
+    {
+        renderHold--;
+        if ((renderHold == 0) && renderHeld && !IsDisposed)
+        {
+            renderHeld = false;
+            StateHasChanged();
+        }
+    }
+
     private void Refresh()
     {
+        if (renderHold > 0)
+        {
+            return;
+        }
+
         if (layoutVersion != Sheet.StructureVersion)
         {
             layoutVersion = Sheet.StructureVersion;
@@ -263,5 +290,16 @@ public sealed partial class MusselSheetView
         }
 
         return (top, bottom, left, right);
+    }
+
+    private sealed class RenderHold(Action release) : IDisposable
+    {
+        private Action? release = release;
+
+        public void Dispose()
+        {
+            release?.Invoke();
+            release = null;
+        }
     }
 }

@@ -6,6 +6,8 @@ public sealed partial class Sheet
 {
     private readonly List<SheetComputation> computations = [];
 
+    private int heldComputations;
+
     public SheetComputation Compute(string target, IReadOnlyList<string> observed, Func<CellComputeContext, object?> compute)
     {
         var address = CellAddress.Parse(target);
@@ -25,6 +27,8 @@ public sealed partial class Sheet
 
     internal IReadOnlyList<SheetComputation> Computations => computations;
 
+    internal bool IsComputing => heldComputations > 0;
+
     internal void Uncompute(SheetComputation computation) => computations.Remove(computation);
 
     // The read-only rule is already part of the design, so it is not added again
@@ -34,7 +38,7 @@ public sealed partial class Sheet
     // Does nothing inside BeginUpdate; the pending computations run when the outermost update ends
     internal void RunComputations()
     {
-        if (updateDepth > 0)
+        if ((updateDepth > 0) || (heldComputations > 0))
         {
             return;
         }
@@ -43,6 +47,21 @@ public sealed partial class Sheet
         {
             computation.RunPending();
         }
+    }
+
+    internal void HoldComputations(Action compute)
+    {
+        heldComputations++;
+        try
+        {
+            compute();
+        }
+        finally
+        {
+            heldComputations--;
+        }
+
+        RunComputations();
     }
 
     private SheetComputation Register(SheetComputation computation, bool readOnly = true)

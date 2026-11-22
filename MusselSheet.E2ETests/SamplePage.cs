@@ -146,10 +146,16 @@ public sealed class SamplePage(IBrowserContext context, IPage page, Func<string>
                         script.held.splice(index, 1)[0].resolve(value);
                     }
                 };
+                script.fail = name => {
+                    const index = script.held.findIndex(x => x.name === name);
+                    if (index >= 0) {
+                        script.held.splice(index, 1)[0].reject(new Error(name));
+                    }
+                };
                 const dotnet = {
                     invokeMethodAsync: (name, ...args) => {
                         script.calls.push([name, ...args]);
-                        return new Promise(resolve => script.held.push({ name, resolve }));
+                        return new Promise((resolve, reject) => script.held.push({ name, resolve, reject }));
                     },
                 };
                 script.controller = attach(root, dotnet, { commitMode, customEditor: true }, map(rows), {}, 1);

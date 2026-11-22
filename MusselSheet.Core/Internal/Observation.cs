@@ -26,12 +26,12 @@ internal sealed class Observation
 
     public bool IsSameRow => rows is null;
 
-    public static Observation Of(Sheet sheet, string text, string? name = null)
+    public static Observation Of(Sheet sheet, string text, string? name = null, bool grows = false)
     {
         name ??= text;
         if (CellAddress.TryParse(text, out var address) && (address.Row < sheet.RowCount) && (address.Column < sheet.ColumnCount))
         {
-            return new Observation(name, TrackedRows.Of(sheet, address.Row, address.Row, false), [sheet.Columns[address.Column]]);
+            return new Observation(name, TrackedRows.Of(sheet, address.Row, address.Row, grows), [sheet.Columns[address.Column]]);
         }
 
         if (!CellRange.TryParse(text, out var range) || !range.TryClip(sheet.RowCount, sheet.ColumnCount, out var clipped))
@@ -39,7 +39,7 @@ internal sealed class Observation
             throw new ArgumentException($"'{text}' is not a cell or a range inside the sheet.", nameof(text));
         }
 
-        var observedRows = range.IsEntireColumns ? TrackedRows.All() : TrackedRows.Of(sheet, clipped.Top, clipped.Bottom, clipped.Bottom > clipped.Top);
+        var observedRows = range.IsEntireColumns ? TrackedRows.All() : TrackedRows.Of(sheet, clipped.Top, clipped.Bottom, grows || (clipped.Bottom > clipped.Top));
         var observedColumns = range.IsEntireRows ? null : sheet.Columns.Skip(clipped.Left).Take(clipped.Right - clipped.Left + 1).ToArray();
         return new Observation(name, observedRows, observedColumns);
     }

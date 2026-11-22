@@ -1,5 +1,7 @@
 namespace Example.Client.Components.Pages;
 
+using Example.Client.Models;
+
 public sealed partial class InputAssistPage
 {
     private const int FirstDetailRow = 4;
@@ -68,6 +70,7 @@ public sealed partial class InputAssistPage
                 c.Kind = CellKind.Number;
                 c.Format = "N0";
                 c.Minimum = 0;
+                c.Maximum = 100000000;
                 c.InputMessage = "Including tax";
             });
             sheet.Range("A8:B8").Configure(static c =>
@@ -110,16 +113,16 @@ public sealed partial class InputAssistPage
 
     private static void Calculate(Sheet sheet)
     {
-        var total = 0m;
+        var amounts = new List<decimal>();
         for (var row = FirstDetailRow; row < TotalRow; row++)
         {
             if (sheet.TryGetValue<decimal>(row, 2, out var amount))
             {
-                total += amount;
+                amounts.Add(amount);
             }
         }
 
-        sheet.SetValue(TotalRow, 2, total);
+        sheet.SetValue(TotalRow, 2, Amounts.OrNull(() => amounts.Sum()));
     }
 
     private void OnCellCommitted(CellCommittedEventArgs e)

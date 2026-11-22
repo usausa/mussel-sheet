@@ -130,9 +130,21 @@ public sealed partial class PlaygroundPage
         }
     }
 
-    private void ToggleError() => sheet.SetError(0, 1, sheet.GetError(0, 1) is null ? "An error mark set from C#" : null);
+    private void ToggleError()
+    {
+        if ((sheet.RowCount > 0) && (sheet.ColumnCount > 1))
+        {
+            sheet.SetError(0, 1, sheet.GetError(0, 1) is null ? "An error mark set from C#" : null);
+        }
+    }
 
-    private void ChangeValue() => sheet.SetValue(0, 1, changed += 1000m);
+    private void ChangeValue()
+    {
+        if ((sheet.RowCount > 0) && (sheet.ColumnCount > 1))
+        {
+            sheet.SetValue(0, 1, changed += 1000m);
+        }
+    }
 
     private void AcceptChanges()
     {

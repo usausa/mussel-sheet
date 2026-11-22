@@ -88,7 +88,7 @@ public sealed partial class Sheet
     internal void InsertRowsLike(int index, int count, SheetRow source)
     {
         var after = source.Index >= index ? source.Index + count : source.Index;
-        PutRows(index, CreateRows(count, source.Height), RangeTransform.Insert(settings.Rules, Axis.Row, index, count, true, after), RangeTransform.InsertMerges(merges, Axis.Row, index, count));
+        PutRows(index, CreateRows(count, source.Height), RangeTransform.Insert(settings.Rules, Axis.Row, index, count, true, after), RangeTransform.InsertMerges(merges, Axis.Row, index, count), after);
     }
 
     // The setters can insert or delete rows and columns, so the cells of the range are taken before any binding writes

@@ -121,6 +121,7 @@ public sealed partial class JapaneseFormPage
                 c.Kind = CellKind.Number;
                 c.Format = "N0";
                 c.Minimum = 0;
+                c.Maximum = 100000000;
                 c.ImeMode = ImeMode.Off;
             });
 
@@ -186,10 +187,10 @@ public sealed partial class JapaneseFormPage
             sheet["B17"].Value = "お振込手数料はご負担ください。\n納品書は別途お送りします。";
 
             // Computed cells become read-only by themselves
-            sheet.ComputeRows("F9:F13", ["D", "E"], static x => x.Get<decimal?>("D") * x.Get<decimal?>("E"));
-            sheet.Compute("F14", ["F9:F13"], static x => x.Values("F9:F13").OfType<decimal>().Sum());
-            sheet.Compute("F15", ["F14"], static x => Math.Floor(x.Get<decimal>("F14") * TaxRate));
-            sheet.Compute("F16", ["F14", "F15"], static x => x.Get<decimal>("F14") + x.Get<decimal>("F15"));
+            sheet.ComputeRows("F9:F13", ["D", "E"], static x => Amounts.OrNull(() => x.Get<decimal?>("D") * x.Get<decimal?>("E")));
+            sheet.Compute("F14", ["F9:F13"], static x => Amounts.OrNull(() => x.Values("F9:F13").OfType<decimal>().Sum()));
+            sheet.Compute("F15", ["F14"], static x => x.Get<decimal?>("F14") is { } subtotal ? Math.Floor(subtotal * TaxRate) : null);
+            sheet.Compute("F16", ["F14", "F15"], static x => Amounts.OrNull(() => x.Get<decimal?>("F14") + x.Get<decimal?>("F15")));
         }
 
         return sheet;

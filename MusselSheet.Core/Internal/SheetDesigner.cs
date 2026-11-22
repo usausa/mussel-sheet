@@ -327,7 +327,9 @@ internal static class SheetDesigner
         var observations = design.Observed.Select(x =>
         {
             var range = x.Range ?? x.Name;
-            return design.PerRow && CellAddress.TryParseColumn(range, out _) ? Observation.SameRow(sheet, range, x.Name) : Observation.Of(sheet, range, x.Name);
+            return design.PerRow && CellAddress.TryParseColumn(range, out _)
+                ? Observation.SameRow(sheet, range, x.Name)
+                : Observation.Of(sheet, range, x.Name, CellRange.TryParse(x.Name, out var registered) && !registered.IsEntireColumns && (registered.Bottom > registered.Top));
         }).ToArray();
         sheet.Restore(CellRange.Parse(design.Target), design.PerRow, observations, compute);
     }

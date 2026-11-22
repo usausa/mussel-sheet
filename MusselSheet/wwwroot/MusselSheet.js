@@ -32,6 +32,11 @@ const ACTIVE_NOTIFY_DELAY_MS = 50;
 
 const SUGGEST_DELAY_MS = 250;
 
+const ANSWER_LIMIT_MS = 60000;
+
+class NoAnswerError extends Error {
+}
+
 const LIST_PAGE = 8;
 
 const INLINE_TEXT_LIMIT = 4096;
@@ -1536,6 +1541,7 @@ class SheetController {
         this.map = new SheetMap(map, this.language);
         this.generation = generation;
         this.waitShifts = [];
+        this.waitRead = false;
         this.state = READY;
         this.row = 0;
         this.col = 0;
@@ -1554,6 +1560,7 @@ class SheetController {
         this.viewBusy = false;
         this.viewPending = false;
         this.changing = 0;
+        this.answerLimit = ANSWER_LIMIT_MS;
 
         this.popupKind = null;
         this.popupItems = [];
@@ -1567,6 +1574,7 @@ class SheetController {
 
         this.custom = null;
         this.customHandlers = null;
+        this.customKeys = null;
         this.customBusy = false;
 
         this.menuOpen = false;
@@ -1676,6 +1684,12 @@ class SheetController {
         this.generation = generation;
         if (this.state === COMMITTING) {
             this.waitShifts.push(...shifts);
+        }
+        if (replaced) {
+            this.queue = this.queue.filter(k => k.call);
+            if (this.drag?.mode === 'fill') {
+                this.endDrag();
+            }
         }
         if (this.map.isEmpty) {
             this.lostWhileWaiting ||= this.state === COMMITTING;
@@ -2017,7 +2031,7 @@ class SheetController {
 
         e.preventDefault();
         const cut = this.cutAction();
-        const written = this.hasRange() ? this.copyRange(e) : this.copyCell(e);
+        const written = this.hasRange() ? this.copyRange(e, true) : this.copyCell(e, true);
         this.cutWhenWritten(written, cut);
     }
 
@@ -2027,7 +2041,7 @@ class SheetController {
             const range = this.selectionRange();
             return () => {
                 const target = this.rangeAfterWait(range, mark);
-                if (target) {
+                if (target && !this.movedWhileRead()) {
                     this.sendChange('CutRangeAsync', target.top, target.left, target.bottom, target.right, this.generation);
                 }
             };
@@ -2040,7 +2054,7 @@ class SheetController {
         const cell = { r: this.row, c: this.col };
         return () => {
             const target = this.cellAfterWait(cell, mark);
-            if (!target.lost) {
+            if (!target.lost && !this.movedWhileRead()) {
                 this.sendChange('CutAsync', target.r, target.c, this.generation);
             }
         };
@@ -2054,7 +2068,7 @@ class SheetController {
 
         this.setState(COMMITTING);
         this.updateSink();
-        const ok = await written;
+        const ok = await this.answered(written).catch(() => false);
         if (this.disposed) {
             return;
         }
@@ -2101,7 +2115,7 @@ class SheetController {
     }
 
     // Copies the edit text; even one cell gets an HTML table, so Excel keeps leading zeros
-    copyCell(e) {
+    copyCell(e, cut = false) {
         const range = { top: this.row, left: this.col };
         const cell = this.cellElement(this.row, this.col);
         if (cell && ((this.changing === 0) || !hasAsyncClipboard())) {
@@ -2111,14 +2125,13 @@ class SheetController {
             return Promise.resolve(true);
         }
 
-        const data = this.editText(this.row, this.col)
-            .then(text => ({ text: copiedCell(text), html: this.htmlOf([[text]], range) }))
-            .catch(() => ({ text: '', html: '' }));
-        return this.writeClipboard(data, true);
+        const data = (cut ? this.readText(this.row, this.col) : this.editText(this.row, this.col))
+            .then(text => ({ text: copiedCell(text), html: this.htmlOf([[text]], range) }));
+        return this.writeClipboard(cut ? data : data.catch(() => ({ text: '', html: '' })), true);
     }
 
     // Rows outside the rendered window are read from C#, and so is every row while a change is on its way if the async clipboard can wait
-    copyRange(e) {
+    copyRange(e, cut = false) {
         const range = this.selectionRange();
         const values = this.renderedValues(range, !hasAsyncClipboard());
         if (values) {
@@ -2127,7 +2140,7 @@ class SheetController {
             return Promise.resolve(true);
         }
 
-        return this.writeClipboard(this.rangeText(range), true);
+        return this.writeClipboard(cut ? this.readRange(range) : this.rangeText(range), true);
     }
 
     htmlOf(values, range) {
@@ -2135,7 +2148,12 @@ class SheetController {
     }
 
     rangeText(range) {
-        return this.dotnet.invokeMethodAsync('GetRangeTextAsync', range.top, range.left, range.bottom, range.right).catch(() => ({ text: '', html: '' }));
+        return this.readRange(range).catch(() => ({ text: '', html: '' }));
+    }
+
+    readRange(range) {
+        this.waitRead = true;
+        return this.dotnet.invokeMethodAsync('GetRangeTextAsync', range.top, range.left, range.bottom, range.right);
     }
 
     renderedValues(range, stale = false) {
@@ -2171,6 +2189,9 @@ class SheetController {
             if (html) {
                 item['text/html'] = data.then(d => new Blob([d.html], { type: 'text/html' }));
             }
+            for (const blob of Object.values(item)) {
+                blob.catch(() => { });
+            }
             return navigator.clipboard.write([new ClipboardItem(item)]).then(() => true, () => false);
         }
 
@@ -2186,11 +2207,12 @@ class SheetController {
     }
 
     async runAndSelect(call, active) {
+        const mark = this.markWait();
         this.setState(COMMITTING);
         this.updateSink();
         let result = null;
         try {
-            result = await call();
+            result = await this.answered(call());
         } catch {
             result = null;
         }
@@ -2203,7 +2225,8 @@ class SheetController {
         this.updateSink();
         if (result) {
             const anchor = { r: result.top, c: result.left };
-            this.select(anchor, { r: result.bottom, c: result.right }, active ?? anchor);
+            const moved = active && this.cellAfterWait(active, mark);
+            this.select(anchor, { r: result.bottom, c: result.right }, moved && !moved.lost ? moved : anchor);
             if (result.message) {
                 this.notice(result.message);
             }
@@ -2253,7 +2276,7 @@ class SheetController {
         let response;
         try {
             const [inline, data] = textArgs(text);
-            response = await this.dotnet.invokeMethodAsync('PasteAsync', row, col, inline, false, data, this.generation);
+            response = await this.answered(this.dotnet.invokeMethodAsync('PasteAsync', row, col, inline, false, data, this.generation));
         } catch {
             response = { ok: false, error: this.map.messages.canceled, stored: false };
         }
@@ -2787,7 +2810,7 @@ class SheetController {
         let added = false;
         try {
             // C# runs this after the commits sent before it, so undo sees the commit first, then the row add
-            added = await this.dotnet.invokeMethodAsync('AddRowFromScriptAsync', row, col, this.generation);
+            added = await this.answered(this.dotnet.invokeMethodAsync('AddRowFromScriptAsync', row, col, this.generation));
         } catch {
             added = false;
         }
@@ -2955,13 +2978,18 @@ class SheetController {
             return;
         }
 
-        const source = { r: this.row, c: this.col };
         const mark = this.markWait();
         this.holdForText(this.row, this.col).then((read) => {
-            const target = this.rangeAfterWait(range, mark);
-            if (!this.disposed && target && !this.cellAfterWait(source, mark).lost) {
-                this.fillRange(read, target);
+            if (this.disposed) {
+                return;
             }
+
+            if ((read !== null) && (mark === this.generation) && !this.movedWhileRead()) {
+                this.fillRange(read, range);
+                return;
+            }
+
+            this.replay();
         });
     }
 
@@ -2979,7 +3007,7 @@ class SheetController {
         this.updateSink();
         let result = null;
         try {
-            result = await this.dotnet.invokeMethodAsync(method, ...args, this.generation);
+            result = await this.answered(this.dotnet.invokeMethodAsync(method, ...args, this.generation));
         } catch {
             result = null;
         }
@@ -3021,7 +3049,7 @@ class SheetController {
         this.updateSink();
         let target = null;
         try {
-            target = await this.dotnet.invokeMethodAsync('FindEdgeAsync', from.r, from.c, direction);
+            target = await this.answered(this.dotnet.invokeMethodAsync('FindEdgeAsync', from.r, from.c, direction));
         } catch {
             target = null;
         }
@@ -3421,7 +3449,7 @@ class SheetController {
     }
 
     enterEdit(row, col, text, then) {
-        if ((row === this.row) && (col === this.col) && (this.state === READY) && !this.lostWhileWaiting && this.canEdit(this.currentRule())) {
+        if ((text !== null) && (row === this.row) && (col === this.col) && (this.state === READY) && !this.lostWhileWaiting && this.canEdit(this.currentRule())) {
             this.setState(EDIT);
             this.sink.value = text;
             this.showEditor();
@@ -3448,7 +3476,7 @@ class SheetController {
 
         this.setState(COMMITTING);
         this.updateSink();
-        const text = await this.editText(row, col);
+        const text = await this.answered(this.readText(row, col)).catch(() => null);
         if (!this.disposed) {
             this.setState(READY);
             this.updateSink();
@@ -3457,12 +3485,17 @@ class SheetController {
     }
 
     editText(row, col) {
+        return this.readText(row, col).catch(() => '');
+    }
+
+    readText(row, col) {
         const cell = this.cellElement(row, col);
         if (cell && (this.changing === 0)) {
             return Promise.resolve(cell.dataset.edit ?? cell.textContent);
         }
 
-        return this.dotnet.invokeMethodAsync('GetEditTextAsync', row, col).catch(() => '');
+        this.waitRead = true;
+        return this.dotnet.invokeMethodAsync('GetEditTextAsync', row, col);
     }
 
     // Checks in JS, then moves and sends without waiting, or waits for C# if set; forceOptimistic is for leaving
@@ -3501,7 +3534,7 @@ class SheetController {
         let response;
         try {
             const [inline, data] = textArgs(text);
-            response = await this.dotnet.invokeMethodAsync('CommitAsync', row, col, inline, false, data, this.generation);
+            response = await this.answered(this.dotnet.invokeMethodAsync('CommitAsync', row, col, inline, false, data, this.generation));
         } catch {
             response = { ok: false, error: this.map.messages.canceled, stored: false };
         }
@@ -3558,7 +3591,7 @@ class SheetController {
         this.updateSink();
         let target = null;
         try {
-            target = await this.dotnet.invokeMethodAsync('UndoFromScriptAsync', redo, this.generation);
+            target = await this.answered(this.dotnet.invokeMethodAsync('UndoFromScriptAsync', redo, this.generation));
         } catch {
             target = null;
         }
@@ -4038,10 +4071,9 @@ class SheetController {
 
     stickyShift() {
         const content = this.content.getBoundingClientRect();
-        const head = this.root.querySelector('.mussel-sheet-corner, .mussel-sheet-rowhead');
         return {
             top: this.top.getBoundingClientRect().top - content.top,
-            left: head ? head.getBoundingClientRect().left - content.left : 0,
+            left: this.inputLayers.l.getBoundingClientRect().left - content.left,
         };
     }
 
@@ -4097,7 +4129,7 @@ class SheetController {
         this.drop.hidden = true;
         let opened = false;
         try {
-            opened = await this.dotnet.invokeMethodAsync('OpenCustomEditorAsync', this.row, this.col);
+            opened = await this.answered(this.dotnet.invokeMethodAsync('OpenCustomEditorAsync', this.row, this.col));
         } catch {
             opened = false;
         }
@@ -4122,12 +4154,17 @@ class SheetController {
         this.setState(CUSTOM);
         this.custom = element;
         this.customHandlers = {
-            keydown: e => this.onCustomKeyDown(e),
             focusout: e => this.onCustomFocusOut(e),
         };
         for (const [type, handler] of Object.entries(this.customHandlers)) {
             element.addEventListener(type, handler);
         }
+        this.customKeys = e => {
+            if (this.custom?.contains(e.target)) {
+                this.onCustomKeyDown(e);
+            }
+        };
+        window.addEventListener('keydown', this.customKeys);
 
         this.drop.hidden = true;
         showFloating(element);
@@ -4192,9 +4229,9 @@ class SheetController {
         this.customBusy = true;
         let result;
         try {
-            result = await this.dotnet.invokeMethodAsync('CommitCustomEditorAsync', forceOptimistic);
-        } catch {
-            result = { closed: true, error: null };
+            result = await this.answered(this.dotnet.invokeMethodAsync('CommitCustomEditorAsync', forceOptimistic));
+        } catch (e) {
+            result = e instanceof NoAnswerError ? null : { closed: true, error: null };
         } finally {
             this.customBusy = false;
         }
@@ -4205,6 +4242,14 @@ class SheetController {
 
         if (this.state !== CUSTOM) {
             this.replay();
+            return;
+        }
+
+        if (!result) {
+            this.queue = [];
+            if (!this.isFocusOutside()) {
+                this.focusCustom(typed);
+            }
             return;
         }
 
@@ -4258,8 +4303,12 @@ class SheetController {
                 this.custom.removeEventListener(type, handler);
             }
         }
+        if (this.customKeys) {
+            window.removeEventListener('keydown', this.customKeys);
+        }
         this.custom = null;
         this.customHandlers = null;
+        this.customKeys = null;
     }
 
     // ---- Context menu ----
@@ -4527,9 +4576,9 @@ class SheetController {
         let written;
         if (this.hasRange()) {
             const values = this.renderedValues(range);
-            written = this.writeClipboard(values ? Promise.resolve({ text: toTsv(values), html: this.htmlOf(values, range) }) : this.rangeText(range), true);
+            written = this.writeClipboard(values ? Promise.resolve({ text: toTsv(values), html: this.htmlOf(values, range) }) : (cut ? this.readRange(range) : this.rangeText(range)), true);
         } else {
-            written = this.writeClipboard(this.editText(this.row, this.col).then(text => ({ text: copiedCell(text) })), false);
+            written = this.writeClipboard((cut ? this.readText(this.row, this.col) : this.editText(this.row, this.col)).then(text => ({ text: copiedCell(text) })), false);
         }
 
         this.cutWhenWritten(written, action);
@@ -4537,6 +4586,7 @@ class SheetController {
 
     // Reading the clipboard needs permission; when it cannot be read, the user is told to press Ctrl+V
     async menuPaste() {
+        const generation = this.generation;
         let text = null;
         try {
             text = await navigator.clipboard.readText();
@@ -4544,7 +4594,7 @@ class SheetController {
             text = null;
         }
 
-        if (this.disposed || this.state !== READY) {
+        if (this.disposed || this.state !== READY || generation !== this.generation) {
             return;
         }
 
@@ -4565,7 +4615,7 @@ class SheetController {
         this.updateSink();
         let result = null;
         try {
-            result = await this.dotnet.invokeMethodAsync('ChangeStructureAsync', action, range.top, range.left, range.bottom, range.right, row, col, this.generation);
+            result = await this.answered(this.dotnet.invokeMethodAsync('ChangeStructureAsync', action, range.top, range.left, range.bottom, range.right, row, col, this.generation));
         } catch {
             result = null;
         }
@@ -4883,9 +4933,11 @@ class SheetController {
             do {
                 this.viewPending = false;
                 const v = this.viewport;
-                await this.dotnet.invokeMethodAsync('OnViewportChanged', Math.round(v.scrollTop), Math.round(v.clientHeight), Math.round(v.scrollLeft), Math.round(v.clientWidth));
+                try {
+                    await this.answered(this.dotnet.invokeMethodAsync('OnViewportChanged', Math.round(v.scrollTop), Math.round(v.clientHeight), Math.round(v.scrollLeft), Math.round(v.clientWidth)));
+                } catch {
+                }
             } while (this.viewPending && !this.disposed);
-        } catch {
         } finally {
             this.viewBusy = false;
         }
@@ -4909,7 +4961,20 @@ class SheetController {
 
     markWait() {
         this.waitShifts = [];
+        this.waitRead = false;
         return this.generation;
+    }
+
+    movedWhileRead() {
+        return this.waitRead && (this.waitShifts.length > 0);
+    }
+
+    answered(promise) {
+        let timer = 0;
+        const limit = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new NoAnswerError('No answer')), this.answerLimit);
+        });
+        return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
     }
 
     cellAfterWait(cell, mark) {
@@ -4944,7 +5009,7 @@ class SheetController {
 
     sendChange(method, ...args) {
         this.changing++;
-        this.dotnet.invokeMethodAsync(method, ...args).catch(() => { }).finally(() => {
+        this.answered(this.dotnet.invokeMethodAsync(method, ...args)).catch(() => { }).finally(() => {
             this.changing--;
         });
     }

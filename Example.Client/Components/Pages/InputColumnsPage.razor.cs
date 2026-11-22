@@ -1,5 +1,7 @@
 namespace Example.Client.Components.Pages;
 
+using Example.Client.Models;
+
 public sealed partial class InputColumnsPage
 {
     private readonly SheetEventLog log = new();
@@ -30,6 +32,7 @@ public sealed partial class InputColumnsPage
             {
                 c.Kind = CellKind.Number;
                 c.Format = "N0";
+                c.Maximum = 100000000;
             });
             sheet.Range("D:D").Configure(static c =>
             {
@@ -59,7 +62,7 @@ public sealed partial class InputColumnsPage
         {
             if (sheet.TryGetValue<decimal>(row, 1, out var quantity) && sheet.TryGetValue<decimal>(row, 2, out var price))
             {
-                sheet.SetValue(row, 3, quantity * price);
+                sheet.SetValue(row, 3, Amounts.OrNull(() => quantity * price));
             }
             else
             {

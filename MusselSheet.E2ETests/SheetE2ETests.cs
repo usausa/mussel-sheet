@@ -2247,68 +2247,79 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
     }
 
     [Fact]
-    public async Task AFillWaitingForTheEditTextFollowsTheRowsTheAppInsertsOrDeletes()
+    public async Task ACtrlEnterThatReadsItsTextWritesNothingWhenTheAppInsertsOrDeletesRows()
     {
         var sample = await OpenAsync("playground", "server");
         await sample.AttachScriptAsync(10, ["text", "text"]);
 
-        var fills = await sample.Page.EvaluateAsync<string>(
+        var result = await sample.Page.EvaluateAsync<string>(
             """
             async () => {
                 const { controller, sink, map, answer, callsOf } = window.script;
                 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
-                const fill = async (rows, shift) => {
+                const key = (name, ctrlKey = false) => sink.dispatchEvent(new KeyboardEvent('keydown', { key: name, ctrlKey, bubbles: true, cancelable: true }));
+                const fill = async (rows, shifts, typed) => {
                     controller.moveTo(4, 1);
                     controller.extendTo(5, 1);
-                    sink.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true }));
-                    controller.setMap(map(rows), [shift], 1);
+                    key('Enter', true);
+                    if (typed) {
+                        key(typed);
+                    }
+                    controller.setMap(map(rows), shifts, 1);
                     answer('GetEditTextAsync', 'x');
                     await settle();
                     answer('FillAsync', null);
                     await settle();
                 };
-                await fill(11, { axis: 'row', index: 1, count: 1 });
-                await fill(10, { axis: 'row', index: 4, count: -1 });
-                return JSON.stringify(callsOf('FillAsync'));
+                await fill(11, [{ axis: 'row', index: 5, count: 1 }], '7');
+                const replayed = [controller.state, sink.value];
+                key('Escape');
+                await fill(10, [{ axis: 'row', index: 1, count: -1 }], null);
+                await fill(10, [], null);
+                return JSON.stringify({ replayed, fills: callsOf('FillAsync') });
             }
             """);
 
-        Assert.Equal("""[[5,1,6,1,"x",null,1]]""", fills);
+        Assert.Equal("""{"replayed":["input","7"],"fills":[[4,1,5,1,"x",null,1]]}""", result);
     }
 
     [Fact]
-    public async Task ACutWaitingForTheClipboardFollowsTheRowsTheAppInsertsOrDeletes()
+    public async Task ACutThatReadsItsTextOnlyCopiesWhenTheAppInsertsOrDeletesRows()
     {
         var sample = await OpenAsync("playground", "server");
         await sample.FakeAsyncClipboardAsync();
         await sample.AttachScriptAsync(10, ["text", "text"]);
 
-        var cuts = await sample.Page.EvaluateAsync<string>(
+        var result = await sample.Page.EvaluateAsync<string>(
             """
             async () => {
                 const { controller, sink, map, answer, calls } = window.script;
-                const cut = async (range, rows, shift) => {
+                const cut = async (range, rows, shifts, text) => {
+                    window.fakeClipboard.text = '';
                     controller.moveTo(4, 1);
                     if (range) {
                         controller.extendTo(5, 1);
                     }
                     sink.dispatchEvent(new ClipboardEvent('cut', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true }));
-                    controller.setMap(map(rows), [shift], 1);
+                    controller.setMap(map(rows), shifts, 1);
                     if (range) {
-                        answer('GetRangeTextAsync', { text: 'x', html: '' });
+                        answer('GetRangeTextAsync', { text, html: '' });
                     } else {
-                        answer('GetEditTextAsync', 'x');
+                        answer('GetEditTextAsync', text);
                     }
                     await new Promise(resolve => setTimeout(resolve, 50));
+                    return window.fakeClipboard.text;
                 };
-                await cut(false, 11, { axis: 'row', index: 1, count: 1 });
-                await cut(true, 10, { axis: 'row', index: 1, count: -1 });
-                await cut(false, 9, { axis: 'row', index: 4, count: -1 });
-                return JSON.stringify(calls.filter(x => x[0].startsWith('Cut')));
+                const copied = [
+                    await cut(false, 11, [{ axis: 'row', index: 1, count: 1 }], 'a'),
+                    await cut(true, 10, [{ axis: 'row', index: 1, count: -1 }], 'b'),
+                    await cut(false, 10, [], 'c')
+                ];
+                return JSON.stringify({ copied, cuts: calls.filter(x => x[0].startsWith('Cut')) });
             }
             """);
 
-        Assert.Equal("""[["CutAsync",5,1,1],["CutRangeAsync",3,1,4,1,1]]""", cuts);
+        Assert.Equal("""{"copied":["a","b","c"],"cuts":[["CutAsync",4,1,1]]}""", result);
     }
 
     [Fact]
@@ -2446,6 +2457,592 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
 
         await Expect(sample.Cell(1, 1)).ToHaveTextAsync("red;width:600px");
         await Expect(sample.Cell(1, 1).Locator(".custom-swatch")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task KeysTypedWhileACtrlEnterWaitsRunWhenItsCellIsGone()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(10, ["text", "text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, map, answer, callsOf } = window.script;
+                const key = (name, ctrlKey = false) => sink.dispatchEvent(new KeyboardEvent('keydown', { key: name, ctrlKey, bubbles: true, cancelable: true }));
+                controller.moveTo(4, 0);
+                controller.extendTo(5, 0);
+                key('Enter', true);
+                key('7');
+                key('Enter');
+                controller.setMap(map(9), [{ axis: 'row', index: 4, count: -1 }], 1);
+                answer('GetEditTextAsync', 'x');
+                await new Promise(resolve => setTimeout(resolve, 0));
+                return JSON.stringify({ fills: callsOf('FillAsync'), commits: callsOf('CommitAsync') });
+            }
+            """);
+
+        Assert.Equal("""{"fills":[],"commits":[[4,0,"7",true,null,1]]}""", result);
+    }
+
+    [Fact]
+    public async Task KeysTypedWhileACommitWaitsAreDroppedWhenTheSheetIsReplaced()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(5, ["text"], "wait");
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, map, answer, callsOf } = window.script;
+                const key = name => sink.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
+                controller.moveTo(1, 0);
+                controller.startInput('5');
+                key('Enter');
+                key('7');
+                key('Enter');
+                controller.setActiveCell(3, 0);
+                controller.setMap(map(5), [], 2);
+                answer('CommitAsync', { ok: true, error: null, stored: true });
+                await new Promise(resolve => setTimeout(resolve, 0));
+                return JSON.stringify({ commits: callsOf('CommitAsync'), row: controller.row });
+            }
+            """);
+
+        Assert.Equal("""{"commits":[[1,0,"5",false,null,1]],"row":3}""", result);
+    }
+
+    [Fact]
+    public async Task AFillDragEndsWhenTheSheetIsReplaced()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(10, ["text", "text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, root, map, callsOf } = window.script;
+                const content = root.querySelector('.mussel-sheet-content').getBoundingClientRect();
+                controller.moveTo(0, 0);
+                controller.handle.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, buttons: 1 }));
+                window.dispatchEvent(new MouseEvent('mousemove', { buttons: 1, clientX: content.left + 90, clientY: content.top + (24 * 6) + 12 }));
+                const target = controller.drag?.target ?? null;
+                controller.setMap(map(10), [], 2);
+                window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+                await new Promise(resolve => setTimeout(resolve, 0));
+                return JSON.stringify({ target, drag: controller.drag, fills: callsOf('AutoFillAsync') });
+            }
+            """);
+
+        Assert.Equal("""{"target":{"top":0,"left":0,"bottom":5,"right":0},"drag":null,"fills":[]}""", result);
+    }
+
+    [Fact]
+    public async Task AMenuPasteWaitingForTheClipboardWritesNothingAfterTheSheetIsReplaced()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(5, ["text", "text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, map, callsOf } = window.script;
+                let release = null;
+                Object.defineProperty(navigator, 'clipboard', { value: { readText: () => new Promise(resolve => { release = resolve; }) }, configurable: true });
+                controller.moveTo(1, 0);
+                const pasting = controller.menuPaste();
+                controller.setMap(map(5), [], 2);
+                release('a\tb');
+                await pasting;
+                return JSON.stringify({ ranges: callsOf('PasteRangeAsync').length, cells: callsOf('PasteAsync').length });
+            }
+            """);
+
+        Assert.Equal("""{"ranges":0,"cells":0}""", result);
+    }
+
+    [Fact]
+    public async Task TheActiveCellOfAFillFollowsTheRowsTheAppInsertedWhileItWaited()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(10, ["text", "text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, map, answer } = window.script;
+                const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+                controller.moveTo(0, 0);
+                controller.runFill({ top: 0, left: 0, bottom: 0, right: 0 }, { top: 0, left: 0, bottom: 3, right: 0 }, false);
+                controller.setMap(map(11), [{ axis: 'row', index: 0, count: 1 }], 1);
+                answer('AutoFillAsync', { top: 1, left: 0, bottom: 4, right: 0, message: null });
+                await settle();
+                const fill = [controller.row, controller.col];
+                controller.moveTo(5, 0);
+                controller.handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+                controller.setMap(map(12), [{ axis: 'row', index: 0, count: 1 }], 1);
+                answer('AutoFillDownAsync', { top: 6, left: 0, bottom: 9, right: 0, message: null });
+                await settle();
+                return JSON.stringify({ fill, down: [controller.row, controller.col] });
+            }
+            """);
+
+        Assert.Equal("""{"fill":[1,0],"down":[6,0]}""", result);
+    }
+
+    [Fact]
+    public async Task TheCapOfTheFrameStaysOffTheFrozenColumnsWithoutRowHeaders()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.Page.GetByLabel("ShowRowHeaders").UncheckAsync();
+        await ChooseAsync(sample, "FrozenColumns", "2");
+        await ChooseAsync(sample, "Height", "240px");
+        await sample.Page.EvaluateAsync("() => document.querySelector('.mussel-sheet-viewport').style.width = '320px'");
+        var cap = sample.Page.Locator(".mussel-sheet-pane-ts > .mussel-sheet-cap");
+        await sample.Cell(0, 2).ClickAsync();
+        await Expect(cap).ToBeVisibleAsync();
+
+        await sample.ScrollSheetAsync(150, 0);
+
+        await Expect(cap).ToBeHiddenAsync();
+    }
+
+    [Fact]
+    public async Task TheButtonsForB1DoNothingWhenB1IsGone()
+    {
+        var sample = await OpenAsync("playground", "server");
+        var delete = sample.Page.GetByRole(AriaRole.Button, new() { Name = "Delete the first row" });
+        for (var i = 0; i < 12; i++)
+        {
+            await delete.ClickAsync();
+        }
+
+        await Expect(sample.Page.Locator(".mussel-sheet-row")).ToHaveCountAsync(0);
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "Toggle the error of B1" }).ClickAsync();
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "Change B1 from C#" }).ClickAsync();
+        await sample.Page.GetByRole(AriaRole.Button, new() { Name = "Insert at row 2" }).ClickAsync();
+
+        await Expect(sample.Page.Locator(".mussel-sheet-row")).ToHaveCountAsync(1);
+        await Expect(sample.Page.GetByText("An error occurred on this page.")).ToHaveCountAsync(0);
+    }
+
+    [Theory]
+    [InlineData("", 0, 1)]
+    [InlineData("merged-cells", 4, 1)]
+    [InlineData("form", 3, 1)]
+    [InlineData("input-columns", 0, 1)]
+    [InlineData("input-assist", 4, 2)]
+    [InlineData("computed-cells", 3, 1)]
+    [InlineData("japanese-form", 8, 3)]
+    [InlineData("save-and-load", 3, 1)]
+    [InlineData("object-binding", 3, 1)]
+    [InlineData("computed-cells", 0, 3)]
+    public async Task AnAmountPastTheLimitIsRefusedWithoutBreakingThePage(string path, int row, int column)
+    {
+        var sample = await OpenAsync(path, "server");
+
+        await sample.Cell(row, column).ClickAsync();
+        await sample.Keyboard.TypeAsync("999999999999999999999999999");
+        await sample.Keyboard.PressAsync("Enter");
+
+        await Expect(sample.Page.Locator(".mussel-sheet-sink.mussel-sheet-invalid")).ToBeVisibleAsync();
+        await Expect(sample.Page.GetByText("An error occurred on this page.")).ToHaveCountAsync(0);
+    }
+
+    [Theory]
+    [InlineData("", 0, 1, -1)]
+    [InlineData("merged-cells", 4, 1, 7)]
+    [InlineData("form", 3, 1, 8)]
+    [InlineData("input-columns", 0, 1, -1)]
+    [InlineData("input-assist", 4, 2, 7)]
+    [InlineData("computed-cells", 3, 1, 6)]
+    [InlineData("japanese-form", 8, 3, 13)]
+    [InlineData("save-and-load", 3, 1, 6)]
+    [InlineData("object-binding", 3, 1, 6)]
+    public async Task AmountsPastTheRangeOfDecimalStayEmptyWithoutBreakingThePage(string path, int row, int column, int totalRow)
+    {
+        const string largest = "79228162514264337593543950335";
+        var sample = await OpenAsync(path, "server");
+        var amounts = path == "input-assist";
+        var amountColumn = amounts ? column : column + 2;
+
+        await sample.Cell(row, column).ClickAsync();
+        await sample.DispatchClipboardAsync("paste", amounts ? $"{largest}\r\n{largest}" : $"{largest}\t1\r\n{largest}\t1");
+        await Expect(sample.Cell(row + 1, amountColumn)).ToContainTextAsync("79");
+        if (totalRow >= 0)
+        {
+            await Expect(sample.Cell(totalRow, amountColumn)).ToHaveTextAsync(String.Empty);
+        }
+
+        if (!amounts)
+        {
+            await sample.Cell(row, column).ClickAsync();
+            await sample.DispatchClipboardAsync("paste", $"{largest}\t2");
+            await Expect(sample.Cell(row, column + 1)).ToHaveTextAsync("2");
+            await Expect(sample.Cell(row, amountColumn)).ToHaveTextAsync(String.Empty);
+        }
+
+        await Expect(sample.Page.GetByText("An error occurred on this page.")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task CallsWithoutAnAnswerGiveUpAfterTheLimitAndTheSheetTakesKeysAgain()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(10, ["text", "text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, answer } = window.script;
+                controller.answerLimit = 100;
+                const wait = () => new Promise(resolve => setTimeout(resolve, 300));
+                const key = (name, ctrlKey = false) => sink.dispatchEvent(new KeyboardEvent('keydown', { key: name, ctrlKey, bubbles: true, cancelable: true }));
+                const states = {};
+                controller.moveTo(2, 0);
+                key('ArrowDown', true);
+                key('7');
+                await wait();
+                states.jump = [controller.state, sink.value];
+                key('Escape');
+                answer('FindEdgeAsync', [9, 0]);
+                await wait();
+                states.late = [controller.state, controller.row];
+                controller.moveTo(1, 0);
+                controller.extendTo(3, 0);
+                key('d', true);
+                await wait();
+                states.fill = controller.state;
+                key('z', true);
+                await wait();
+                states.undo = controller.state;
+                controller.changeStructure('insertRowsBelow');
+                await wait();
+                states.structure = controller.state;
+                controller.addRow();
+                await wait();
+                states.row = controller.state;
+                controller.pasteRange('a\tb');
+                await wait();
+                states.paste = controller.state;
+                controller.moveTo(4, 0);
+                key('F2');
+                await wait();
+                states.edit = [controller.state, sink.value];
+                key('Escape');
+                return JSON.stringify(states);
+            }
+            """);
+
+        Assert.Equal("""{"jump":["input","7"],"late":["ready",2],"fill":"ready","undo":"ready","structure":"ready","row":"ready","paste":"ready","edit":["ready",""]}""", result);
+    }
+
+    [Fact]
+    public async Task AWaitCommitOrPasteWithoutAnAnswerShowsTheFailureAfterTheLimit()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(5, ["text"], "wait");
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, answer, map } = window.script;
+                controller.answerLimit = 100;
+                const wait = () => new Promise(resolve => setTimeout(resolve, 300));
+                const key = name => sink.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
+                controller.moveTo(1, 0);
+                controller.startInput('5');
+                key('Enter');
+                key('6');
+                await wait();
+                const commit = [controller.state, sink.value, controller.row, sink.classList.contains('mussel-sheet-invalid')];
+                answer('CommitAsync', { ok: true, error: null, stored: true });
+                await wait();
+                const late = [controller.state, sink.value, controller.row];
+                key('Escape');
+                controller.moveTo(2, 0);
+                controller.paste('x');
+                await wait();
+                const paste = [controller.state, sink.value, sink.classList.contains('mussel-sheet-invalid')];
+                return JSON.stringify({ commit, late, paste });
+            }
+            """);
+
+        Assert.Equal("""{"commit":["input","5",1,true],"late":["input","5",1],"paste":["input","x",true]}""", result);
+    }
+
+    [Fact]
+    public async Task ACutWhoseTextHasNoAnswerClearsNothingAfterTheLimit()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.FakeAsyncClipboardAsync();
+        await sample.AttachScriptAsync(5, ["text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, callsOf } = window.script;
+                controller.answerLimit = 100;
+                controller.moveTo(1, 0);
+                sink.dispatchEvent(new ClipboardEvent('cut', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true }));
+                const waiting = controller.state;
+                await new Promise(resolve => setTimeout(resolve, 300));
+                return JSON.stringify({ waiting, state: controller.state, cuts: callsOf('CutAsync').length });
+            }
+            """);
+
+        Assert.Equal("""{"waiting":"committing","state":"ready","cuts":0}""", result);
+    }
+
+    [Fact]
+    public async Task ACutWhoseTextCannotBeReadWritesNothingAndClearsNothing()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.FakeAsyncClipboardAsync();
+        await sample.AttachScriptAsync(10, ["text", "text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, fail, calls } = window.script;
+                let unhandled = 0;
+                window.addEventListener('unhandledrejection', () => { unhandled++; });
+                const cut = async (range, menu) => {
+                    window.fakeClipboard.text = 'before';
+                    controller.moveTo(4, 1);
+                    if (range) {
+                        controller.extendTo(5, 1);
+                    }
+                    if (menu) {
+                        controller.menuCopy(true);
+                    } else {
+                        sink.dispatchEvent(new ClipboardEvent('cut', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true }));
+                    }
+                    fail(range ? 'GetRangeTextAsync' : 'GetEditTextAsync');
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    return [window.fakeClipboard.text, controller.state];
+                };
+                const cuts = [await cut(false, false), await cut(true, false), await cut(false, true), await cut(true, true)];
+                return JSON.stringify({ cuts, sent: calls.filter(x => x[0].startsWith('Cut')).length, unhandled });
+            }
+            """);
+
+        Assert.Equal("""{"cuts":[["before","ready"],["before","ready"],["before","ready"],["before","ready"]],"sent":0,"unhandled":0}""", result);
+    }
+
+    [Fact]
+    public async Task AViewportChangeWithoutAnAnswerSendsTheLatestPositionAfterTheLimit()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(5, ["text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, held, answer, callsOf } = window.script;
+                const wait = () => new Promise(resolve => setTimeout(resolve, 300));
+                while (held.some(x => x.name === 'OnViewportChanged')) {
+                    answer('OnViewportChanged', null);
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+                controller.answerLimit = 100;
+                const before = callsOf('OnViewportChanged').length;
+                controller.notifyViewport();
+                controller.notifyViewport();
+                await wait();
+                const resent = callsOf('OnViewportChanged').length - before;
+                await wait();
+                return JSON.stringify({ resent, busy: controller.viewBusy, sent: callsOf('OnViewportChanged').length - before });
+            }
+            """);
+
+        Assert.Equal("""{"resent":2,"busy":false,"sent":2}""", result);
+    }
+
+    [Fact]
+    public async Task ACustomEditorCommitWithoutAnAnswerStaysOpenAfterTheLimitAndAFailedOneCloses()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(3, ["custom"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, root, answer, fail, callsOf } = window.script;
+                controller.answerLimit = 100;
+                const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+                const wait = () => new Promise(resolve => setTimeout(resolve, 300));
+                const editor = document.createElement('div');
+                editor.innerHTML = '<input class="typed">';
+                root.append(editor);
+                const open = async () => {
+                    controller.openCustom();
+                    answer('OpenCustomEditorAsync', true);
+                    await settle();
+                    controller.showCustom(editor);
+                };
+                await open();
+                controller.commitCustom(null);
+                const busy = controller.customBusy;
+                await wait();
+                const timedOut = [controller.customBusy, controller.state];
+                controller.commitCustom(null);
+                answer('CommitCustomEditorAsync', { closed: true, error: null });
+                await settle();
+                const late = controller.state;
+                answer('CommitCustomEditorAsync', { closed: true, error: null });
+                await settle();
+                const retried = controller.state;
+                await open();
+                controller.commitCustom(null);
+                fail('CommitCustomEditorAsync');
+                await settle();
+                const failed = controller.state;
+                await open();
+                controller.commitCustom(null);
+                await wait();
+                controller.cancelCustom();
+                const canceled = [controller.state, callsOf('CancelCustomEditorAsync').length];
+                return JSON.stringify({ busy, timedOut, late, retried, failed, canceled });
+            }
+            """);
+
+        Assert.Equal("""{"busy":true,"timedOut":[false,"custom"],"late":"custom","retried":"ready","failed":"ready","canceled":["ready",1]}""", result);
+    }
+
+    [Fact]
+    public async Task AnEditTextThatIsNotReadOpensNoEditorAndFillsNothing()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(10, ["text", "text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, answer, fail, callsOf } = window.script;
+                controller.answerLimit = 100;
+                const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+                const wait = () => new Promise(resolve => setTimeout(resolve, 300));
+                const key = (name, ctrlKey = false) => sink.dispatchEvent(new KeyboardEvent('keydown', { key: name, ctrlKey, bubbles: true, cancelable: true }));
+                controller.moveTo(4, 1);
+                key('F2');
+                key('7');
+                await wait();
+                const timedOut = [controller.state, sink.value];
+                key('Escape');
+                answer('GetEditTextAsync', 'late');
+                await settle();
+                const late = controller.state;
+                key('F2');
+                key('8');
+                fail('GetEditTextAsync');
+                await settle();
+                const failed = [controller.state, sink.value];
+                key('Escape');
+                controller.extendTo(5, 1);
+                key('Enter', true);
+                key('9');
+                await wait();
+                const fill = [controller.state, sink.value, callsOf('FillAsync').length];
+                key('Escape');
+                return JSON.stringify({ timedOut, late, failed, fill });
+            }
+            """);
+
+        Assert.Equal("""{"timedOut":["input","7"],"late":"ready","failed":["input","8"],"fill":["input","9",0]}""", result);
+    }
+
+    [Fact]
+    public async Task AChangeSentWithoutAnAnswerIsNoLongerCountedAfterTheLimit()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(5, ["text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, callsOf } = window.script;
+                controller.answerLimit = 100;
+                controller.moveTo(1, 0);
+                controller.startInput('5');
+                sink.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+                const sending = [controller.changing, callsOf('CommitAsync').length];
+                await new Promise(resolve => setTimeout(resolve, 300));
+                return JSON.stringify({ sending, after: controller.changing });
+            }
+            """);
+
+        Assert.Equal("""{"sending":[1,1],"after":0}""", result);
+    }
+
+    [Fact]
+    public async Task ACustomEditorThatDoesNotOpenGivesTheKeysBackAfterTheLimit()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(3, ["custom"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink } = window.script;
+                controller.answerLimit = 100;
+                controller.moveTo(0, 0);
+                controller.openCustom();
+                const opening = controller.state;
+                await new Promise(resolve => setTimeout(resolve, 300));
+                const after = controller.state;
+                sink.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+                return JSON.stringify({ opening, after, row: controller.row });
+            }
+            """);
+
+        Assert.Equal("""{"opening":"custom","after":"ready","row":1}""", result);
+    }
+
+    [Fact]
+    public async Task AnEnterTheDocumentPreventsStaysWithTheCustomEditor()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(3, ["custom"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, root, answer, callsOf } = window.script;
+                const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+                const editor = document.createElement('div');
+                editor.innerHTML = '<input class="picked"><input class="plain">';
+                root.append(editor);
+                const picked = editor.querySelector('.picked');
+                const plain = editor.querySelector('.plain');
+                document.addEventListener('keydown', e => {
+                    if ((e.target === picked) && (e.key === 'Enter')) {
+                        e.preventDefault();
+                    }
+                });
+                controller.openCustom();
+                answer('OpenCustomEditorAsync', true);
+                await settle();
+                controller.showCustom(editor);
+                picked.focus();
+                picked.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+                await settle();
+                const kept = [controller.state, callsOf('CommitCustomEditorAsync').length];
+                plain.focus();
+                plain.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+                answer('CommitCustomEditorAsync', { closed: true, error: null });
+                await settle();
+                return JSON.stringify({ kept, commits: callsOf('CommitCustomEditorAsync').length, state: controller.state });
+            }
+            """);
+
+        Assert.Equal("""{"kept":["custom",0],"commits":1,"state":"ready"}""", result);
+    }
+
+    private static async Task ChooseAsync(SamplePage sample, string label, string item)
+    {
+        await sample.Page.Locator(".mud-input-control.mud-select").Filter(new() { HasText = label }).ClickAsync().ConfigureAwait(true);
+        await sample.Page.Locator(".mud-popover-open .mud-list-item").Filter(new() { HasText = item }).ClickAsync().ConfigureAwait(true);
     }
 
     private async Task<SamplePage> OpenHoldingCommitsAsync()

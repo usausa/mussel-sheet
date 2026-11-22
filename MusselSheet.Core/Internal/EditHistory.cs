@@ -15,6 +15,19 @@ internal sealed class EditHistory
 
     public int Generation { get; private set; }
 
+    public IEnumerable<EditEntry> UndoOrder
+    {
+        get
+        {
+            for (var node = undo.Last; node is not null; node = node.Previous)
+            {
+                yield return node.Value;
+            }
+        }
+    }
+
+    public IEnumerable<EditEntry> RedoOrder => redo;
+
     public void Record(EditEntry entry)
     {
         undo.AddLast(entry);

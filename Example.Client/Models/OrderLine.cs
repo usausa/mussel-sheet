@@ -39,7 +39,7 @@ public sealed class OrderLine : INotifyPropertyChanged
         }
     }
 
-    public decimal? Amount => Quantity * Price;
+    public decimal? Amount => Amounts.OrNull(() => Quantity * Price);
 
     private void OnChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }

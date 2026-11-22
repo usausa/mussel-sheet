@@ -50,7 +50,7 @@ public sealed class Order : INotifyPropertyChanged
 
     public int LineCount => Lines.Count;
 
-    public decimal Total => Lines.Sum(static x => x.Amount ?? 0m);
+    public decimal? Total => Amounts.OrNull(() => Lines.Sum(static x => x.Amount ?? 0m));
 
     private void OnLinesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {

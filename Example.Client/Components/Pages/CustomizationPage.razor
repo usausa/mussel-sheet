@@ -4,10 +4,10 @@
     <Description><code>CustomEditor</code> and <code>CustomDisplay</code> draw <code>CellKind.Custom</code> cells.</Description>
     <ChildContent>
         <MusselSheetView Sheet="sheet"
-                         CellCommitted="log.OnCellCommitted"
-                         ActiveCellChanged="log.OnActiveCellChanged"
-                         SelectionChanged="log.OnSelectionChanged"
-                         MenuItemClicked="log.OnMenuItemClicked">
+                         CellCommitted="log.CellCommitted"
+                         ActiveCellChanged="log.ActiveCellChanged"
+                         SelectionChanged="log.SelectionChanged"
+                         MenuItemClicked="log.MenuItemClicked">
             <CustomEditor Context="edit">
                 <div class="custom-choices">
                     @if (edit.Name == ColorEditor)

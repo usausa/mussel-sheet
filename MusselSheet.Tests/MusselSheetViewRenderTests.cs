@@ -3,6 +3,8 @@ namespace MusselSheet;
 using System.Collections.ObjectModel;
 using System.Text.Json;
 
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
@@ -591,6 +593,51 @@ public sealed class MusselSheetViewRenderTests : BunitContext
         Assert.Equal(1, rows[0].RenderCount);
         Assert.Equal(2, rows[1].RenderCount);
         Assert.Equal(1, rows[2].RenderCount);
+    }
+
+    [Fact]
+    public async Task ARangeOperationRendersTheViewOnceThoughItsHostRendersForEveryCell()
+    {
+        var sheet = new Sheet(4, 3);
+        var host = Render<SheetHost>(p => p.Add(x => x.Sheet, sheet));
+        var view = host.FindComponent<MusselSheetView>();
+        var counts = new List<(int View, int Host)>();
+
+        async Task Count(Func<Task> operation)
+        {
+            var rows = host.FindComponents<RowView>();
+            var (viewBefore, rowsBefore, hostBefore) = (view.RenderCount, rows.Sum(static x => x.RenderCount), host.RenderCount);
+            await host.InvokeAsync(operation).ConfigureAwait(true);
+            var viewRenders = view.RenderCount - viewBefore;
+            counts.Add((viewRenders - (rows.Sum(static x => x.RenderCount) - rowsBefore), host.RenderCount - hostBefore - viewRenders));
+        }
+
+        await Count(() => view.Instance.PasteTextAsync(new CellRange(0, 0, 0, 0), "1\t2\t3\r\n4\t5\t6\r\n7\t8\t9\r\n"));
+        await Count(() => view.Instance.ClearRangeAsync(0, 0, 2, 2));
+        await Count(view.Instance.UndoAsync);
+
+        Assert.Equal(27, host.Instance.Committed);
+        Assert.All(counts, static x => Assert.InRange(x.View, 1, 2));
+        Assert.All(counts, static x => Assert.True(x.Host >= 9));
+        Assert.Equal("9", view.Find(".mussel-sheet-row[data-r='2'] .mussel-sheet-cell[data-c='2']").TextContent);
+    }
+
+    public sealed class SheetHost : ComponentBase
+    {
+        [Parameter]
+        public Sheet Sheet { get; set; } = default!;
+
+        public int Committed { get; private set; }
+
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+            builder.OpenComponent<MusselSheetView>(0);
+            builder.AddAttribute(1, nameof(MusselSheetView.Sheet), Sheet);
+            builder.AddAttribute(2, nameof(MusselSheetView.CellCommitted), EventCallback.Factory.Create<CellCommittedEventArgs>(this, OnCommitted));
+            builder.CloseComponent();
+        }
+
+        private void OnCommitted(CellCommittedEventArgs e) => Committed++;
     }
 
     private sealed class Order

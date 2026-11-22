@@ -384,6 +384,69 @@ public sealed class CommitOrderTests : BunitContext
         Assert.Null(other.GetValue(0, 0));
     }
 
+    [Theory]
+    [InlineData("paste", false)]
+    [InlineData("fill", false)]
+    [InlineData("fillDown", false)]
+    [InlineData("paste", true)]
+    [InlineData("fill", true)]
+    [InlineData("fillDown", true)]
+    public async Task ARangeIsAnsweredAfterTheMapOfTheRowsItsHandlerInserted(string action, bool cancel)
+    {
+        var module = JSInterop.SetupModule("./_content/MusselSheet/MusselSheet.js");
+        var controller = module.SetupModule("attach", static _ => true);
+        var sheet = new Sheet(6, 2);
+        sheet.SetValues(0, 0, [["a", "x"], [null, "x"], [null, "x"]]);
+        sheet.Range("A1:A3").Configure(static c => c.ReadOnly = true);
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.Pasting, e =>
+            {
+                InsertAbove(sheet);
+                e.Cancel = cancel;
+            })
+            .Add(x => x.Filling, e =>
+            {
+                InsertAbove(sheet);
+                e.Cancel = cancel;
+            }));
+        var bridge = new SheetScriptBridge(cut.Instance);
+        var generation = cut.Instance.SheetGeneration;
+        var language = controller.SetupVoid("setLanguage", static _ => true);
+        var data = new TextStream("p");
+        try
+        {
+            var (sent, answer) = await cut.InvokeAsync(async () =>
+            {
+                var answer = await (action switch
+                {
+                    "paste" => bridge.PasteRangeAsync(0, 0, 0, 0, data, generation),
+                    "fill" => bridge.AutoFillAsync(0, 0, 0, 0, 0, 0, 2, 0, false, generation),
+                    _ => bridge.AutoFillDownAsync(0, 0, 0, 0, generation)
+                }).ConfigureAwait(true);
+                return (controller.Invocations["setMap"].Count, answer);
+            });
+            await cut.InvokeAsync(language.SetVoidResult);
+
+            Assert.Equal(1, sent);
+            Assert.Equal(1, answer.GetProperty("top").GetInt32());
+            Assert.Equal(7, sheet.RowCount);
+        }
+        finally
+        {
+            await data.DisposeAsync();
+        }
+
+        static void InsertAbove(Sheet sheet)
+        {
+            using (sheet.BeginUpdate())
+            {
+                sheet.Culture = CultureInfo.GetCultureInfo("en-US");
+                sheet.InsertRows(0, 1);
+            }
+        }
+    }
+
     [Fact]
     public async Task AMenuItemChosenBeforeTheReplacementIsNotRaisedAndTheNewMapIsSentFirst()
     {

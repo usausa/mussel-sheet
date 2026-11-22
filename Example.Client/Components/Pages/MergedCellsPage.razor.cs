@@ -1,5 +1,7 @@
 namespace Example.Client.Components.Pages;
 
+using Example.Client.Models;
+
 public sealed partial class MergedCellsPage
 {
     private const int FirstDetailRow = 4;
@@ -40,6 +42,7 @@ public sealed partial class MergedCellsPage
                 c.Kind = CellKind.Number;
                 c.Format = "N0";
                 c.Minimum = 0;
+                c.Maximum = 100000000;
             });
             sheet.Range("D5:D8").Configure(static c =>
             {
@@ -94,13 +97,14 @@ public sealed partial class MergedCellsPage
 
     private static void Calculate(Sheet sheet)
     {
-        var total = 0m;
+        var amounts = new List<decimal>();
         for (var row = FirstDetailRow; row < TotalRow; row++)
         {
             if (sheet.TryGetValue<decimal>(row, 1, out var quantity) && sheet.TryGetValue<decimal>(row, 2, out var price))
             {
-                sheet.SetValue(row, 3, quantity * price);
-                total += quantity * price;
+                var amount = Amounts.OrNull(() => quantity * price);
+                sheet.SetValue(row, 3, amount);
+                amounts.Add(amount ?? 0m);
             }
             else
             {
@@ -108,7 +112,7 @@ public sealed partial class MergedCellsPage
             }
         }
 
-        sheet.SetValue(TotalRow, 3, total);
+        sheet.SetValue(TotalRow, 3, Amounts.OrNull(() => amounts.Sum()));
     }
 
     private void OnCellCommitted(CellCommittedEventArgs e)

@@ -16,7 +16,7 @@ public sealed partial class Sheet
         var template = index > 0 ? rowList[index - 1] : rowList.FirstOrDefault();
         var source = InheritSource(index, count, inheritSettings && (template is not null));
         var rows = CreateRows(count, inheritSettings ? template?.Height : null);
-        PutRows(index, rows, RangeTransform.Insert(settings.Rules, Axis.Row, index, count, source is not null, source), RangeTransform.InsertMerges(merges, Axis.Row, index, count));
+        PutRows(index, rows, RangeTransform.Insert(settings.Rules, Axis.Row, index, count, source is not null, source), RangeTransform.InsertMerges(merges, Axis.Row, index, count), source);
     }
 
     public void DeleteRows(int index, int count)
@@ -41,7 +41,7 @@ public sealed partial class Sheet
         var template = index > 0 ? columnList[index - 1] : columnList.FirstOrDefault();
         var source = InheritSource(index, count, inheritSettings && (template is not null));
         var columns = CreateColumns(count, inheritSettings ? template?.Width : null);
-        PutColumns(index, columns, null, RangeTransform.Insert(settings.Rules, Axis.Column, index, count, source is not null, source), RangeTransform.InsertMerges(merges, Axis.Column, index, count));
+        PutColumns(index, columns, null, RangeTransform.Insert(settings.Rules, Axis.Column, index, count, source is not null, source), RangeTransform.InsertMerges(merges, Axis.Column, index, count), source);
     }
 
     public void DeleteColumns(int index, int count)
@@ -77,7 +77,7 @@ public sealed partial class Sheet
     }
 
     // The same row objects are put back, so history entries that point at their cells stay valid
-    internal void PutRows(int index, IReadOnlyList<SheetRow> rows, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges)
+    internal void PutRows(int index, IReadOnlyList<SheetRow> rows, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges, int? inheritedFrom = null)
     {
         foreach (var row in rows)
         {
@@ -103,7 +103,7 @@ public sealed partial class Sheet
         Reindex();
         settings.Replace(rules);
         ReplaceMerges(mergedRanges);
-        Raise(new SheetChangedEventArgs(SheetChangeKind.RowsInserted, CellRange.Rows(index, index + rows.Count - 1), index, rows.Count));
+        Raise(new SheetChangedEventArgs(SheetChangeKind.RowsInserted, CellRange.Rows(index, index + rows.Count - 1), index, rows.Count) { InheritedFrom = inheritedFrom });
     }
 
     internal void TakeRows(int index, int count, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges)
@@ -123,7 +123,7 @@ public sealed partial class Sheet
         Raise(new SheetChangedEventArgs(SheetChangeKind.RowsDeleted, null, index, count) { RemovedRows = removed });
     }
 
-    internal void PutColumns(int index, IReadOnlyList<SheetColumn> columns, IReadOnlyDictionary<SheetRow, CellData?[]>? cells, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges)
+    internal void PutColumns(int index, IReadOnlyList<SheetColumn> columns, IReadOnlyDictionary<SheetRow, CellData?[]>? cells, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges, int? inheritedFrom = null)
     {
         var count = columns.Count;
         columnList.InsertRange(index, columns);
@@ -143,7 +143,7 @@ public sealed partial class Sheet
         Reindex();
         settings.Replace(rules);
         ReplaceMerges(mergedRanges);
-        Raise(new SheetChangedEventArgs(SheetChangeKind.ColumnsInserted, CellRange.Columns(index, index + count - 1), index, count));
+        Raise(new SheetChangedEventArgs(SheetChangeKind.ColumnsInserted, CellRange.Columns(index, index + count - 1), index, count) { InheritedFrom = inheritedFrom });
     }
 
     internal Dictionary<SheetRow, CellData?[]> TakeColumns(int index, int count, IReadOnlyList<SettingsRule> rules, IReadOnlyList<CellRange> mergedRanges)

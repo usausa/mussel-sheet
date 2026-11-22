@@ -109,7 +109,7 @@ internal sealed class TrackedRows
         if (Span(sheet) is not { } span)
         {
             RestoreAfter(sheet);
-            if (!emptied || !IsEmptyPlace(sheet, index))
+            if (!emptied || !IsEmptyPlace(sheet, index) || ((sheet.ChangingList is { } changing) && !changing.IsEmptyAt(index)))
             {
                 return false;
             }
@@ -127,7 +127,7 @@ internal sealed class TrackedRows
         LeaveEmpty();
         var above = index > 0 ? sheet.Rows[index - 1] : null;
         var below = index + count < sheet.RowCount ? sheet.Rows[index + count] : null;
-        if (((above is null) || !Contains(sheet, above)) && ((below is null) || (below.Index != span.Top) || !Contains(sheet, below)))
+        if (!TakesNextTo(sheet, above) && ((below is null) || (below.Index != span.Top) || !TakesNextTo(sheet, below)))
         {
             return false;
         }
@@ -171,6 +171,9 @@ internal sealed class TrackedRows
             emptyAfter = index > 0 ? sheet.Rows[index - 1] : null;
         }
     }
+
+    private bool TakesNextTo(Sheet sheet, SheetRow? row) =>
+        (row is not null) && Contains(sheet, row) && ((sheet.ChangingList is not { } changing) || changing.Holds(row));
 
     private bool IsEmptyPlace(Sheet sheet, int index) =>
         emptyAfter is { } after ? (sheet.Contains(after) && (after.Index == index - 1)) : (index == 0);
