@@ -15,6 +15,35 @@ public sealed class SheetDesignTests
     }
 
     [Fact]
+    public void ANullWhereTheDesignNeedsAValueIsAnError()
+    {
+        Assert.Throws<JsonException>(() => SheetDesignJson.Read("""{"rowCount":1,"columnCount":1,"values":[{"cell":"A1","type":null,"value":"x"}]}"""));
+        Assert.Throws<JsonException>(() => SheetDesignJson.Read("""{"rowCount":1,"columnCount":1,"computations":[{"target":"A1","observed":null,"function":"f"}]}"""));
+    }
+
+    [Theory]
+    [InlineData("""{"rowCount":1,"columnCount":1,"values":[null]}""")]
+    [InlineData("""{"rowCount":1,"columnCount":1,"rules":[null]}""")]
+    [InlineData("""{"rowCount":1,"columnCount":1,"rules":[{"range":"A1","items":[null]}]}""")]
+    [InlineData("""{"rowCount":1,"columnCount":1,"merges":[null]}""")]
+    [InlineData("""{"rowCount":1,"columnCount":1,"computations":[{"target":"A1","observed":[null],"function":"f"}]}""")]
+    public void ANullItemInAListOfTheDesignIsAnError(string json)
+    {
+        Assert.Throws<JsonException>(() => SheetDesignJson.Read(json));
+    }
+
+    [Fact]
+    public void ANullWhereTheDesignNeedsAValueIsLeftOutWhenWritten()
+    {
+        var design = new SheetDesign { RowCount = 1, ColumnCount = 1, Values = [new CellValueDesign { Cell = "A1", Type = null!, Value = "x" }] };
+
+        var json = SheetDesignJson.Write(design);
+
+        Assert.DoesNotContain("\"type\"", json, StringComparison.Ordinal);
+        Assert.Equal("x", Sheet.FromDesign(SheetDesignJson.Read(json)).GetValue(0, 0));
+    }
+
+    [Fact]
     public void DesignRoundTripsThroughJson()
     {
         var sheet = DesignedSheet();
@@ -157,16 +186,18 @@ public sealed class SheetDesignTests
     [Fact]
     public void DatesAndTimesAreSavedAsDateAndTimeCellsHoldThem()
     {
-        var sheet = new Sheet(1, 3);
+        var sheet = new Sheet(1, 4);
         sheet.SetValue(0, 0, new DateTime(2026, 11, 18, 10, 30, 15));
         sheet.SetValue(0, 1, new TimeOnly(9, 30, 15, 500));
         sheet.SetValue(0, 2, new TimeSpan(0, 9, 30, 15, 500));
+        sheet.SetValue(0, 3, new DateTimeOffset(2026, 11, 19, 1, 0, 0, TimeSpan.FromHours(9)));
 
         var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(sheet.ToDesign(includeValues: true))));
 
         Assert.Equal(new DateOnly(2026, 11, 18), copy.GetValue(0, 0));
         Assert.Equal(new TimeOnly(9, 30, 15), copy.GetValue(0, 1));
         Assert.Equal(new TimeOnly(9, 30, 15), copy.GetValue(0, 2));
+        Assert.Equal(new DateOnly(2026, 11, 19), copy.GetValue(0, 3));
     }
 
     [Fact]
@@ -257,6 +288,23 @@ public sealed class SheetDesignTests
         var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(design)), functions);
         copy.SetValue(3, 3, 50m);
         Assert.Equal(350m, copy.GetValue(4, 3));
+    }
+
+    [Fact]
+    public void AComputationOverTheWholeSheetReadsTheColumnsAddedAfterLoading()
+    {
+        var functions = new SheetFunctions();
+        functions.AddComputation("数", static x => (decimal)x.Values("*").Count(static v => v is string));
+        var sheet = new Sheet(2, 3);
+        sheet.Compute("A1", ["*"], functions.Computation("数"));
+        var design = sheet.ToDesign(functions);
+
+        var copy = Sheet.FromDesign(SheetDesignJson.Read(SheetDesignJson.Write(design)), functions);
+        copy.AddColumns(1);
+        copy.SetValue(1, 3, "x");
+
+        Assert.Null(Assert.Single(design.Computations!).Observed[0].Range);
+        Assert.Equal(1m, copy.GetValue(0, 0));
     }
 
     [Fact]

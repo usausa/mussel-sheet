@@ -106,6 +106,24 @@ public sealed class SheetMapTests
     }
 
     [Fact]
+    public void ALimitOfAnotherTypeHasNoText()
+    {
+        var sheet = new Sheet(1, 1);
+        sheet.Cells.Configure(static c => c.Minimum = 0);
+        sheet["A1"].Configure(static c =>
+        {
+            c.Kind = CellKind.Date;
+            c.Maximum = new DateOnly(2026, 12, 31);
+        });
+
+        var map = SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay);
+        var date = map.Rules[map.Patterns[0][0]];
+
+        Assert.Null(date.MinimumText);
+        Assert.Equal("2026/12/31", date.MaximumText);
+    }
+
+    [Fact]
     public void RulesCarryInputAssistance()
     {
         var sheet = new Sheet(1, 4);

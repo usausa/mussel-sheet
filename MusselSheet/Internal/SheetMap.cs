@@ -211,10 +211,13 @@ internal static class SheetMapBuilder
         FontOf(settings.Style),
         settings.Corrector is not null);
 
-    private static EditorFont? FontOf(ResolvedCellStyle style) =>
-        style is { Bold: false, Italic: false, Underline: false, Strikethrough: false, FontSize: null, FontColor: null }
+    private static EditorFont? FontOf(ResolvedCellStyle style)
+    {
+        var color = (style.FontColor is { } value) && SheetStyles.IsSafeColor(value) ? value : null;
+        return (style is { Bold: false, Italic: false, Underline: false, Strikethrough: false, FontSize: null }) && (color is null)
             ? null
-            : new EditorFont(style.Bold, style.Italic, style.Underline, style.Strikethrough, style.FontSize, style.FontColor);
+            : new EditorFont(style.Bold, style.Italic, style.Underline, style.Strikethrough, style.FontSize, color);
+    }
 
     private static string PolicyName(SheetValidationMode policy) => policy switch
     {

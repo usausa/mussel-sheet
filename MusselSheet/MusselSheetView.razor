@@ -10,10 +10,10 @@
         <div class="mussel-sheet-content" style="@ContentStyle" role="grid" aria-rowcount="@AriaRowCount" aria-colcount="@AriaColumnCount">
             <div class="mussel-sheet-top">
                 <div class="mussel-sheet-pane mussel-sheet-pane-tl" aria-hidden="true"></div>
-                @if (ShowColumnHeaders)
+                @if (DrawsColumnHeaders)
                 {
                     <div class="mussel-sheet-colhead" style="@ColumnHeaderStyle" role="row" aria-rowindex="1">
-                        @if (ShowRowHeaders)
+                        @if (DrawsRowHeaders)
                         {
                             <div class="mussel-sheet-corner" aria-hidden="true"></div>
                         }

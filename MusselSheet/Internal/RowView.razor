@@ -2,7 +2,7 @@
 @* Row header and frozen-column cells sit outside .mussel-sheet-rest, so they can stack above the active cell frame *@
 @{ Remember(); }
 <div class="mussel-sheet-row" style="@RowStyle" data-r="@Row.Index" role="row" aria-rowindex="@Owner.AriaRowIndex(Row.Index)">
-    @if (Owner.ShowRowHeaders)
+    @if (Owner.DrawsRowHeaders)
     {
         <div class="mussel-sheet-rowhead" role="rowheader" aria-colindex="1">@Row.HeaderText</div>
     }

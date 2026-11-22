@@ -71,7 +71,7 @@ internal sealed class Observation
 
         if (rows.IsAll)
         {
-            return CellRange.Columns(current[0], current[^1]).ToString();
+            return columns is null ? CellRange.All.ToString() : CellRange.Columns(current[0], current[^1]).ToString();
         }
 
         if (rows.SpanWithoutGap(sheet) is not { } span)
@@ -118,9 +118,9 @@ internal sealed class Observation
         cachedVersion = -1;
     }
 
-    public void OnRowsRemoved(Sheet sheet)
+    public void OnRowsRemoved(Sheet sheet, int index)
     {
-        rows?.OnRemoved(sheet);
+        rows?.OnRemoved(sheet, index);
         cachedRows = [];
         cachedVersion = -1;
     }

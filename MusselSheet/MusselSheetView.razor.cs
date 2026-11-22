@@ -247,6 +247,10 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     internal int ColumnVersion { get; private set; }
 
+    internal int SheetGeneration { get; private set; }
+
+    internal bool DrawsRowHeaders => HeaderWidth > 0;
+
     [Inject]
     private IJSRuntime Runtime { get; set; } = default!;
 
@@ -263,7 +267,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     internal InputContext InputContext => new(Sheet.Culture, Today, Texts, Reading.DateFormat, Reading);
 
-    private CommitResult Rejected => new(false, Texts.NotEditable, false);
+    internal CommitResult Rejected => new(false, Texts.NotEditable, false);
 
     private bool IsVirtualized => !IsAuto(Height);
 
@@ -272,6 +276,8 @@ public sealed partial class MusselSheetView : IAsyncDisposable
     private int HeaderHeight => ShowColumnHeaders ? (ColumnHeaderHeight ?? Sheet.DefaultRowHeight) : 0;
 
     private int HeaderWidth => ShowRowHeaders ? RowHeaderWidth : 0;
+
+    private bool DrawsColumnHeaders => HeaderHeight > 0;
 
     private string RootClass
     {
@@ -314,9 +320,9 @@ public sealed partial class MusselSheetView : IAsyncDisposable
 
     private int BottomSpace => lastRow >= BodyFirst ? rowLayout.Total - rowLayout.End(lastRow) : rowLayout.Total - rowLayout.Start(FrozenRowCount);
 
-    private int AriaRowCount => Sheet.RowCount + (ShowColumnHeaders ? 1 : 0);
+    private int AriaRowCount => Sheet.RowCount + (DrawsColumnHeaders ? 1 : 0);
 
-    private int AriaColumnCount => Sheet.ColumnCount + (ShowRowHeaders ? 1 : 0);
+    private int AriaColumnCount => Sheet.ColumnCount + (DrawsRowHeaders ? 1 : 0);
 
     public Task FocusAsync() => InvokeScriptAsync("focus");
 
@@ -400,6 +406,7 @@ public sealed partial class MusselSheetView : IAsyncDisposable
             Sheet.Rebound += OnSheetRebound;
             Sheet.UseRegisteredOptions(RegisteredOptions);
             subscribed = Sheet;
+            SheetGeneration++;
             layoutVersion = -1;
             history.Clear();
             pendingShifts.Clear();

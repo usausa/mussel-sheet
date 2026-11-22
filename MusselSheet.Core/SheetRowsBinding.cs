@@ -4,7 +4,9 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 
 using MusselSheet.Internal;
 
@@ -238,7 +240,10 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             {
                 foreach (var row in rows)
                 {
-                    ShowCell(row, link);
+                    if (items.ContainsKey(row))
+                    {
+                        ShowCell(row, link);
+                    }
                 }
             }
         }
@@ -313,7 +318,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         }
     }
 
-    BoundProperty? IRowsBinding.FindProperty(int row, int column)
+    BoundCell? IRowsBinding.FindBound(int row, int column)
     {
         var sheet = sync.Sheet;
         if ((row < 0) || (row >= sheet.RowCount) || !members.Contains(sheet.Rows[row]))
@@ -325,7 +330,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
         {
             if (IsCurrent(link) && (link.Column.Index == column))
             {
-                return link.Property;
+                return new BoundCell(items.GetValueOrDefault(sheet.Rows[row]), link.Property);
             }
         }
 
@@ -522,7 +527,7 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             return;
         }
 
-        var item = Create is { } create ? create() : Activator.CreateInstance<TItem>();
+        var item = Create is { } create ? create() : NewItem();
         ChangeList(x => x.Insert(PositionOf(row), item));
         items[row] = item;
         remembered.AddOrUpdate(row, item);
@@ -547,6 +552,19 @@ public sealed class SheetRowsBinding<[DynamicallyAccessedMembers(DynamicallyAcce
             {
                 ShowCell(row, link);
             }
+        }
+    }
+
+    private static TItem NewItem()
+    {
+        try
+        {
+            return Activator.CreateInstance<TItem>();
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
         }
     }
 

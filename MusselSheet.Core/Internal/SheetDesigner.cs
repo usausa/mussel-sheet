@@ -184,6 +184,7 @@ internal static class SheetDesigner
             bool check => ("check", check ? "true" : "false"),
             DateOnly date => ("date", date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
             DateTime dateTime => ("date", DateOnly.FromDateTime(dateTime).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+            DateTimeOffset offset => ("date", DateOnly.FromDateTime(offset.DateTime).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
             TimeOnly time => ("time", time.ToString("HH:mm:ss", CultureInfo.InvariantCulture)),
             TimeSpan span when (span >= TimeSpan.Zero) && (span < TimeSpan.FromDays(1)) => ("time", TimeOnly.FromTimeSpan(span).ToString("HH:mm:ss", CultureInfo.InvariantCulture)),
             TimeSpan span => ("text", span.ToString("c", CultureInfo.InvariantCulture)),

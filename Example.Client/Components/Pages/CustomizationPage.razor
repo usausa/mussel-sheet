@@ -31,7 +31,11 @@
             <CustomDisplay Context="cell">
                 @if (cell.Value is string color)
                 {
-                    <span class="custom-swatch" style="background:@color"></span>@color
+                    @if (Colors.Contains(color))
+                    {
+                        <span class="custom-swatch" style="background:@color"></span>
+                    }
+                    @color
                 }
                 else if (cell.Value is decimal rating)
                 {

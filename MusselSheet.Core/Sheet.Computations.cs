@@ -64,9 +64,21 @@ public sealed partial class Sheet
             return;
         }
 
+        List<CellRange>? joined = null;
         foreach (var computation in computations.ToArray())
         {
-            computation.OnSheetChanged(e, values);
+            if (computation.OnSheetChanged(e, values) is { } range)
+            {
+                (joined ??= []).Add(range);
+            }
+        }
+
+        if (joined is not null)
+        {
+            foreach (var range in joined)
+            {
+                Configure(range, static c => c.ReadOnly = true);
+            }
         }
 
         RunComputations();

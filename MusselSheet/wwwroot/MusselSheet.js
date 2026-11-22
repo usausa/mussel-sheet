@@ -96,8 +96,8 @@ let noteSequence = 0;
 
 const SHORTCUT_PREFIX = IS_MAC ? '⌘' : 'Ctrl+';
 
-export function attach(root, dotnet, options, map, language) {
-    return new SheetController(root, dotnet, options, map, language);
+export function attach(root, dotnet, options, map, language, generation) {
+    return new SheetController(root, dotnet, options, map, language, generation);
 }
 
 // ---- Input normalization and quick validation (same rules as C# CellInput; change both together) ----
@@ -1127,6 +1127,10 @@ function quoteCell(cell) {
     return /[\t\r\n]/.test(cell) || cell.startsWith('"') ? `"${cell.replace(/"/g, '""')}"` : cell;
 }
 
+export function copiedCell(text) {
+    return text === '' ? '\r\n' : quoteCell(text);
+}
+
 export function toHtml(rows, isText) {
     const body = rows.map((row, r) => `<tr>${row.map((cell, c) => `${isText(r, c) ? TEXT_CELL : '<td>'}${escapeHtml(cell).replace(/\r\n|\n|\r/g, '<br>')}</td>`).join('')}</tr>`).join('');
     return `${EXCEL_STYLE}<table>${body}</table>`;
@@ -1450,6 +1454,20 @@ export function shiftCell(cell, { axis, index, count }) {
     return value < index - count ? { ...cell, [key]: index, lost: true } : { ...cell, [key]: value + count };
 }
 
+export function shiftRange(range, { axis, index, count }) {
+    const [low, high] = axis === 'row' ? ['top', 'bottom'] : ['left', 'right'];
+    let first = range[low];
+    let last = range[high];
+    if (count > 0) {
+        first += first >= index ? count : 0;
+        last += last >= index ? count : 0;
+    } else {
+        first = first < index ? first : Math.max(index, first + count);
+        last = last < index ? last : Math.max(index - 1, last + count);
+    }
+    return first <= last ? { ...range, [low]: first, [high]: last } : null;
+}
+
 // The column where a Tab run started follows too, and is forgotten when its column is gone
 export function shiftSelection({ row, col, anchor, extent, tabStartCol = -1 }, shifts, rows, cols) {
     let lost = false;
@@ -1507,7 +1525,7 @@ function hideFloating(element) {
 // ---- Input handling ----
 
 class SheetController {
-    constructor(root, dotnet, options, map, language) {
+    constructor(root, dotnet, options, map, language, generation) {
         this.root = root;
         this.dotnet = dotnet;
         this.viewport = root.querySelector('.mussel-sheet-viewport');
@@ -1516,6 +1534,8 @@ class SheetController {
         this.opts = { ...DEFAULT_OPTIONS, ...options };
         this.language = compileLanguage(language);
         this.map = new SheetMap(map, this.language);
+        this.generation = generation;
+        this.waitShifts = [];
         this.state = READY;
         this.row = 0;
         this.col = 0;
@@ -1649,9 +1669,14 @@ class SheetController {
     // ---- Called from C# ----
 
     // Rows and columns the app inserted or deleted move the active cell, the selection and the text being typed
-    setMap(map, shifts = []) {
+    setMap(map, shifts = [], generation = this.generation) {
         this.closeMenu();
         this.map = new SheetMap(map, this.language);
+        const replaced = generation !== this.generation;
+        this.generation = generation;
+        if (this.state === COMMITTING) {
+            this.waitShifts.push(...shifts);
+        }
         if (this.map.isEmpty) {
             this.lostWhileWaiting ||= this.state === COMMITTING;
             this.goneWhileWaiting ||= this.state === COMMITTING;
@@ -1669,9 +1694,10 @@ class SheetController {
         this.extent = moved.extent;
         this.tabStartCol = moved.tabStartCol;
         const covered = this.map.isCovered(this.row, this.col);
-        const lost = moved.lost || this.map.isDisabled(this.row, this.col);
+        const gone = moved.lost || replaced;
+        const lost = gone || this.map.isDisabled(this.row, this.col);
         this.lostWhileWaiting ||= lost && (this.state === COMMITTING);
-        this.goneWhileWaiting ||= moved.lost && (this.state === COMMITTING);
+        this.goneWhileWaiting ||= gone && (this.state === COMMITTING);
         if (lost && this.isEditing()) {
             this.finishEdit();
         }
@@ -1895,6 +1921,11 @@ class SheetController {
     }
 
     onInput(e) {
+        if (this.map.isEmpty) {
+            this.sink.value = '';
+            return;
+        }
+
         if (this.state === READY) {
             if (!this.canEdit(this.currentRule())) {
                 this.sink.value = '';
@@ -1937,6 +1968,11 @@ class SheetController {
 
     // Composition can start while ready: only switch state, as recreating or refocusing would break it
     onCompositionStart() {
+        if (this.map.isEmpty) {
+            this.sink.value = '';
+            return;
+        }
+
         if (this.state === READY && this.canEdit(this.currentRule())) {
             this.hideTip();
             this.setState(INPUT);
@@ -1986,18 +2022,28 @@ class SheetController {
     }
 
     cutAction() {
+        const mark = this.markWait();
         if (this.hasRange()) {
             const range = this.selectionRange();
-            return () => this.sendChange('CutRangeAsync', range.top, range.left, range.bottom, range.right);
+            return () => {
+                const target = this.rangeAfterWait(range, mark);
+                if (target) {
+                    this.sendChange('CutRangeAsync', target.top, target.left, target.bottom, target.right, this.generation);
+                }
+            };
         }
 
         if (this.currentRule().disabled) {
             return null;
         }
 
-        const row = this.row;
-        const col = this.col;
-        return () => this.sendChange('CutAsync', row, col);
+        const cell = { r: this.row, c: this.col };
+        return () => {
+            const target = this.cellAfterWait(cell, mark);
+            if (!target.lost) {
+                this.sendChange('CutAsync', target.r, target.c, this.generation);
+            }
+        };
     }
 
     // A cut clears the cells only after the clipboard took them, and keys wait until then
@@ -2060,13 +2106,13 @@ class SheetController {
         const cell = this.cellElement(this.row, this.col);
         if (cell && ((this.changing === 0) || !hasAsyncClipboard())) {
             const text = cell.dataset.edit ?? cell.textContent;
-            e.clipboardData.setData('text/plain', quoteCell(text));
+            e.clipboardData.setData('text/plain', copiedCell(text));
             e.clipboardData.setData('text/html', this.htmlOf([[text]], range));
             return Promise.resolve(true);
         }
 
         const data = this.editText(this.row, this.col)
-            .then(text => ({ text: quoteCell(text), html: this.htmlOf([[text]], range) }))
+            .then(text => ({ text: copiedCell(text), html: this.htmlOf([[text]], range) }))
             .catch(() => ({ text: '', html: '' }));
         return this.writeClipboard(data, true);
     }
@@ -2135,7 +2181,7 @@ class SheetController {
     pasteRange(text) {
         const range = this.selectionRange();
         this.runAndSelect(
-            () => this.dotnet.invokeMethodAsync('PasteRangeAsync', range.top, range.left, range.bottom, range.right, DotNet.createJSStreamReference(new TextEncoder().encode(text))),
+            () => this.dotnet.invokeMethodAsync('PasteRangeAsync', range.top, range.left, range.bottom, range.right, DotNet.createJSStreamReference(new TextEncoder().encode(text)), this.generation),
             null);
     }
 
@@ -2168,7 +2214,7 @@ class SheetController {
     runFill(source, whole, toggle) {
         const active = { r: this.row, c: this.col };
         this.runAndSelect(
-            () => this.dotnet.invokeMethodAsync('AutoFillAsync', source.top, source.left, source.bottom, source.right, whole.top, whole.left, whole.bottom, whole.right, toggle),
+            () => this.dotnet.invokeMethodAsync('AutoFillAsync', source.top, source.left, source.bottom, source.right, whole.top, whole.left, whole.bottom, whole.right, toggle, this.generation),
             active);
     }
 
@@ -2197,7 +2243,7 @@ class SheetController {
 
         if (this.opts.commitMode === 'optimistic' || !result.ok) {
             const [inline, data] = textArgs(text);
-            this.sendChange('PasteAsync', row, col, inline, true, data);
+            this.sendChange('PasteAsync', row, col, inline, true, data, this.generation);
             return;
         }
 
@@ -2207,7 +2253,7 @@ class SheetController {
         let response;
         try {
             const [inline, data] = textArgs(text);
-            response = await this.dotnet.invokeMethodAsync('PasteAsync', row, col, inline, false, data);
+            response = await this.dotnet.invokeMethodAsync('PasteAsync', row, col, inline, false, data, this.generation);
         } catch {
             response = { ok: false, error: this.map.messages.canceled, stored: false };
         }
@@ -2228,7 +2274,7 @@ class SheetController {
             const current = this.currentRule();
             if (current.policy !== 'revert') {
                 const [inline, data] = textArgs(text);
-                this.sendChange('PasteAsync', this.row, this.col, inline, true, data);
+                this.sendChange('PasteAsync', this.row, this.col, inline, true, data, this.generation);
             }
             return;
         }
@@ -2410,9 +2456,9 @@ class SheetController {
             case 'Delete':
                 if (this.hasRange()) {
                     const range = this.selectionRange();
-                    this.sendChange('ClearRangeAsync', range.top, range.left, range.bottom, range.right);
+                    this.sendChange('ClearRangeAsync', range.top, range.left, range.bottom, range.right, this.generation);
                 } else if (!rule.disabled) {
-                    this.sendChange('ClearAsync', this.row, this.col);
+                    this.sendChange('ClearAsync', this.row, this.col, this.generation);
                 }
                 return true;
             case 'Backspace':
@@ -2423,7 +2469,7 @@ class SheetController {
             case ' ':
                 if (rule.kind === 'check') {
                     if (!rule.disabled) {
-                        this.sendChange('ToggleAsync', this.row, this.col);
+                        this.sendChange('ToggleAsync', this.row, this.col, this.generation);
                     }
                     return true;
                 }
@@ -2741,7 +2787,7 @@ class SheetController {
         let added = false;
         try {
             // C# runs this after the commits sent before it, so undo sees the commit first, then the row add
-            added = await this.dotnet.invokeMethodAsync('AddRowFromScriptAsync', row, col);
+            added = await this.dotnet.invokeMethodAsync('AddRowFromScriptAsync', row, col, this.generation);
         } catch {
             added = false;
         }
@@ -2852,6 +2898,7 @@ class SheetController {
         this.tip.hidden = true;
         if (this.map.isEmpty) {
             this.place();
+            this.updateSink();
             return;
         }
 
@@ -2908,9 +2955,12 @@ class SheetController {
             return;
         }
 
+        const source = { r: this.row, c: this.col };
+        const mark = this.markWait();
         this.holdForText(this.row, this.col).then((read) => {
-            if (!this.disposed) {
-                this.fillRange(read, range);
+            const target = this.rangeAfterWait(range, mark);
+            if (!this.disposed && target && !this.cellAfterWait(source, mark).lost) {
+                this.fillRange(read, target);
             }
         });
     }
@@ -2929,7 +2979,7 @@ class SheetController {
         this.updateSink();
         let result = null;
         try {
-            result = await this.dotnet.invokeMethodAsync(method, ...args);
+            result = await this.dotnet.invokeMethodAsync(method, ...args, this.generation);
         } catch {
             result = null;
         }
@@ -3438,7 +3488,7 @@ class SheetController {
             // Send the commit before moving, so a move that adds a row is recorded after it
             this.finishEdit();
             const [inline, data] = textArgs(text);
-            this.sendChange('CommitAsync', row, col, inline, true, data);
+            this.sendChange('CommitAsync', row, col, inline, true, data, this.generation);
             moveAction?.();
             return;
         }
@@ -3451,7 +3501,7 @@ class SheetController {
         let response;
         try {
             const [inline, data] = textArgs(text);
-            response = await this.dotnet.invokeMethodAsync('CommitAsync', row, col, inline, false, data);
+            response = await this.dotnet.invokeMethodAsync('CommitAsync', row, col, inline, false, data, this.generation);
         } catch {
             response = { ok: false, error: this.map.messages.canceled, stored: false };
         }
@@ -3508,7 +3558,7 @@ class SheetController {
         this.updateSink();
         let target = null;
         try {
-            target = await this.dotnet.invokeMethodAsync('UndoFromScriptAsync', redo);
+            target = await this.dotnet.invokeMethodAsync('UndoFromScriptAsync', redo, this.generation);
         } catch {
             target = null;
         }
@@ -4082,7 +4132,16 @@ class SheetController {
         this.drop.hidden = true;
         showFloating(element);
         this.placeCustom();
-        const target = element.querySelector('[autofocus]') ?? element.querySelector(FOCUSABLE) ?? element;
+        this.focusCustom(null);
+    }
+
+    focusCustom(previous) {
+        const element = this.custom;
+        if (!element) {
+            return;
+        }
+
+        const target = previous && element.contains(previous) ? previous : element.querySelector('[autofocus]') ?? element.querySelector(FOCUSABLE) ?? element;
         target.focus({ preventScroll: true });
     }
 
@@ -4099,7 +4158,7 @@ class SheetController {
                 this.cancelCustom();
                 break;
             case 'Enter':
-                if (e.altKey || e.ctrlKey || e.target.closest?.('button, a, [role="button"]')) {
+                if (e.altKey || e.ctrlKey || e.metaKey || e.target.closest?.('button, a, [role="button"], input[type="button"], input[type="submit"], input[type="reset"]')) {
                     return;
                 }
                 e.preventDefault();
@@ -4127,9 +4186,8 @@ class SheetController {
 
         // Blur the focused input first so its change event reaches C# before the commit
         const active = document.activeElement;
-        if (this.custom && active !== this.custom && this.custom.contains(active)) {
-            active.blur();
-        }
+        const typed = this.custom && active !== this.custom && this.custom.contains(active) ? active : null;
+        typed?.blur();
 
         this.customBusy = true;
         let result;
@@ -4158,7 +4216,7 @@ class SheetController {
             }
 
             this.custom?.classList.add('mussel-sheet-invalid');
-            (this.custom?.querySelector(FOCUSABLE) ?? this.custom)?.focus({ preventScroll: true });
+            this.focusCustom(typed);
             return;
         }
 
@@ -4448,7 +4506,7 @@ class SheetController {
                 break;
             case 'app': {
                 const range = this.selectionRange();
-                this.sendChange('OnMenuItemAsync', entry.name, range.top, range.left, range.bottom, range.right, this.row, this.col);
+                this.sendChange('OnMenuItemAsync', entry.name, range.top, range.left, range.bottom, range.right, this.row, this.col, this.generation);
                 break;
             }
             default:
@@ -4471,7 +4529,7 @@ class SheetController {
             const values = this.renderedValues(range);
             written = this.writeClipboard(values ? Promise.resolve({ text: toTsv(values), html: this.htmlOf(values, range) }) : this.rangeText(range), true);
         } else {
-            written = this.writeClipboard(this.editText(this.row, this.col).then(text => ({ text: quoteCell(text) })), false);
+            written = this.writeClipboard(this.editText(this.row, this.col).then(text => ({ text: copiedCell(text) })), false);
         }
 
         this.cutWhenWritten(written, action);
@@ -4507,7 +4565,7 @@ class SheetController {
         this.updateSink();
         let result = null;
         try {
-            result = await this.dotnet.invokeMethodAsync('ChangeStructureAsync', action, range.top, range.left, range.bottom, range.right, row, col);
+            result = await this.dotnet.invokeMethodAsync('ChangeStructureAsync', action, range.top, range.left, range.bottom, range.right, row, col, this.generation);
         } catch {
             result = null;
         }
@@ -4592,10 +4650,17 @@ class SheetController {
         const toggle = !e.shiftKey && rule.kind === 'check' && !rule.disabled && e.target.closest('.mussel-sheet-cb, .mussel-sheet-ct') !== null;
         if (this.isEditing()) {
             if (row !== this.row || col !== this.col) {
+                const mark = this.markWait();
                 this.commit(() => {
-                    this.moveTo(row, col);
-                    if (toggle) {
-                        this.sendChange('ToggleAsync', row, col);
+                    if (!toggle) {
+                        this.moveTo(row, col);
+                        return;
+                    }
+
+                    const target = this.cellAfterWait({ r: row, c: col }, mark);
+                    this.moveTo(target.r, target.c);
+                    if (!target.lost) {
+                        this.sendChange('ToggleAsync', target.r, target.c, this.generation);
                     }
                 });
             }
@@ -4613,7 +4678,7 @@ class SheetController {
 
         this.moveTo(row, col);
         if (toggle) {
-            this.sendChange('ToggleAsync', row, col);
+            this.sendChange('ToggleAsync', row, col, this.generation);
             return;
         }
         this.startDrag('cells');
@@ -4644,7 +4709,7 @@ class SheetController {
         }
 
         this.selectHeader(head, shift);
-        if (head.kind !== 'all') {
+        if ((head.kind !== 'all') && !this.map.isEmpty) {
             this.startDrag(head.kind === 'column' ? 'columns' : 'rows');
         }
     }
@@ -4763,7 +4828,7 @@ class SheetController {
             if (this.state === READY) {
                 const source = this.fillSource();
                 const active = { r: this.row, c: this.col };
-                this.runAndSelect(() => this.dotnet.invokeMethodAsync('AutoFillDownAsync', source.top, source.left, source.bottom, source.right), active);
+                this.runAndSelect(() => this.dotnet.invokeMethodAsync('AutoFillDownAsync', source.top, source.left, source.bottom, source.right, this.generation), active);
             }
             return;
         }
@@ -4829,6 +4894,9 @@ class SheetController {
     // ---- Helpers ----
 
     setState(state) {
+        if ((state === COMMITTING) && (this.state !== COMMITTING)) {
+            this.waitShifts = [];
+        }
         this.state = state;
         this.layer.dataset.mode = state;
         this.syncNote();
@@ -4837,6 +4905,19 @@ class SheetController {
 
     isEditing() {
         return this.state === INPUT || this.state === EDIT;
+    }
+
+    markWait() {
+        this.waitShifts = [];
+        return this.generation;
+    }
+
+    cellAfterWait(cell, mark) {
+        return mark === this.generation ? this.waitShifts.reduce(shiftCell, cell) : { ...cell, lost: true };
+    }
+
+    rangeAfterWait(range, mark) {
+        return mark === this.generation ? this.waitShifts.reduce((part, shift) => part && shiftRange(part, shift), range) : null;
     }
 
     isFocusOutside() {

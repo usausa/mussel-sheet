@@ -115,6 +115,50 @@ public sealed class SamplePage(IBrowserContext context, IPage page, Func<string>
             """,
             method);
 
+    public Task AttachScriptAsync(int rows, string[] kinds, string commitMode = "optimistic") =>
+        page.EvaluateAsync(
+            """
+            async ([rows, kinds, commitMode]) => {
+                const { attach } = await import(new URL('_content/MusselSheet/MusselSheet.js', document.baseURI).href);
+                const root = document.createElement('div');
+                root.className = 'script-harness';
+                root.innerHTML = '<div class="mussel-sheet-viewport"><div class="mussel-sheet-content"><div class="mussel-sheet-top"></div></div><div class="mussel-sheet-layer"></div></div>';
+                document.body.prepend(root);
+                const map = count => ({
+                    rows: count,
+                    columns: kinds.length,
+                    headerHeight: 24,
+                    rowHeaderWidth: 40,
+                    columnWidths: kinds.map(() => 100),
+                    defaultRowHeight: 24,
+                    customRowHeights: [],
+                    rules: kinds.map(kind => ({ kind, disabled: false, policy: 'stay' })),
+                    patterns: count > 0 ? [kinds.map((_, index) => index)] : [],
+                    rowPatterns: new Array(count).fill(0),
+                    merges: [],
+                });
+                const script = { root, map, calls: [], held: [], errors: [] };
+                window.addEventListener('error', e => script.errors.push(e.message));
+                script.callsOf = name => script.calls.filter(x => x[0] === name).map(x => x.slice(1));
+                script.answer = (name, value) => {
+                    const index = script.held.findIndex(x => x.name === name);
+                    if (index >= 0) {
+                        script.held.splice(index, 1)[0].resolve(value);
+                    }
+                };
+                const dotnet = {
+                    invokeMethodAsync: (name, ...args) => {
+                        script.calls.push([name, ...args]);
+                        return new Promise(resolve => script.held.push({ name, resolve }));
+                    },
+                };
+                script.controller = attach(root, dotnet, { commitMode, customEditor: true }, map(rows), {}, 1);
+                script.sink = root.querySelector('.mussel-sheet-sink');
+                window.script = script;
+            }
+            """,
+            new object[] { rows, kinds, commitMode });
+
     public Task RemoveAsyncClipboardAsync() =>
         page.EvaluateAsync("() => Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })");
 

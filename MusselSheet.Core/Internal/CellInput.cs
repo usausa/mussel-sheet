@@ -219,13 +219,11 @@ internal static partial class CellInput
             CheckPattern(text, settings.Kind == CellKind.Checkbox ? null : settings.Pattern, texts);
     }
 
-    public static string? FormatBound(CellBound? bound, ResolvedCellSettings settings, CultureInfo culture, string dateFormat, DateRules dates)
-    {
-        if (bound is not { } value)
-        {
-            return null;
-        }
+    public static string? FormatBound(CellBound? bound, ResolvedCellSettings settings, CultureInfo culture, string dateFormat, DateRules dates) =>
+        (bound is { } value) && !IsOtherType(value, settings.Kind) ? FormatLimit(value, settings, culture, dateFormat, dates) : null;
 
+    private static string? FormatLimit(CellBound value, ResolvedCellSettings settings, CultureInfo culture, string dateFormat, DateRules dates)
+    {
         if (value.Number is { } number)
         {
             return CellText.Format(number, settings.Kind == CellKind.Number ? settings.Format ?? "G" : "G", culture);
@@ -614,8 +612,8 @@ internal static partial class CellInput
 
     private static string? CheckRange(object value, ResolvedCellSettings settings, InputContext context)
     {
-        var minimum = settings.Minimum;
-        var maximum = settings.Maximum;
+        var minimum = SameType(settings.Minimum, value);
+        var maximum = SameType(settings.Maximum, value);
         var (below, above) = value switch
         {
             decimal number => ((minimum?.Number is { } low) && (number < low), (maximum?.Number is { } high) && (number > high)),
@@ -628,8 +626,8 @@ internal static partial class CellInput
             return null;
         }
 
-        var lowText = FormatBound(minimum, settings, context.Culture, context.DateFormat, context.Dates);
-        var highText = FormatBound(maximum, settings, context.Culture, context.DateFormat, context.Dates);
+        var lowText = minimum is { } lowest ? FormatLimit(lowest, settings, context.Culture, context.DateFormat, context.Dates) : null;
+        var highText = maximum is { } highest ? FormatLimit(highest, settings, context.Culture, context.DateFormat, context.Dates) : null;
         if ((lowText is not null) && (highText is not null))
         {
             return InputContext.Fill(context.Texts.Between, lowText, highText);
@@ -637,6 +635,26 @@ internal static partial class CellInput
 
         return lowText is not null ? InputContext.Fill(context.Texts.AtLeast, lowText) : InputContext.Fill(context.Texts.AtMost, highText ?? string.Empty);
     }
+
+    private static CellBound? SameType(CellBound? bound, object value)
+    {
+        var same = value switch
+        {
+            decimal => bound?.Number is not null,
+            DateOnly => bound?.Date is not null,
+            TimeOnly => bound?.Time is not null,
+            _ => false
+        };
+        return same ? bound : null;
+    }
+
+    private static bool IsOtherType(CellBound bound, CellKind kind) => kind switch
+    {
+        CellKind.Number => bound.Number is null,
+        CellKind.Date => bound.Date is null,
+        CellKind.Time => bound.Time is null,
+        _ => false
+    };
 
     private static string? CheckLength(object value, ResolvedCellSettings settings, SheetTexts texts)
     {

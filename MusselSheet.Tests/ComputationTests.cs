@@ -1,5 +1,7 @@
 namespace MusselSheet;
 
+using System.Collections.ObjectModel;
+
 public sealed class ComputationTests : BunitContext
 {
     public ComputationTests()
@@ -218,6 +220,71 @@ public sealed class ComputationTests : BunitContext
     }
 
     [Fact]
+    public async Task RowsAddedWhereEveryDetailRowWasDeletedAreComputedAndSummed()
+    {
+        var order = new Order { Lines = { new Line { Name = "a", Quantity = 1m, Price = 10m }, new Line { Name = "b", Quantity = 2m, Price = 10m } } };
+        var sheet = new Sheet(7, 4);
+        sheet.Range("B4:C6").Configure(static c => c.Kind = CellKind.Number);
+        using var binding = sheet.Bind(order).Rows("A4:D6", static x => x.Lines, static rows => rows
+            .Column("A", static x => x.Name)
+            .Column("B", static x => x.Quantity)
+            .Column("C", static x => x.Price));
+        using var amounts = sheet.ComputeRows("D4:D6", ["B", "C"], static x => x.Get<decimal?>("B") * x.Get<decimal?>("C"));
+        using var total = sheet.Compute("D7", ["D4:D6"], static x => x.Values("D4:D6").OfType<decimal>().Sum());
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowDeleteRows, true));
+
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 3, 0, 5, 3, 3, 0));
+        Assert.Equal(0m, sheet.GetValue(3, 3));
+
+        await cut.InvokeAsync(() => order.Lines.Add(new Line { Name = "x", Quantity = 2m, Price = 100m }));
+        Assert.Equal(200m, sheet.GetValue(3, 3));
+        Assert.True(sheet.GetSettings(3, 3).ReadOnly);
+        Assert.Equal(200m, sheet.GetValue(4, 3));
+
+        await cut.InvokeAsync(cut.Instance.UndoAsync);
+        Assert.Equal(200m, sheet.GetValue(6, 3));
+        Assert.Equal(230m, sheet.GetValue(7, 3));
+
+        await cut.InvokeAsync(() => order.Lines.Add(new Line { Name = "y", Quantity = 1m, Price = 5m }));
+        Assert.Equal(5m, sheet.GetValue(7, 3));
+        Assert.Equal(235m, sheet.GetValue(8, 3));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task RowsAddedAfterUndoBringsBackTheRowsAboveTheDeletedDetailAreComputedAndSummed(int deletions)
+    {
+        var order = new Order { Lines = { new Line { Name = "a", Quantity = 1m, Price = 10m }, new Line { Name = "b", Quantity = 2m, Price = 10m } } };
+        var sheet = new Sheet(7, 4);
+        sheet.Range("B4:C6").Configure(static c => c.Kind = CellKind.Number);
+        using var binding = sheet.Bind(order).Rows("A4:D6", static x => x.Lines, static rows => rows
+            .Column("A", static x => x.Name)
+            .Column("B", static x => x.Quantity)
+            .Column("C", static x => x.Price));
+        using var amounts = sheet.ComputeRows("D4:D6", ["B", "C"], static x => x.Get<decimal?>("B") * x.Get<decimal?>("C"));
+        using var total = sheet.Compute("D7", ["D4:D6"], static x => x.Values("D4:D6").OfType<decimal>().Sum());
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowDeleteRows, true));
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 3, 0, 5, 3, 3, 0));
+        for (var row = 2; row > 2 - deletions; row--)
+        {
+            var above = row;
+            await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", above, 0, above, 3, above, 0));
+        }
+
+        for (var i = 0; i < deletions; i++)
+        {
+            await cut.InvokeAsync(cut.Instance.UndoAsync);
+        }
+
+        await cut.InvokeAsync(() => order.Lines.Add(new Line { Name = "x", Quantity = 2m, Price = 100m }));
+
+        Assert.Equal(200m, sheet.GetValue(3, 3));
+        Assert.True(sheet.GetSettings(3, 3).ReadOnly);
+        Assert.Equal(200m, sheet.GetValue(4, 3));
+    }
+
+    [Fact]
     public void LoopsStopAndDisposeStopsComputing()
     {
         var sheet = new Sheet(2, 2);
@@ -248,5 +315,19 @@ public sealed class ComputationTests : BunitContext
             ["ペン", 20m, 80m]
         ]);
         return sheet;
+    }
+
+    private sealed class Order
+    {
+        public ObservableCollection<Line> Lines { get; } = [];
+    }
+
+    private sealed class Line
+    {
+        public string? Name { get; set; }
+
+        public decimal? Quantity { get; set; }
+
+        public decimal? Price { get; set; }
     }
 }

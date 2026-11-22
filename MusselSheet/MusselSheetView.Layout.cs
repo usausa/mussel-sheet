@@ -107,9 +107,9 @@ public sealed partial class MusselSheetView
         Sheet.MergeAreas.Any(x => (x.Top == row) && (x.Bottom > x.Top) && (x.Left >= FrozenColumnCount) && (x.Left <= RestLast));
 
     // aria-rowindex is 1-based and the column header row counts as a row
-    internal int AriaRowIndex(int row) => row + (ShowColumnHeaders ? 2 : 1);
+    internal int AriaRowIndex(int row) => row + (DrawsColumnHeaders ? 2 : 1);
 
-    internal int AriaColumnIndex(int column) => column + (ShowRowHeaders ? 2 : 1);
+    internal int AriaColumnIndex(int column) => column + (DrawsRowHeaders ? 2 : 1);
 
     internal RenderFragment RenderCustomDisplay(int row, int column)
     {

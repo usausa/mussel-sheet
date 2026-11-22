@@ -1,6 +1,5 @@
 namespace MusselSheet;
 
-using System.Text;
 using System.Text.Json;
 
 using Microsoft.JSInterop;
@@ -211,11 +210,11 @@ public sealed class RangeTests : BunitContext
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
         var bridge = new SheetScriptBridge(cut.Instance);
 
-        var range = await SendOversized(cut, x => bridge.PasteRangeAsync(0, 0, 0, 1, x));
-        var fill = await SendOversized(cut, x => bridge.FillAsync(0, 0, 0, 1, null, x));
-        var commit = await SendOversized(cut, x => bridge.CommitAsync(0, 0, null, false, x));
-        var paste = await SendOversized(cut, x => bridge.PasteAsync(0, 0, null, false, x));
-        var optimistic = await SendOversized(cut, x => bridge.CommitAsync(0, 1, null, true, x));
+        var range = await SendOversized(cut, x => bridge.PasteRangeAsync(0, 0, 0, 1, x, cut.Instance.SheetGeneration));
+        var fill = await SendOversized(cut, x => bridge.FillAsync(0, 0, 0, 1, null, x, cut.Instance.SheetGeneration));
+        var commit = await SendOversized(cut, x => bridge.CommitAsync(0, 0, null, false, x, cut.Instance.SheetGeneration));
+        var paste = await SendOversized(cut, x => bridge.PasteAsync(0, 0, null, false, x, cut.Instance.SheetGeneration));
+        var optimistic = await SendOversized(cut, x => bridge.CommitAsync(0, 1, null, true, x, cut.Instance.SheetGeneration));
 
         Assert.Equal(message, range.GetProperty("message").GetString());
         Assert.Equal(1, range.GetProperty("right").GetInt32());
@@ -349,24 +348,6 @@ public sealed class RangeTests : BunitContext
 
         public ValueTask<Stream> OpenReadStreamAsync(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) =>
             Length > maxAllowedSize ? throw new ArgumentOutOfRangeException(nameof(maxAllowedSize)) : ValueTask.FromResult<Stream>(new MemoryStream());
-
-        public ValueTask DisposeAsync()
-        {
-            Disposed = true;
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private sealed class TextStream(string text) : IJSStreamReference
-    {
-        private readonly byte[] bytes = Encoding.UTF8.GetBytes(text);
-
-        public bool Disposed { get; private set; }
-
-        public long Length => bytes.Length;
-
-        public ValueTask<Stream> OpenReadStreamAsync(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult<Stream>(new MemoryStream(bytes));
 
         public ValueTask DisposeAsync()
         {

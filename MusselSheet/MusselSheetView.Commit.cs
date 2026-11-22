@@ -119,17 +119,18 @@ public sealed partial class MusselSheetView
 
     private string? BindingError(int row, int column, object? value)
     {
-        if (Sheet.FindBinding(row, column) is not { } property)
+        if (Sheet.FindBinding(row, column) is not { } bound)
         {
             return null;
         }
 
+        var property = bound.Property;
         if (!property.CanWrite)
         {
             return Texts.NotEditable;
         }
 
-        if (property.TryConvert(value, out _))
+        if (property.TryConvert(value, bound.Target, out _))
         {
             return null;
         }

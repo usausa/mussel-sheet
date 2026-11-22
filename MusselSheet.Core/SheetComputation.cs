@@ -75,13 +75,14 @@ public sealed class SheetComputation : IDisposable
     }
 
     // Ignores changes made while it runs, which also stops computation loops
-    internal void OnSheetChanged(SheetChangedEventArgs e, CellRange? values)
+    internal CellRange? OnSheetChanged(SheetChangedEventArgs e, CellRange? values)
     {
         if (disposed || running)
         {
-            return;
+            return null;
         }
 
+        CellRange? joined = null;
         switch (e.Kind)
         {
             case SheetChangeKind.Values when values is { } range:
@@ -93,7 +94,11 @@ public sealed class SheetComputation : IDisposable
                     observation.OnRowsInserted(sheet, e.Index, e.Count);
                 }
 
-                rows.OnInserted(sheet, e.Index, e.Count, dirty);
+                if (rows.OnInserted(sheet, e.Index, e.Count, dirty) && sheet.Contains(column))
+                {
+                    joined = new CellRange(e.Index, column.Index, e.Index + e.Count - 1, column.Index);
+                }
+
                 if (!PerRow || watchesOtherRows)
                 {
                     MarkAll();
@@ -103,10 +108,10 @@ public sealed class SheetComputation : IDisposable
             case SheetChangeKind.RowsDeleted:
                 foreach (var observation in Observations)
                 {
-                    observation.OnRowsRemoved(sheet);
+                    observation.OnRowsRemoved(sheet, e.Index);
                 }
 
-                rows.OnRemoved(sheet);
+                rows.OnRemoved(sheet, e.Index);
                 if (!PerRow || watchesOtherRows)
                 {
                     MarkAll();
@@ -117,6 +122,8 @@ public sealed class SheetComputation : IDisposable
                 MarkAll();
                 break;
         }
+
+        return joined;
     }
 
     internal void RunPending()

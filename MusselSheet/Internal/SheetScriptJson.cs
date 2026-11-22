@@ -5,6 +5,8 @@ using System.Text.Json;
 // Already JSON, as interop's reflection loses record parameter names in a trimmed WebAssembly app
 internal static class SheetScriptJson
 {
+    public static JsonElement Null { get; } = ParseNull();
+
     public static JsonElement ToElement(SheetMap value) => JsonSerializer.SerializeToElement(value, SheetScriptJsonContext.Default.SheetMap);
 
     public static JsonElement ToElement(ScriptLanguage value) => JsonSerializer.SerializeToElement(value, SheetScriptJsonContext.Default.ScriptLanguage);
@@ -20,4 +22,10 @@ internal static class SheetScriptJson
     public static JsonElement ToElement(ClipboardText value) => JsonSerializer.SerializeToElement(value, SheetScriptJsonContext.Default.ClipboardText);
 
     public static JsonElement ToElement(List<ScriptShift> value) => JsonSerializer.SerializeToElement(value, SheetScriptJsonContext.Default.ListScriptShift);
+
+    private static JsonElement ParseNull()
+    {
+        using var document = JsonDocument.Parse("null");
+        return document.RootElement.Clone();
+    }
 }

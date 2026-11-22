@@ -296,7 +296,7 @@ public sealed class ObjectBindingTests : BunitContext
         using var binding = BindDetails(sheet, order);
         var cut = RenderMenuSheet(sheet);
         var bridge = new SheetScriptBridge(cut.Instance);
-        await cut.InvokeAsync(() => bridge.CommitAsync(3, 1, "20", true, null));
+        await cut.InvokeAsync(() => bridge.CommitAsync(3, 1, "20", true, null, cut.Instance.SheetGeneration));
         var recorded = cut.Instance.CanUndo;
 
         await cut.InvokeAsync(order.Lines.Clear);
@@ -313,7 +313,7 @@ public sealed class ObjectBindingTests : BunitContext
         var sheet = DetailSheet();
         var cut = RenderMenuSheet(sheet);
         var bridge = new SheetScriptBridge(cut.Instance);
-        await cut.InvokeAsync(() => bridge.CommitAsync(3, 1, "20", true, null));
+        await cut.InvokeAsync(() => bridge.CommitAsync(3, 1, "20", true, null, cut.Instance.SheetGeneration));
         var recorded = cut.Instance.CanUndo;
 
         using var binding = sheet.Bind(empty ? Order() : Order(("ノート", 10m, 120m))).Rows(new CellRange(3, 0, 4, 3), x => x.Lines, row => row.Column("A", x => x.Name));

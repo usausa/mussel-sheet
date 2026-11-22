@@ -75,6 +75,21 @@ public sealed class FillHandleTests : BunitContext
     }
 
     [Fact]
+    public async Task NumbersWhoseSeriesADecimalCannotHoldAreCopied()
+    {
+        Assert.Null(FillSeries.Create([40000000000000000000000000000m, 40000000000000000000000000000m, 1m], false));
+
+        var sheet = new Sheet(4, 1);
+        sheet.Range("A:A").Configure(c => c.Kind = CellKind.Number);
+        sheet.SetValues(0, 0, [[50000000000000000000000000000m], [-50000000000000000000000000000m]]);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+
+        await cut.InvokeAsync(() => cut.Instance.AutoFillAsync(0, 0, 1, 0, 0, 0, 3, 0, false));
+
+        Assert.Equal([[50000000000000000000000000000m], [-50000000000000000000000000000m]], sheet.Range("A3:A4").GetValues());
+    }
+
+    [Fact]
     public async Task DraggingTheHandleFillsEachColumn()
     {
         var sheet = new Sheet(5, 4);

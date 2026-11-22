@@ -14,7 +14,7 @@ The sheet component. `Sheet` is required, and other attributes such as `class` a
 | `Width`, `Height` | `string` | `auto` | CSS lengths; `auto` follows the content, a fixed size scrolls inside and draws only the visible rows and columns |
 | `ShowRowHeaders`, `ShowColumnHeaders`, `ShowGridLines` | `bool` | `true` | Headers and grid lines |
 | `ShowChanges` | `bool` | `false` | Marks cells the user changed from their original value |
-| `RowHeaderWidth`, `ColumnHeaderHeight` | `int`, `int?` | `40`, `null` | Header sizes in pixels; `null` follows the default row height |
+| `RowHeaderWidth`, `ColumnHeaderHeight` | `int`, `int?` | `40`, `null` | Header sizes in pixels; `null` follows the default row height, and `0` draws no header |
 | `OverscanCount`, `OverscanColumnCount` | `int` | `10`, `3` | Extra rows and columns drawn around the visible ones |
 | `FrozenRows`, `FrozenColumns` | `int?` | `null` | Overrides `Sheet.FrozenRows` and `Sheet.FrozenColumns` |
 | `MoveAfterReturnDirection` | `SheetMoveDirection` | `Down` | `Down`, `Right` or `None` after Enter |

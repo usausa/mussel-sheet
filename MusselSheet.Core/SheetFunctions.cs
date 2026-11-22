@@ -50,9 +50,16 @@ public sealed class SheetFunctions
 
     private void Add(string name, Delegate function)
     {
-        if (functions.Remove(name, out var old))
+        if (functions.Remove(name, out var old) && names.Remove(old))
         {
-            names.Remove(old);
+            foreach (var (other, kept) in functions)
+            {
+                if (kept.Equals(old))
+                {
+                    names[old] = other;
+                    break;
+                }
+            }
         }
 
         functions[name] = function;

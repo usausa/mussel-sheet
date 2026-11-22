@@ -67,13 +67,13 @@ public sealed partial class Sheet
         return false;
     }
 
-    internal BoundProperty? FindBinding(int row, int column)
+    internal BoundCell? FindBinding(int row, int column)
     {
         foreach (var binding in bindings)
         {
-            if (binding.FindProperty(row, column) is { } property)
+            if (binding.FindBound(row, column) is { } bound)
             {
-                return property;
+                return bound;
             }
         }
 

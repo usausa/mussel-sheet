@@ -2154,6 +2154,300 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B1000");
     }
 
+    [Theory]
+    [MemberData(nameof(Modes))]
+    public async Task TextTypedBeforeTheSheetIsReplacedIsNotCommittedToTheNewSheet(string mode)
+    {
+        var sample = await OpenAsync("large-sheets", mode);
+        await sample.Cell(1, 1).ClickAsync();
+        await sample.Keyboard.TypeAsync("77");
+
+        await sample.Page.GetByRole(AriaRole.Link, new() { Name = "10,000 rows x 50 columns" }).DispatchEventAsync("click");
+        await Expect(sample.Grid).ToHaveAttributeAsync("aria-rowcount", "10001");
+        await sample.Keyboard.PressAsync("Enter");
+
+        await Expect(sample.ActiveCell).ToHaveTextAsync("Active cell: B3");
+        await Expect(sample.Cell(1, 1)).ToHaveTextAsync("2");
+    }
+
+    [Fact]
+    public async Task TextBeingTypedIsDroppedWhenTheSheetIsReplaced()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(5, ["text"], "wait");
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, map, answer, callsOf } = window.script;
+                controller.moveTo(1, 0);
+                controller.startInput('abc');
+                controller.setMap(map(5), [], 2);
+                const dropped = [controller.state, sink.value];
+                controller.startInput('def');
+                sink.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+                controller.setMap(map(5), [], 3);
+                answer('CommitAsync', { ok: false, error: 'Not editable', stored: false });
+                await new Promise(resolve => setTimeout(resolve, 0));
+                return JSON.stringify({ dropped, after: [controller.state, sink.value, controller.row], commits: callsOf('CommitAsync') });
+            }
+            """);
+
+        Assert.Equal("""{"dropped":["ready",""],"after":["ready","",1],"commits":[[1,0,"def",false,null,2]]}""", result);
+    }
+
+    [Fact]
+    public async Task AnEmptySheetTakesNoTypedText()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(0, ["text", "text", "text"]);
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { sink, errors } = window.script;
+                const readOnly = sink.readOnly;
+                sink.value = 'abc';
+                sink.dispatchEvent(new Event('input', { bubbles: true }));
+                const typed = sink.value;
+                sink.value = 'x';
+                sink.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+                await new Promise(resolve => setTimeout(resolve, 0));
+                return JSON.stringify({ readOnly, typed, composed: sink.value, errors });
+            }
+            """);
+
+        Assert.Equal("""{"readOnly":true,"typed":"","composed":"","errors":[]}""", result);
+    }
+
+    [Fact]
+    public async Task DraggingAColumnHeaderOfAnEmptySheetSelectsNothing()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(0, ["text", "text", "text"]);
+
+        var selections = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { root, callsOf } = window.script;
+                const header = document.createElement('div');
+                header.className = 'mussel-sheet-colhead-cell';
+                header.dataset.c = '1';
+                header.textContent = 'B';
+                root.querySelector('.mussel-sheet-content').append(header);
+                header.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, buttons: 1 }));
+                window.dispatchEvent(new MouseEvent('mousemove', { buttons: 1, clientX: 200, clientY: 40 }));
+                window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+                await new Promise(resolve => setTimeout(resolve, 200));
+                return JSON.stringify(callsOf('OnActiveCellChangedAsync'));
+            }
+            """);
+
+        Assert.Equal("[]", selections);
+    }
+
+    [Fact]
+    public async Task AFillWaitingForTheEditTextFollowsTheRowsTheAppInsertsOrDeletes()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(10, ["text", "text"]);
+
+        var fills = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, map, answer, callsOf } = window.script;
+                const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+                const fill = async (rows, shift) => {
+                    controller.moveTo(4, 1);
+                    controller.extendTo(5, 1);
+                    sink.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true }));
+                    controller.setMap(map(rows), [shift], 1);
+                    answer('GetEditTextAsync', 'x');
+                    await settle();
+                    answer('FillAsync', null);
+                    await settle();
+                };
+                await fill(11, { axis: 'row', index: 1, count: 1 });
+                await fill(10, { axis: 'row', index: 4, count: -1 });
+                return JSON.stringify(callsOf('FillAsync'));
+            }
+            """);
+
+        Assert.Equal("""[[5,1,6,1,"x",null,1]]""", fills);
+    }
+
+    [Fact]
+    public async Task ACutWaitingForTheClipboardFollowsTheRowsTheAppInsertsOrDeletes()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.FakeAsyncClipboardAsync();
+        await sample.AttachScriptAsync(10, ["text", "text"]);
+
+        var cuts = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, sink, map, answer, calls } = window.script;
+                const cut = async (range, rows, shift) => {
+                    controller.moveTo(4, 1);
+                    if (range) {
+                        controller.extendTo(5, 1);
+                    }
+                    sink.dispatchEvent(new ClipboardEvent('cut', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true }));
+                    controller.setMap(map(rows), [shift], 1);
+                    if (range) {
+                        answer('GetRangeTextAsync', { text: 'x', html: '' });
+                    } else {
+                        answer('GetEditTextAsync', 'x');
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                };
+                await cut(false, 11, { axis: 'row', index: 1, count: 1 });
+                await cut(true, 10, { axis: 'row', index: 1, count: -1 });
+                await cut(false, 9, { axis: 'row', index: 4, count: -1 });
+                return JSON.stringify(calls.filter(x => x[0].startsWith('Cut')));
+            }
+            """);
+
+        Assert.Equal("""[["CutAsync",5,1,1],["CutRangeAsync",3,1,4,1,1]]""", cuts);
+    }
+
+    [Fact]
+    public async Task ABoxClickedWhileACommitWaitsFollowsTheRowsTheAppInsertsOrDeletes()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(12, ["text", "check"], "wait");
+
+        var result = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, root, map, answer, callsOf } = window.script;
+                const row = document.createElement('div');
+                row.className = 'mussel-sheet-row';
+                row.dataset.r = '9';
+                row.innerHTML = '<div class="mussel-sheet-cell" data-c="1"><span class="mussel-sheet-cb"></span></div>';
+                root.querySelector('.mussel-sheet-content').append(row);
+                const click = async (rows, shift) => {
+                    controller.moveTo(4, 0);
+                    controller.startInput('7');
+                    row.querySelector('.mussel-sheet-cb').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+                    controller.setMap(map(rows), [shift], 1);
+                    answer('CommitAsync', { ok: true, error: null, stored: true });
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                };
+                await click(13, { axis: 'row', index: 1, count: 1 });
+                await click(11, { axis: 'row', index: 8, count: -2 });
+                return JSON.stringify({ toggles: callsOf('ToggleAsync'), active: [controller.row, controller.col] });
+            }
+            """);
+
+        Assert.Equal("""{"toggles":[[10,1,1]],"active":[8,1]}""", result);
+    }
+
+    [Fact]
+    public async Task ARefusedCustomEditorKeepsTheFocusWhereItWasTyped()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(3, ["custom"]);
+
+        var focused = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, root, answer } = window.script;
+                const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+                const editor = document.createElement('div');
+                editor.tabIndex = -1;
+                editor.innerHTML = '<button type="button">Clear</button><input class="typed" autofocus><input class="other">';
+                root.append(editor);
+                const refuse = async (input, remove) => {
+                    controller.openCustom();
+                    answer('OpenCustomEditorAsync', true);
+                    await settle();
+                    controller.showCustom(editor);
+                    input.focus();
+                    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+                    if (remove) {
+                        input.remove();
+                    }
+                    answer('CommitCustomEditorAsync', { closed: false, error: 'bad' });
+                    await settle();
+                    const name = document.activeElement.className || document.activeElement.tagName;
+                    controller.cancelCustom();
+                    return name;
+                };
+                const typed = await refuse(editor.querySelector('.typed'), false);
+                const gone = await refuse(editor.querySelector('.other'), true);
+                return `${typed},${gone}`;
+            }
+            """);
+
+        Assert.Equal("typed,typed", focused);
+    }
+
+    [Fact]
+    public async Task EnterWithCommandOrOnAnInputButtonIsLeftToTheCustomEditor()
+    {
+        var sample = await OpenAsync("playground", "server");
+        await sample.AttachScriptAsync(3, ["custom"]);
+
+        var commits = await sample.Page.EvaluateAsync<string>(
+            """
+            async () => {
+                const { controller, root, answer, callsOf } = window.script;
+                const editor = document.createElement('div');
+                editor.innerHTML = '<input class="text"><input type="button" value="OK"><input type="submit"><input type="reset">';
+                root.append(editor);
+                controller.openCustom();
+                answer('OpenCustomEditorAsync', true);
+                await new Promise(resolve => setTimeout(resolve, 0));
+                controller.showCustom(editor);
+                const enter = (target, init) => target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...init }));
+                const counts = [];
+                enter(editor.querySelector('.text'), { metaKey: true });
+                counts.push(callsOf('CommitCustomEditorAsync').length);
+                for (const button of editor.querySelectorAll('input:not(.text)')) {
+                    enter(button, {});
+                }
+                counts.push(callsOf('CommitCustomEditorAsync').length);
+                enter(editor.querySelector('.text'), {});
+                counts.push(callsOf('CommitCustomEditorAsync').length);
+                return counts.join(',');
+            }
+            """);
+
+        Assert.Equal("0,0,1", commits);
+    }
+
+    [Fact]
+    public async Task AnEmptyCellCopiedAloneClearsTheCellItIsPastedInto()
+    {
+        var sample = await OpenAsync("form", "server");
+        await sample.FakeAsyncClipboardAsync();
+
+        await sample.Cell(6, 0).ClickAsync();
+        var copied = await sample.DispatchClipboardAsync("copy", null);
+        await SamplePage.RightClickAsync(sample.Cell(6, 0));
+        await sample.MenuItem("copy").ClickAsync();
+        await sample.WaitForClipboardAsync("\r\n");
+        await sample.Cell(5, 0).ClickAsync();
+        await sample.DispatchClipboardAsync("paste", copied);
+
+        Assert.Equal("\r\n", copied);
+        await Expect(sample.Cell(5, 0)).ToHaveTextAsync(string.Empty);
+    }
+
+    [Fact]
+    public async Task TheCustomDisplayDrawsASwatchOnlyForItsOwnColors()
+    {
+        var sample = await OpenAsync("customization", "server");
+        await Expect(sample.Cell(1, 1).Locator(".custom-swatch")).ToHaveCountAsync(1);
+
+        await sample.Cell(1, 1).ClickAsync();
+        await sample.DispatchClipboardAsync("paste", "red;width:600px");
+
+        await Expect(sample.Cell(1, 1)).ToHaveTextAsync("red;width:600px");
+        await Expect(sample.Cell(1, 1).Locator(".custom-swatch")).ToHaveCountAsync(0);
+    }
+
     private async Task<SamplePage> OpenHoldingCommitsAsync()
     {
         var sample = await OpenAsync("playground", "wasm").ConfigureAwait(true);

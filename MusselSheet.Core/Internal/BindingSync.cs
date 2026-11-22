@@ -1,12 +1,14 @@
 namespace MusselSheet.Internal;
 
+using System.Diagnostics.CodeAnalysis;
+
 internal interface ISheetBinding
 {
     bool IsApplying { get; }
 
     void OnSheetChanged(SheetChangedEventArgs e, ValueCells? targets);
 
-    BoundProperty? FindProperty(int row, int column);
+    BoundCell? FindBound(int row, int column);
 
     bool HoldsRow(SheetRow row);
 
@@ -27,7 +29,7 @@ internal interface IRowsBinding
 
     void OnSourceChanged(string? name, bool reload);
 
-    BoundProperty? FindProperty(int row, int column);
+    BoundCell? FindBound(int row, int column);
 
     CellRange Frame { get; }
 
@@ -39,6 +41,8 @@ internal interface IRowsBinding
 
     void Detach();
 }
+
+internal readonly record struct BoundCell(object? Target, BoundProperty Property);
 
 internal sealed class ValueCells(SheetRow[] rows, SheetColumn[] columns)
 {
@@ -104,9 +108,10 @@ internal sealed class BindingSync
     }
 
     // Skips values the property type cannot take; a setter exception becomes the error mark; true when the cell is to show the property back
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A setter's exception is the app's rule failing, so it becomes the error mark of the cell")]
     public bool Write(object target, BoundProperty property, SheetRow row, SheetColumn column)
     {
-        if (!property.CanWrite || !IsCurrent(row, column) || !property.TryConvert(Sheet.GetValue(row.Index, column.Index), out var value))
+        if (!property.CanWrite || !IsCurrent(row, column) || !property.TryConvert(Sheet.GetValue(row.Index, column.Index), target, out var value))
         {
             return false;
         }
@@ -118,7 +123,7 @@ internal sealed class BindingSync
             {
                 property.Set(target, value);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex)
             {
                 error = ex.Message;
             }

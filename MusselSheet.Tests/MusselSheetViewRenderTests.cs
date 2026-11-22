@@ -432,6 +432,29 @@ public sealed class MusselSheetViewRenderTests : BunitContext
     }
 
     [Fact]
+    public void TheCellAndTheEditorTakeTheSameColors()
+    {
+        const string slash = "rgb(26 115 232 / 80%)";
+        const string tooLong = "color-mix(in srgb, var(--mussel-sheet-active-color) 60%, #000000)";
+        const string link = "url(a.png)";
+        var sheet = new Sheet(1, 3);
+        sheet["A1"].Configure(c => c.Style.FontColor = slash);
+        sheet["B1"].Configure(c => c.Style.FontColor = tooLong);
+        sheet["C1"].Configure(c => c.Style.FontColor = link);
+
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+        var css = cut.Find("style").TextContent;
+        var map = SheetMapBuilder.Build(sheet, 24, 40, SheetValidationMode.Stay);
+
+        Assert.Equal(65, tooLong.Length);
+        Assert.Contains($"{{color:{slash}}}", css, StringComparison.Ordinal);
+        Assert.DoesNotContain(tooLong, css, StringComparison.Ordinal);
+        Assert.DoesNotContain(link, css, StringComparison.Ordinal);
+        string?[] colors = [slash, null, null];
+        Assert.Equal(colors, map.Patterns[0].Select(x => map.Rules[x].Font?.Color));
+    }
+
+    [Fact]
     public async Task FixedHeightRendersOnlyVisibleRows()
     {
         var sheet = new Sheet(1000, 3);
@@ -529,6 +552,26 @@ public sealed class MusselSheetViewRenderTests : BunitContext
             .Add(x => x.ShowColumnHeaders, false));
         var grid = cut.Find("[role=grid]");
 
+        Assert.Equal("2", grid.GetAttribute("aria-rowcount"));
+        Assert.Equal("2", grid.GetAttribute("aria-colcount"));
+        Assert.Equal("1", cut.Find(".mussel-sheet-row[data-r='0']").GetAttribute("aria-rowindex"));
+        string[] columns = ["1", "2"];
+        Assert.Equal(columns, cut.FindAll(".mussel-sheet-row[data-r='0'] [role=gridcell]").Select(x => x.GetAttribute("aria-colindex")));
+    }
+
+    [Fact]
+    public void HeadersOfSizeZeroAreNotDrawn()
+    {
+        var sheet = new Sheet(2, 2);
+
+        var cut = Render<MusselSheetView>(p => p
+            .Add(x => x.Sheet, sheet)
+            .Add(x => x.RowHeaderWidth, 0)
+            .Add(x => x.ColumnHeaderHeight, 0));
+        var grid = cut.Find("[role=grid]");
+
+        Assert.Empty(cut.FindAll(".mussel-sheet-rowhead"));
+        Assert.Empty(cut.FindAll(".mussel-sheet-colhead"));
         Assert.Equal("2", grid.GetAttribute("aria-rowcount"));
         Assert.Equal("2", grid.GetAttribute("aria-colcount"));
         Assert.Equal("1", cut.Find(".mussel-sheet-row[data-r='0']").GetAttribute("aria-rowindex"));

@@ -33,21 +33,28 @@ internal static class FillSeries
 
     public static int Mod(int position, int count) => ((position % count) + count) % count;
 
-    private static Func<int, object?> NumberSeries(decimal[] numbers)
+    private static Func<int, object?>? NumberSeries(decimal[] numbers)
     {
         if (numbers.Length == 1)
         {
             return position => Line(numbers[0], 1m, position);
         }
 
-        // Equal spacing keeps its step and digits; otherwise a least-squares line without trailing zeros
-        if (Step(numbers) is { } even)
+        try
         {
-            return position => Line(numbers[0], even, position);
-        }
+            // Equal spacing keeps its step and digits; otherwise a least-squares line without trailing zeros
+            if (Step(numbers) is { } even)
+            {
+                return position => Line(numbers[0], even, position);
+            }
 
-        var (start, step) = Fit(numbers);
-        return position => Line(start, step, position) is { } value ? Normalize(value) : null;
+            var (start, step) = Fit(numbers);
+            return position => Line(start, step, position) is { } value ? Normalize(value) : null;
+        }
+        catch (OverflowException)
+        {
+            return null;
+        }
     }
 
     private static Func<int, object?> DateSeries(DateOnly[] dates)

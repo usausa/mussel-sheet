@@ -37,6 +37,19 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     }
 
     [Fact]
+    public void ASetterThatIsCanceledMarksTheCell()
+    {
+        var target = new Target();
+        var sheet = new Sheet(1, 1);
+        using var binding = sheet.Bind(target).Cell("A1", static x => x.Guarded);
+
+        sheet.SetValue(0, 0, "stop");
+
+        Assert.Equal("Stopped", sheet.GetError(0, 0));
+        Assert.Equal("ok", target.Guarded);
+    }
+
+    [Fact]
     public void APropertyOfAnInterfaceIsReadAndWritten()
     {
         var target = new Named { Name = "a" };
@@ -58,6 +71,16 @@ public sealed class ObjectBindingEdgeTests : BunitContext
 
         Assert.Equal("Broken", Assert.Throws<InvalidOperationException>(() => binding.Cell("A1", static x => x.Value)).Message);
         Assert.Equal("Broken", Assert.Throws<InvalidOperationException>(() => binding.Cell("B1", static x => (object)x.Value)).Message);
+    }
+
+    [Fact]
+    public void AConstructorThatThrowsIsNotWrapped()
+    {
+        var target = new ThrowingList();
+        var sheet = new Sheet(1, 1);
+        using var binding = sheet.Bind(target).Rows("A1:A1", static x => x.Items, static x => x.Column("A", static y => y.Name));
+
+        Assert.Equal("Broken", Assert.Throws<InvalidOperationException>(() => sheet.SetValue(0, 0, "x")).Message);
     }
 
     [Fact]
@@ -108,6 +131,22 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         Assert.Equal(3, sheet.GetValue(0, 0));
         sheet.SetValue(0, 0, 5m);
         Assert.Equal(5, target.Count);
+    }
+
+    [Fact]
+    public void AnEmptyCellBehindAConversionWritesTheEmptyValueOfTheProperty()
+    {
+        var target = new Target { Count = 3, Limit = 4 };
+        var sheet = new Sheet(1, 2);
+        using var binding = sheet.Bind(target).Cell("A1", static x => (long)x.Count).Cell("B1", static x => (int)x.Limit!);
+
+        sheet.Range("A1:B1").ClearContents();
+
+        Assert.Equal(0, target.Count);
+        Assert.Null(target.Limit);
+        Assert.Equal(0, sheet.GetValue(0, 0));
+        Assert.Null(sheet.GetValue(0, 1));
+        Assert.Null(sheet.GetError(0, 0));
     }
 
     [Fact]
@@ -225,7 +264,7 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         });
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
         var bridge = new SheetScriptBridge(cut.Instance);
-        await cut.InvokeAsync(() => bridge.CommitAsync(0, 1, "typed", true, null));
+        await cut.InvokeAsync(() => bridge.CommitAsync(0, 1, "typed", true, null, cut.Instance.SheetGeneration));
         Assert.True(cut.Instance.CanUndo);
 
         await cut.InvokeAsync(() => rows!.Column("B", static y => y.Note));
@@ -517,7 +556,7 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("insertRowsBelow", 0, 0, 0, 0, 0, 0));
         inner.Insert(1, new Line { Name = "x" });
 
-        var undone = await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false));
+        var undone = await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false, cut.Instance.SheetGeneration));
         inner.RemoveAt(2);
 
         Assert.Null(undone);
@@ -536,15 +575,34 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         var bridge = new SheetScriptBridge(cut.Instance);
         await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("insertRowsBelow", 2, 0, 2, 0, 2, 0));
         await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteRows", 3, 0, 3, 0, 3, 0));
-        await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false));
+        await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false, cut.Instance.SheetGeneration));
         inner.Add(new Line { Name = "x" });
 
-        var redone = await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(true));
+        var redone = await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(true, cut.Instance.SheetGeneration));
         inner.RemoveAt(1);
 
         Assert.Null(redone);
         Assert.Equal(["a", "c", "x"], target.Lines.Select(static x => x.Name));
         Assert.Equal(["a", "c", "x"], Enumerable.Range(0, 3).Select(r => sheet.GetValue(r, 0)));
+    }
+
+    [Fact]
+    public async Task UndoingAColumnDeleteKeepsTheValueOfARowWithoutAnElement()
+    {
+        var inner = new ObservableCollection<Line> { new() { Name = "a" } };
+        var target = new ReadOnlyListTarget(inner);
+        var sheet = new Sheet(4, 2);
+        using var binding = sheet.Bind(target).Rows("A2:B4", static x => x.Lines, static x => x.Column("A", static y => y.Name));
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.AllowDeleteColumns, true));
+        var bridge = new SheetScriptBridge(cut.Instance);
+        sheet.SetValue(2, 0, "abc");
+        await cut.InvokeAsync(() => cut.Instance.ChangeStructureAsync("deleteColumns", 0, 0, 0, 0, 0, 0));
+        inner[0].Name = "z";
+
+        await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false, cut.Instance.SheetGeneration));
+
+        Assert.Equal("z", sheet.GetValue(1, 0));
+        Assert.Equal("abc", sheet.GetValue(2, 0));
     }
 
     [Fact]
@@ -623,6 +681,49 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         Assert.Equal(JapaneseTexts.Default.NotEditable, typed.Error);
         Assert.True(emptied.Ok);
         Assert.Null(target.When);
+    }
+
+    [Fact]
+    public async Task ADateCellChangesOnlyTheDateOfADateTimeAndATimeCellOnlyItsTime()
+    {
+        var target = new MomentTarget { At = new DateTime(2026, 11, 5, 9, 30, 0, DateTimeKind.Local) };
+        var sheet = new Sheet(1, 2);
+        sheet["A1"].Configure(static c => c.Kind = CellKind.Date);
+        sheet["B1"].Configure(static c => c.Kind = CellKind.Time);
+        using var binding = sheet.Bind(target).Cell("A1", static x => x.At).Cell("B1", static x => x.At);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+
+        var same = await Commit(0, sheet.GetEditText(0, 0));
+        var kept = target.At;
+        var time = await Commit(1, "10:00");
+        var date = await Commit(0, "2026/11/06");
+
+        Assert.True(same.Ok);
+        Assert.Equal(new DateTime(2026, 11, 5, 9, 30, 0), kept);
+        Assert.True(time.Ok);
+        Assert.True(date.Ok);
+        Assert.Equal(new DateTime(2026, 11, 6, 10, 0, 0), target.At);
+        Assert.Equal(DateTimeKind.Local, target.At.Kind);
+
+        async Task<CommitResult> Commit(int column, string text) => await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, column, text, false)).ConfigureAwait(true);
+    }
+
+    [Fact]
+    public async Task ADateTimeWithoutAValueTakesADateAtMidnightButNoTime()
+    {
+        var target = new MomentTarget();
+        var sheet = new Sheet(1, 2);
+        sheet["A1"].Configure(static c => c.Kind = CellKind.Date);
+        sheet["B1"].Configure(static c => c.Kind = CellKind.Time);
+        using var binding = sheet.Bind(target).Cell("A1", static x => x.Maybe).Cell("B1", static x => x.Maybe);
+        var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
+
+        var time = await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 1, "10:00", false));
+        var date = await cut.InvokeAsync(() => cut.Instance.CommitAsync(0, 0, "2026/11/06", false));
+
+        Assert.Equal("日付を yyyy/MM/dd の形で入力してください", time.Error);
+        Assert.True(date.Ok);
+        Assert.Equal(new DateTime(2026, 11, 6), target.Maybe);
     }
 
     [Fact]
@@ -713,8 +814,8 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet).Add(x => x.CellCommitted, e => addresses.Add(e.Address)));
         var bridge = new SheetScriptBridge(cut.Instance);
 
-        await cut.InvokeAsync(() => bridge.CommitAsync(1, 0, "5", false, null));
-        var undone = await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false));
+        await cut.InvokeAsync(() => bridge.CommitAsync(1, 0, "5", false, null, cut.Instance.SheetGeneration));
+        var undone = await cut.InvokeAsync(() => bridge.UndoFromScriptAsync(false, cut.Instance.SheetGeneration));
 
         Assert.Equal([new CellAddress(2, 0), new CellAddress(3, 0)], addresses);
         Assert.Equal([3, 0, 3, 0], undone!);
@@ -729,7 +830,7 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
         var bridge = new SheetScriptBridge(cut.Instance);
 
-        await cut.InvokeAsync(() => bridge.CommitAsync(1, 0, "-1", false, null));
+        await cut.InvokeAsync(() => bridge.CommitAsync(1, 0, "-1", false, null, cut.Instance.SheetGeneration));
         await cut.InvokeAsync(cut.Instance.UndoAsync);
 
         Assert.Equal([5m, 9m], target.Lines.Select(static x => x.Quantity));
@@ -790,7 +891,7 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, sheet));
         var bridge = new SheetScriptBridge(cut.Instance);
 
-        await cut.InvokeAsync(() => bridge.CommitAsync(2, 0, "500", false, null));
+        await cut.InvokeAsync(() => bridge.CommitAsync(2, 0, "500", false, null, cut.Instance.SheetGeneration));
         await cut.InvokeAsync(cut.Instance.UndoAsync);
 
         Assert.Equal([500m, 5m, 7m], target.Lines.Select(static x => x.Quantity));
@@ -876,6 +977,8 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     {
         public int Count { get; set; }
 
+        public int? Limit { get; set; }
+
         public decimal Amount { get; set; }
 
         public DateOnly Date { get; set; }
@@ -889,7 +992,12 @@ public sealed class ObjectBindingEdgeTests : BunitContext
         public string Guarded
         {
             get;
-            set => field = value == "bad" ? throw new InvalidOperationException("Not allowed") : value;
+            set => field = value switch
+            {
+                "bad" => throw new InvalidOperationException("Not allowed"),
+                "stop" => throw new OperationCanceledException("Stopped"),
+                _ => value
+            };
         }
 
         = "ok";
@@ -905,6 +1013,21 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     public sealed class Named : INamed
     {
         public string? Name { get; set; }
+    }
+
+    public sealed class Throwing
+    {
+        public Throwing()
+        {
+            throw new InvalidOperationException("Broken");
+        }
+
+        public string? Name { get; set; }
+    }
+
+    public sealed class ThrowingList
+    {
+        public ObservableCollection<Throwing> Items { get; } = [];
     }
 
     public sealed class ListTarget
@@ -944,6 +1067,13 @@ public sealed class ObjectBindingEdgeTests : BunitContext
     public sealed class OffsetTarget
     {
         public DateTimeOffset? When { get; set; }
+    }
+
+    public sealed class MomentTarget
+    {
+        public DateTime At { get; set; }
+
+        public DateTime? Maybe { get; set; }
     }
 
     public sealed class Hooked

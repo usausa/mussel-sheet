@@ -18,7 +18,7 @@ public sealed class CellCallbackTests : BunitContext
         var cut = Render<MusselSheetView>(p => p.Add(x => x.Sheet, new Sheet(1, 1)).Add(x => x.CellCommitted, static _ => throw new InvalidOperationException("app")));
         var bridge = new SheetScriptBridge(cut.Instance);
 
-        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => cut.InvokeAsync(() => bridge.CommitAsync(0, 0, "5", true, null)));
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => cut.InvokeAsync(() => bridge.CommitAsync(0, 0, "5", true, null, cut.Instance.SheetGeneration)));
         var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
 
         Assert.Same(Renderer.UnhandledException, ended);
@@ -48,7 +48,7 @@ public sealed class CellCallbackTests : BunitContext
 
         var bridge = new SheetScriptBridge(cut.Instance);
         await Assert.ThrowsAsync<OperationCanceledException>(() => cut.InvokeAsync(() => bridge.OnActiveCellChangedAsync(1, 1, 1, 1, 1, 1)));
-        await Assert.ThrowsAsync<JSDisconnectedException>(() => cut.InvokeAsync(() => bridge.CommitAsync(0, 0, "5", true, null)));
+        await Assert.ThrowsAsync<JSDisconnectedException>(() => cut.InvokeAsync(() => bridge.CommitAsync(0, 0, "5", true, null, cut.Instance.SheetGeneration)));
         var ended = await Task.WhenAny(Renderer.UnhandledException, Task.Delay(500, Xunit.TestContext.Current.CancellationToken)).ConfigureAwait(true);
 
         Assert.NotSame(Renderer.UnhandledException, ended);

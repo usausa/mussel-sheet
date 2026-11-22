@@ -325,16 +325,16 @@ internal sealed class SheetStyles
     }
 
     // Colors are written into <style>, so only values made of characters that are safe in CSS are used
-    private static bool IsSafeColor(string value)
+    internal static bool IsSafeColor(string value)
     {
-        if (value.Length is 0 or > 64)
+        if ((value.Length is 0 or > 64) || value.Contains("url(", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
         foreach (var ch in value)
         {
-            if (!Char.IsAsciiLetterOrDigit(ch) && (ch is not ('#' or '(' or ')' or ',' or '.' or '%' or ' ' or '-')))
+            if (!Char.IsAsciiLetterOrDigit(ch) && (ch is not ('#' or '(' or ')' or ',' or '.' or '%' or ' ' or '-' or '/')))
             {
                 return false;
             }

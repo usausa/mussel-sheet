@@ -41,6 +41,31 @@ public sealed class SheetFunctionsTests
         Assert.Equal("x", functions.NameOf(second));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReplacingOneOfTwoNamesOfAFunctionKeepsTheOther(bool keptFirst)
+    {
+        var functions = new SheetFunctions();
+        Func<CellValidationContext, string?> shared = static _ => null;
+        Func<CellValidationContext, string?> other = static _ => "x";
+        if (keptFirst)
+        {
+            functions.AddValidator("LegacyCode", shared);
+            functions.AddValidator("Code", shared);
+        }
+        else
+        {
+            functions.AddValidator("Code", shared);
+            functions.AddValidator("LegacyCode", shared);
+        }
+
+        functions.AddValidator("Code", other);
+
+        Assert.Equal("LegacyCode", functions.NameOf(shared));
+        Assert.Equal("Code", functions.NameOf(other));
+    }
+
     [Fact]
     public void AFunctionOfAnotherKindIsNotFound()
     {

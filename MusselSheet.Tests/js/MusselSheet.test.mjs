@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     shiftCell,
+    shiftRange,
     compileReading,
     normalizeText,
     prepareText,
@@ -24,6 +25,7 @@ import {
     firstInputCell,
     countBytes,
     clipboardCell,
+    copiedCell,
     normalizeLines,
     parseClipboard,
     toTsv,
@@ -376,6 +378,14 @@ test('clipboard tables are split the way Excel writes TSV, as in C# ClipboardFor
     assert.deepEqual(parseClipboard('a\n\nb'), [['a'], [''], ['b']]);
     assert.deepEqual(parseClipboard('a\rb'), [['a'], ['b']]);
     assert.deepEqual(parseClipboard(''), []);
+});
+
+test('one copied cell is quoted as in a range, and an empty one is a line break that pastes back as an empty value', () => {
+    assert.equal(copiedCell('abc'), 'abc');
+    assert.equal(copiedCell('a\tb'), '"a\tb"');
+    assert.equal(copiedCell('"x'), '"""x"');
+    assert.equal(copiedCell(''), '\r\n');
+    assert.deepEqual(parseClipboard(copiedCell('')), [['']]);
 });
 
 test('TSV and HTML tables are written as in C# ClipboardFormat', () => {
@@ -886,6 +896,16 @@ test('cells follow rows and columns the app inserts or deletes', () => {
     assert.deepEqual(shiftCell({ r: 4, c: 1 }, { axis: 'row', index: 3, count: -1 }), { r: 3, c: 1 });
     assert.deepEqual(shiftCell({ r: 4, c: 1 }, { axis: 'row', index: 3, count: -2 }), { r: 3, c: 1, lost: true });
     assert.deepEqual(shiftCell({ r: 4, c: 3 }, { axis: 'col', index: 0, count: -2 }), { r: 4, c: 1 });
+});
+
+test('a range follows rows and columns the app inserts or deletes, keeping only the part that is left', () => {
+    const range = { top: 4, left: 1, bottom: 6, right: 2 };
+    assert.deepEqual(shiftRange(range, { axis: 'row', index: 1, count: 1 }), { top: 5, left: 1, bottom: 7, right: 2 });
+    assert.deepEqual(shiftRange(range, { axis: 'row', index: 5, count: 2 }), { top: 4, left: 1, bottom: 8, right: 2 });
+    assert.deepEqual(shiftRange(range, { axis: 'row', index: 5, count: -4 }), { top: 4, left: 1, bottom: 4, right: 2 });
+    assert.deepEqual(shiftRange(range, { axis: 'row', index: 2, count: -3 }), { top: 2, left: 1, bottom: 3, right: 2 });
+    assert.equal(shiftRange(range, { axis: 'row', index: 3, count: -6 }), null);
+    assert.deepEqual(shiftRange(range, { axis: 'col', index: 0, count: 1 }), { top: 4, left: 2, bottom: 6, right: 3 });
 });
 
 test('the column where a Tab run started follows the columns the app inserts or deletes', () => {

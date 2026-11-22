@@ -177,7 +177,7 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
         }
     }
 
-    BoundProperty? ISheetBinding.FindProperty(int row, int column)
+    BoundCell? ISheetBinding.FindBound(int row, int column)
     {
         if (disposed)
         {
@@ -188,15 +188,15 @@ public sealed class SheetBinding<[DynamicallyAccessedMembers(DynamicallyAccessed
         {
             if (IsCurrent(link) && (link.Row.Index == row) && (link.Column.Index == column))
             {
-                return link.Property;
+                return new BoundCell(Source, link.Property);
             }
         }
 
         foreach (var list in lists)
         {
-            if (list.FindProperty(row, column) is { } property)
+            if (list.FindBound(row, column) is { } bound)
             {
-                return property;
+                return bound;
             }
         }
 

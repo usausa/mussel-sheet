@@ -44,7 +44,7 @@ internal sealed class BoundProperty
             var direct = typeof(TValue) == property.PropertyType;
             var getter = direct && (property.GetMethod is { IsPublic: true } get) ? Getter<T, TValue>(get) : null;
             var setter = direct && (property.SetMethod is { } set) && Writable(set) ? Setter<T, TValue>(set) : null;
-            return new BoundProperty(property, default(TValue), getter, setter);
+            return new BoundProperty(property, direct ? default(TValue) : null, getter, setter);
         }
 
         throw new ArgumentException("The expression must be a property of the parameter, such as x => x.Name.", nameof(expression));
@@ -68,6 +68,16 @@ internal sealed class BoundProperty
         {
             info.SetValue(target, value, BindingFlags.DoNotWrapExceptions, null, null, null);
         }
+    }
+
+    public bool TryConvert(object? value, object? target, out object? result)
+    {
+        if ((ValueType == typeof(DateTime)) && (value is DateOnly or TimeOnly))
+        {
+            return TryReplace(value, target is null ? null : Get(target) as DateTime?, out result);
+        }
+
+        return TryConvert(value, out result);
     }
 
     public bool TryConvert(object? value, out object? result)
@@ -116,6 +126,22 @@ internal sealed class BoundProperty
     {
         var typed = method.CreateDelegate<Action<T, TValue>>();
         return (target, value) => typed((T)target, (TValue)value!);
+    }
+
+    private static bool TryReplace(object value, DateTime? current, out object? result)
+    {
+        switch (value)
+        {
+            case DateOnly date:
+                result = current is { } now ? date.ToDateTime(TimeOnly.FromDateTime(now), now.Kind) : date.ToDateTime(TimeOnly.MinValue);
+                return true;
+            case TimeOnly time when current is { } day:
+                result = DateOnly.FromDateTime(day).ToDateTime(time, day.Kind);
+                return true;
+            default:
+                result = null;
+                return false;
+        }
     }
 
     private static bool HasFraction(object value) => value switch

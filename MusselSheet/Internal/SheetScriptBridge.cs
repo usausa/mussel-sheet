@@ -17,87 +17,91 @@ internal sealed class SheetScriptBridge(MusselSheetView view)
     }
 
     [JSInvokable]
-    public Task OnMenuItemAsync(string name, int top, int left, int bottom, int right, int row, int column) =>
-        RunAsync(() => view.OnMenuItemAsync(name, top, left, bottom, right, row, column));
+    public Task OnMenuItemAsync(string name, int top, int left, int bottom, int right, int row, int column, int generation) =>
+        RunCurrentAsync(generation, () => view.OnMenuItemAsync(name, top, left, bottom, right, row, column));
 
     [JSInvokable]
-    public Task<JsonElement> CommitAsync(int row, int column, string? text, bool optimistic, IJSStreamReference? data) =>
-        RunAsync(async () =>
+    public Task<JsonElement> CommitAsync(int row, int column, string? text, bool optimistic, IJSStreamReference? data, int generation) =>
+        RunCurrentAsync(generation, data, Rejected, async () =>
         {
             var value = text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true);
             return SheetScriptJson.ToElement(value is null ? view.RefuseLargeText(row, column, optimistic) : await view.CommitAsync(row, column, value, optimistic).ConfigureAwait(true));
         });
 
     [JSInvokable]
-    public Task<JsonElement> ClearAsync(int row, int column) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.ClearAsync(row, column).ConfigureAwait(true)));
+    public Task<JsonElement> ClearAsync(int row, int column, int generation) =>
+        RunCurrentAsync(generation, Rejected, async () => SheetScriptJson.ToElement(await view.ClearAsync(row, column).ConfigureAwait(true)));
 
     [JSInvokable]
-    public Task<JsonElement> PasteAsync(int row, int column, string? text, bool optimistic, IJSStreamReference? data) =>
-        RunAsync(async () =>
+    public Task<JsonElement> PasteAsync(int row, int column, string? text, bool optimistic, IJSStreamReference? data, int generation) =>
+        RunCurrentAsync(generation, data, Rejected, async () =>
         {
             var value = text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true);
             return SheetScriptJson.ToElement(value is null ? view.RefuseLargeText(row, column, optimistic) : await view.PasteAsync(row, column, value, optimistic).ConfigureAwait(true));
         });
 
     [JSInvokable]
-    public Task<JsonElement> CutAsync(int row, int column) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.CutAsync(row, column).ConfigureAwait(true)));
+    public Task<JsonElement> CutAsync(int row, int column, int generation) =>
+        RunCurrentAsync(generation, Rejected, async () => SheetScriptJson.ToElement(await view.CutAsync(row, column).ConfigureAwait(true)));
 
     [JSInvokable]
-    public Task<JsonElement> PasteRangeAsync(int top, int left, int bottom, int right, IJSStreamReference data) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.PasteRangeAsync(top, left, bottom, right, data).ConfigureAwait(true)));
+    public Task<JsonElement> PasteRangeAsync(int top, int left, int bottom, int right, IJSStreamReference data, int generation) =>
+        RunCurrentAsync(generation, data, static () => SheetScriptJson.Null, async () => SheetScriptJson.ToElement(await view.PasteRangeAsync(top, left, bottom, right, data).ConfigureAwait(true)));
 
     [JSInvokable]
-    public Task ClearRangeAsync(int top, int left, int bottom, int right) => RunAsync(() => view.ClearRangeAsync(top, left, bottom, right));
+    public Task ClearRangeAsync(int top, int left, int bottom, int right, int generation) =>
+        RunCurrentAsync(generation, () => view.ClearRangeAsync(top, left, bottom, right));
 
     [JSInvokable]
-    public Task CutRangeAsync(int top, int left, int bottom, int right) => RunAsync(() => view.CutRangeAsync(top, left, bottom, right));
+    public Task CutRangeAsync(int top, int left, int bottom, int right, int generation) =>
+        RunCurrentAsync(generation, () => view.CutRangeAsync(top, left, bottom, right));
 
     [JSInvokable]
     public Task<JsonElement> GetRangeTextAsync(int top, int left, int bottom, int right) =>
         RunAsync(() => Task.FromResult(SheetScriptJson.ToElement(view.GetRangeText(top, left, bottom, right))));
 
     [JSInvokable]
-    public Task<JsonElement> FillAsync(int top, int left, int bottom, int right, string? text, IJSStreamReference? data) =>
-        RunAsync(async () =>
+    public Task<JsonElement> FillAsync(int top, int left, int bottom, int right, string? text, IJSStreamReference? data, int generation) =>
+        RunCurrentAsync(generation, data, static () => SheetScriptJson.Null, async () =>
         {
             var value = text ?? await MusselSheetView.ReadTextAsync(data).ConfigureAwait(true);
             return SheetScriptJson.ToElement(value is null ? view.RefuseLargeText(top, left, bottom, right) : await view.FillAsync(top, left, bottom, right, value).ConfigureAwait(true));
         });
 
     [JSInvokable]
-    public Task<JsonElement> FillDownAsync(int top, int left, int bottom, int right) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.FillDownAsync(top, left, bottom, right).ConfigureAwait(true)));
+    public Task<JsonElement> FillDownAsync(int top, int left, int bottom, int right, int generation) =>
+        RunCurrentAsync(generation, static () => SheetScriptJson.Null, async () => SheetScriptJson.ToElement(await view.FillDownAsync(top, left, bottom, right).ConfigureAwait(true)));
 
     [JSInvokable]
-    public Task<JsonElement> FillRightAsync(int top, int left, int bottom, int right) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.FillRightAsync(top, left, bottom, right).ConfigureAwait(true)));
+    public Task<JsonElement> FillRightAsync(int top, int left, int bottom, int right, int generation) =>
+        RunCurrentAsync(generation, static () => SheetScriptJson.Null, async () => SheetScriptJson.ToElement(await view.FillRightAsync(top, left, bottom, right).ConfigureAwait(true)));
 
     [JSInvokable]
-    public Task<JsonElement> AutoFillAsync(int top, int left, int bottom, int right, int toTop, int toLeft, int toBottom, int toRight, bool toggle) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.AutoFillAsync(top, left, bottom, right, toTop, toLeft, toBottom, toRight, toggle).ConfigureAwait(true)));
+    public Task<JsonElement> AutoFillAsync(int top, int left, int bottom, int right, int toTop, int toLeft, int toBottom, int toRight, bool toggle, int generation) =>
+        RunCurrentAsync(generation, static () => SheetScriptJson.Null, async () => SheetScriptJson.ToElement(await view.AutoFillAsync(top, left, bottom, right, toTop, toLeft, toBottom, toRight, toggle).ConfigureAwait(true)));
 
     [JSInvokable]
-    public Task<JsonElement> AutoFillDownAsync(int top, int left, int bottom, int right) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.AutoFillDownAsync(top, left, bottom, right).ConfigureAwait(true)));
+    public Task<JsonElement> AutoFillDownAsync(int top, int left, int bottom, int right, int generation) =>
+        RunCurrentAsync(generation, static () => SheetScriptJson.Null, async () => SheetScriptJson.ToElement(await view.AutoFillDownAsync(top, left, bottom, right).ConfigureAwait(true)));
 
     [JSInvokable]
     public Task<int[]> FindEdgeAsync(int row, int column, string direction) => RunAsync(() => Task.FromResult(view.FindEdge(row, column, direction)));
 
     [JSInvokable]
-    public Task<bool> AddRowFromScriptAsync(int row, int column) => RunAsync(() => view.AddRowFromScriptAsync(row, column));
+    public Task<bool> AddRowFromScriptAsync(int row, int column, int generation) =>
+        RunCurrentAsync(generation, static () => false, () => view.AddRowFromScriptAsync(row, column));
 
     [JSInvokable]
-    public Task<int[]?> ChangeStructureAsync(string action, int top, int left, int bottom, int right, int row, int column) =>
-        RunAsync(() => view.ChangeStructureAsync(action, top, left, bottom, right, row, column));
+    public Task<int[]?> ChangeStructureAsync(string action, int top, int left, int bottom, int right, int row, int column, int generation) =>
+        RunCurrentAsync(generation, static () => null, () => view.ChangeStructureAsync(action, top, left, bottom, right, row, column));
 
     [JSInvokable]
-    public Task<JsonElement> ToggleAsync(int row, int column) =>
-        RunAsync(async () => SheetScriptJson.ToElement(await view.ToggleAsync(row, column).ConfigureAwait(true)));
+    public Task<JsonElement> ToggleAsync(int row, int column, int generation) =>
+        RunCurrentAsync(generation, Rejected, async () => SheetScriptJson.ToElement(await view.ToggleAsync(row, column).ConfigureAwait(true)));
 
     [JSInvokable]
-    public Task<int[]?> UndoFromScriptAsync(bool redo) => RunAsync(() => view.UndoFromScriptAsync(redo));
+    public Task<int[]?> UndoFromScriptAsync(bool redo, int generation) =>
+        RunCurrentAsync(generation, static () => null, () => view.UndoFromScriptAsync(redo));
 
     [JSInvokable]
     public Task OnActiveCellChangedAsync(int row, int column, int top, int left, int bottom, int right) =>
@@ -130,8 +134,55 @@ internal sealed class SheetScriptBridge(MusselSheetView view)
 
     // Calls that arrive after the view is disposed, or wait in line until then, do nothing: those that return a value are canceled
     private Task<T> RunAsync<T>(Func<Task<T>> operation) =>
-        view.ReportAsync(view.RunInTurnAsync(() => view.IsDisposed ? Task.FromCanceled<T>(new CancellationToken(true)) : operation()));
+        RunAsync(null, operation);
+
+    private Task<T> RunAsync<T>(IJSStreamReference? data, Func<Task<T>> operation) =>
+        view.ReportAsync(view.RunInTurnAsync(() => view.IsDisposed ? CanceledAsync<T>(data) : operation()));
 
     private Task RunAsync(Func<Task> operation) =>
         view.ReportAsync(view.RunInTurnAsync(() => view.IsDisposed ? Task.CompletedTask : operation()));
+
+    private Task<T> RunCurrentAsync<T>(int generation, Func<T> refused, Func<Task<T>> operation) =>
+        RunCurrentAsync(generation, null, refused, operation);
+
+    private Task<T> RunCurrentAsync<T>(int generation, IJSStreamReference? data, Func<T> refused, Func<Task<T>> operation) =>
+        RunAsync(data, async () =>
+        {
+            if (generation == view.SheetGeneration)
+            {
+                return await operation().ConfigureAwait(true);
+            }
+
+            await ReleaseAsync(data).ConfigureAwait(true);
+            await view.SyncMapAsync().ConfigureAwait(true);
+            return refused();
+        });
+
+    private Task RunCurrentAsync(int generation, Func<Task> operation) =>
+        RunAsync(async () =>
+        {
+            if (generation == view.SheetGeneration)
+            {
+                await operation().ConfigureAwait(true);
+                return;
+            }
+
+            await view.SyncMapAsync().ConfigureAwait(true);
+        });
+
+    private JsonElement Rejected() => SheetScriptJson.ToElement(view.Rejected);
+
+    private static async Task<T> CanceledAsync<T>(IJSStreamReference? data)
+    {
+        await ReleaseAsync(data).ConfigureAwait(true);
+        throw new OperationCanceledException(new CancellationToken(true));
+    }
+
+    private static async Task ReleaseAsync(IJSStreamReference? data)
+    {
+        if (data is not null)
+        {
+            await data.DisposeAsync().ConfigureAwait(true);
+        }
+    }
 }

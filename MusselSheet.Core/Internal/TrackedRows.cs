@@ -13,6 +13,12 @@ internal sealed class TrackedRows
 
     private ConditionalWeakTable<SheetRow, object?>? removed;
 
+    private bool emptied;
+
+    private SheetRow? emptyAfter;
+
+    private List<WeakReference<SheetRow>>? previousAfter;
+
     private TrackedRows(List<SheetRow> rows, bool region, bool all)
     {
         this.rows = rows;
@@ -82,7 +88,7 @@ internal sealed class TrackedRows
         return bottom < 0 ? null : (top, bottom);
     }
 
-    public void OnInserted(Sheet sheet, int index, int count, ICollection<SheetRow>? joined)
+    public bool OnInserted(Sheet sheet, int index, int count, ICollection<SheetRow>? joined)
     {
         if (IsAll)
         {
@@ -91,35 +97,47 @@ internal sealed class TrackedRows
                 joined?.Add(sheet.Rows[r]);
             }
 
-            return;
+            return false;
         }
 
         PutBack(sheet, index, count, joined);
-        if (!region || (Span(sheet) is not { } span))
+        if (!region)
         {
-            return;
+            return false;
         }
 
+        if (Span(sheet) is not { } span)
+        {
+            RestoreAfter(sheet);
+            if (!emptied || !IsEmptyPlace(sheet, index))
+            {
+                return false;
+            }
+
+            Join(sheet, index, count, joined);
+            if (rows.Count == 0)
+            {
+                return false;
+            }
+
+            LeaveEmpty();
+            return true;
+        }
+
+        LeaveEmpty();
         var above = index > 0 ? sheet.Rows[index - 1] : null;
         var below = index + count < sheet.RowCount ? sheet.Rows[index + count] : null;
         if (((above is null) || !Contains(sheet, above)) && ((below is null) || (below.Index != span.Top) || !Contains(sheet, below)))
         {
-            return;
+            return false;
         }
 
-        for (var r = index; r < index + count; r++)
-        {
-            var row = sheet.Rows[r];
-            if (!row.WasRemoved && set.Add(row))
-            {
-                rows.Add(row);
-                joined?.Add(row);
-            }
-        }
+        Join(sheet, index, count, joined);
+        return false;
     }
 
     // Only the undo history keeps a removed row alive, so the rows it lets go of are not held here
-    public void OnRemoved(Sheet sheet)
+    public void OnRemoved(Sheet sheet, int index)
     {
         if (IsAll)
         {
@@ -142,6 +160,57 @@ internal sealed class TrackedRows
         }
 
         rows.RemoveRange(kept, rows.Count - kept);
+        if (region && (rows.Count == 0) && (!emptied || ((emptyAfter is not null) && !sheet.Contains(emptyAfter))))
+        {
+            if (emptyAfter is { } after)
+            {
+                (previousAfter ??= []).Add(new WeakReference<SheetRow>(after));
+            }
+
+            emptied = true;
+            emptyAfter = index > 0 ? sheet.Rows[index - 1] : null;
+        }
+    }
+
+    private bool IsEmptyPlace(Sheet sheet, int index) =>
+        emptyAfter is { } after ? (sheet.Contains(after) && (after.Index == index - 1)) : (index == 0);
+
+    private void RestoreAfter(Sheet sheet)
+    {
+        while (previousAfter is { Count: > 0 } previous)
+        {
+            if (previous[^1].TryGetTarget(out var row))
+            {
+                if (!sheet.Contains(row))
+                {
+                    return;
+                }
+
+                emptyAfter = row;
+            }
+
+            previous.RemoveAt(previous.Count - 1);
+        }
+    }
+
+    private void LeaveEmpty()
+    {
+        emptied = false;
+        emptyAfter = null;
+        previousAfter = null;
+    }
+
+    private void Join(Sheet sheet, int index, int count, ICollection<SheetRow>? joined)
+    {
+        for (var r = index; r < index + count; r++)
+        {
+            var row = sheet.Rows[r];
+            if (!row.WasRemoved && set.Add(row))
+            {
+                rows.Add(row);
+                joined?.Add(row);
+            }
+        }
     }
 
     private void PutBack(Sheet sheet, int index, int count, ICollection<SheetRow>? joined)

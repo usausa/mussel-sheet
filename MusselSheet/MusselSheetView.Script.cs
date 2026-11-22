@@ -44,7 +44,7 @@ public sealed partial class MusselSheetView
     }
 
     private string MapSignature() =>
-        String.Create(CultureInfo.InvariantCulture, $"{RuntimeHelpers.GetHashCode(Sheet)}|{Sheet.StructureVersion}|{HeaderHeight}|{HeaderWidth}|{ValidationMode}");
+        String.Create(CultureInfo.InvariantCulture, $"{SheetGeneration}|{Sheet.StructureVersion}|{HeaderHeight}|{HeaderWidth}|{ValidationMode}");
 
     private string LanguageSignature() =>
         String.Create(CultureInfo.InvariantCulture, $"{RuntimeHelpers.GetHashCode(Options)}|{RuntimeHelpers.GetHashCode(Sheet.Culture)}|{CultureInfo.CurrentUICulture.Name}|{Today}");
@@ -55,7 +55,7 @@ public sealed partial class MusselSheetView
         SheetMapBuilder.Language(InputContext, CalendarInfo.From(Sheet.Culture, Options.FirstDayOfWeekFor(Sheet.Culture)));
 
     // Sends the map only when it changed; after a user's row change, without waiting for the render
-    private async Task SyncMapAsync()
+    internal async Task SyncMapAsync()
     {
         if (controller is not { } current)
         {
@@ -81,7 +81,7 @@ public sealed partial class MusselSheetView
                 sentMap = map;
                 List<ScriptShift> shifts = [.. pendingShifts];
                 pendingShifts.Clear();
-                await current.InvokeVoidAsync("setMap", SheetScriptJson.ToElement(BuildMap()), SheetScriptJson.ToElement(shifts)).ConfigureAwait(true);
+                await current.InvokeVoidAsync("setMap", SheetScriptJson.ToElement(BuildMap()), SheetScriptJson.ToElement(shifts), SheetGeneration).ConfigureAwait(true);
             }
         }
         catch (JSDisconnectedException)
@@ -162,7 +162,7 @@ public sealed partial class MusselSheetView
             sentLanguage = LanguageSignature();
             sentOptions = options.GetRawText();
             sentThresholds = null;
-            controller = await module.InvokeAsync<IJSObjectReference>("attach", root, self, options, SheetScriptJson.ToElement(BuildMap()), SheetScriptJson.ToElement(BuildLanguage())).ConfigureAwait(true);
+            controller = await module.InvokeAsync<IJSObjectReference>("attach", root, self, options, SheetScriptJson.ToElement(BuildMap()), SheetScriptJson.ToElement(BuildLanguage()), SheetGeneration).ConfigureAwait(true);
             if (IsDisposed)
             {
                 await DetachAsync().ConfigureAwait(true);

@@ -216,6 +216,25 @@ public sealed class CellInputTests
     }
 
     [Fact]
+    public void ARangeMessageLeavesOutALimitOfAnotherType()
+    {
+        var date = Settings(CellKind.Date) with { Minimum = 0, Maximum = new DateOnly(2026, 12, 31) };
+        var number = Settings(CellKind.Number) with { Minimum = new DateOnly(2026, 1, 1), Maximum = 100 };
+
+        Assert.Equal("2026/12/31 以下で入力してください", CellInput.Validate(new DateOnly(2027, 1, 1), "2027/01/01", date, Context));
+        Assert.Equal("100 以下で入力してください", CellInput.Validate(101m, "101", number, Context));
+    }
+
+    [Fact]
+    public void ARangeMessageOfACustomCellUsesOnlyTheLimitsOfTheValueType()
+    {
+        var custom = Settings(CellKind.Custom) with { Minimum = 10, Maximum = new DateOnly(2026, 12, 31) };
+
+        Assert.Equal("10 以上で入力してください", CellInput.Validate(5m, "5", custom, Context));
+        Assert.Equal("2026/12/31 以下で入力してください", CellInput.Validate(new DateOnly(2027, 1, 1), "2027/01/01", custom, Context));
+    }
+
+    [Fact]
     public void CheckUsesTheCustomMessageForEveryError()
     {
         var settings = Settings(CellKind.Number) with { ErrorMessage = "0〜100 で入力してください", Minimum = 0, Maximum = 100 };
