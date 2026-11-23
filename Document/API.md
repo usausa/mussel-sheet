@@ -42,7 +42,7 @@ The sheet component. `Sheet` is required, and other attributes such as `class` a
 | `MenuItemClicked` | `SheetMenuItemClickedEventArgs` | An item registered in `MusselSheetOptions.Menu` |
 
 `CellChangeReason` tells where a value came from: `Input`, `ClearContents`, `Toggle`, `Undo`, `Redo`, `Paste`, `Cut` or `Fill`.  
-A range paste, clear, cut or fill, and its undo and redo, raise these events for each cell, so a component that handles them renders for each cell (at once in WebAssembly); the view itself renders once at the end.  
+A range paste, clear, cut or fill, and its undo and redo, raise these events for each cell, so a component that handles them renders for each cell (at once in WebAssembly); the view itself renders once at the end. To skip those renders, pass a callback whose receiver is not a component, such as `EventCallback.Factory.Create<CellCommittedEventArgs>(receiver, handler)`.  
 No event comes before editing starts, because input starts in the browser without waiting for C#. To block input, set `ReadOnly` beforehand.  
 
 ### Members
@@ -90,7 +90,7 @@ The model of the sheet. Rows and columns are numbered from 0; addresses use the 
 
 `SheetRange` has `Configure`, `GetValues`, `SetValues`, `ClearContents`, `Merge`, `Unmerge` and `BorderAround`.  
 `SheetRow` and `SheetColumn` also have `Index`, `ActualHeight` / `ActualWidth` and `HeaderText`. `Cell` also has `Address`, `IsChanged`, `OriginalValue`, `TryGetValue<T>`, `Configure` and `ClearContents`.  
-A `Cell` or `SheetRange` holds a fixed address, so get it again after inserting or deleting rows or columns. `SheetRow` and `SheetColumn` stay with their data.  
+A `Cell` or `SheetRange` holds a fixed address, so get it again after inserting or deleting rows or columns. `SheetRow`, `SheetColumn` and `CellEditContext.Address` stay with their data.  
 
 ## 📍 Addresses
 
@@ -218,7 +218,7 @@ These are for the sheet only. Set them on `.mussel-sheet` or on a `class` given 
 | `--mussel-sheet-cell-bg`, `--mussel-sheet-header-bg`, `--mussel-sheet-readonly-bg` | Backgrounds of cells, headers and read-only cells |
 | `--mussel-sheet-border-color`, `--mussel-sheet-outer-border` | Cell borders without a color, and the `border` of the sheet |
 | `--mussel-sheet-active-color`, `--mussel-sheet-inactive-color` | The active cell and the fill handle, with and without focus. Without focus, the inactive color also draws the border and the caps of the selection |
-| `--mussel-sheet-selection-bg`, `--mussel-sheet-selection-border`, `--mussel-sheet-fill-range-color` | The selected range, and the range being filled |
+| `--mussel-sheet-selection-bg`, `--mussel-sheet-selection-border`, `--mussel-sheet-fill-range-color` | The selected range with focus, and the range being filled. Without focus, the selection is filled with `rgb(110 119 129 / 12%)`, which no variable changes |
 | `--mussel-sheet-check-size`, `--mussel-sheet-check-color`, `--mussel-sheet-check-border` | Checkboxes |
 | `--mussel-sheet-freeze-color`, `--mussel-sheet-changed-color` | The line of frozen rows and columns, and the mark of `ShowChanges` |
 | `--mussel-sheet-focus-bg`, `--mussel-sheet-popup-shadow` | The highlighted item of a popup, and the shadow of popups |
@@ -236,7 +236,7 @@ There is no dark theme yet, so the shared variables do not reach a sheet inside 
 | Content Security Policy | `style-src` needs `'unsafe-inline'`: the layout is written in `style` attributes and a `<style>` element, and the cells lose their size without it. `script-src 'self'` is enough for the script |
 | Size | Tested up to 10,000 rows x 50 columns with a fixed `Width` and `Height`. With `auto`, every row and column is drawn |
 | Paste | Up to 16 MiB of text in UTF-8. A longer text pastes nothing, and a longer edit is not committed |
-| Suggestions | The first 50 candidates of `SuggestionProvider` |
+| Suggestions | The first 50 candidates of `SuggestionProvider`, which is not asked for text over 4,096 UTF-16 units |
 | Focus | Focus moving out of the sheet commits the edit, so a button calling `CommitEditAsync` or `CancelEditAsync` must keep the focus (`@onmousedown:preventDefault`) |
 | Paste from the context menu | Uses the browser's clipboard permission. When it is refused, a message asks for Ctrl+V |
 
