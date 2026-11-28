@@ -57,7 +57,7 @@ The `Example` project shows the main features on Server and WebAssembly, a page 
 
 | Part | Detail |
 |---|---|
-| Theme | CSS variables shared with the Mussel family (`--mussel-primary-text`, `--mussel-grid-line` and more), and `--mussel-sheet-*` for the sheet |
+| Theme | CSS variables shared with the Mussel family (`--mussel-primary-text`, `--mussel-grid-line` and more), `--mussel-sheet-*` for the sheet, and the dark `mussel-dark` |
 | Cell style | Alignment, bold, italic, underline, strikethrough, font size, indent, font and fill colors, `CssClass` |
 | Borders | Thin, medium, thick, dashed, dotted and double lines in any color |
 | Marks | Errors, changed cells, read-only cells and input messages |

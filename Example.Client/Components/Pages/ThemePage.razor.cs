@@ -7,7 +7,7 @@ public sealed partial class ThemePage
         new("Default", null, null),
         new("Shared variables on a container", "theme-slate", null),
         new("Sheet variables on the sheet", null, "theme-green"),
-        new("Dark", null, "theme-dark")
+        new("Dark", "mussel-dark", null)
     ];
 
     private readonly SheetEventLog log = new();

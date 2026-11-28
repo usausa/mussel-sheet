@@ -747,11 +747,44 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
         await sample.Page.AddStyleTagAsync(new() { Content = "body { --mussel-primary-text: rgb(1, 2, 3); } .mussel-sheet { --mussel-sheet-cell-bg: rgb(4, 5, 6); }" });
         await Expect(cell).ToHaveCSSAsync("color", "rgb(1, 2, 3)");
         await Expect(cell).ToHaveCSSAsync("background-color", "rgb(4, 5, 6)");
+    }
 
-        // Inside .mussel-dark of MusselChart the shared variables must not reach the sheet: there is no dark theme yet
-        await sample.Page.AddStyleTagAsync(new() { Content = ".mussel-dark { --mussel-primary-text: rgb(240, 239, 236); }" });
+    [Fact]
+    public async Task TheDarkClassOnAContainerSwitchesToTheDarkValues()
+    {
+        var sample = await OpenAsync("form", "server");
+        var cell = sample.Cell(3, 0);
+        await sample.Page.AddStyleTagAsync(new() { Content = ":root { --mussel-primary-text: rgb(1, 2, 3); }" });
         await sample.Page.EvaluateAsync("document.body.classList.add('mussel-dark')");
-        await Expect(cell).ToHaveCSSAsync("color", "rgb(31, 35, 40)");
+        await Expect(cell).ToHaveCSSAsync("color", "rgb(240, 239, 236)");
+        await Expect(cell).ToHaveCSSAsync("background-color", "rgb(31, 31, 29)");
+        await Expect(sample.Page.Locator(".mussel-sheet").First).ToHaveCSSAsync("color-scheme", "dark");
+
+        await sample.Page.AddStyleTagAsync(new() { Content = ".mussel-dark .mussel-sheet { --mussel-sheet-cell-bg: rgb(4, 5, 6); }" });
+        await Expect(cell).ToHaveCSSAsync("background-color", "rgb(4, 5, 6)");
+    }
+
+    [Fact]
+    public async Task ActiveTextAndUnfocusedSelectionFollowTheTheme()
+    {
+        var sample = await OpenAsync("theme", "server");
+        var selection = sample.Page.Locator(".mussel-sheet-selection").First;
+        var selected = sample.Page.Locator(".mussel-sheet-popup.mussel-sheet-open .mussel-sheet-cal-day.mussel-sheet-selected");
+        var mark = "() => getComputedStyle(document.querySelector('.mussel-sheet-cb.mussel-sheet-on'), '::after').borderRightColor";
+
+        await sample.Cell(0, 1).ClickAsync();
+        await sample.Keyboard.PressAsync("Shift+ArrowDown");
+        await sample.Page.EvaluateAsync("document.activeElement.blur()");
+        Assert.Equal("rgb(255, 255, 255)", await sample.Page.EvaluateAsync<string>(mark));
+        await Expect(selection).ToHaveCSSAsync("background-color", "rgba(110, 119, 129, 0.12)");
+
+        await sample.Page.EvaluateAsync("document.body.classList.add('mussel-dark')");
+        Assert.Equal("rgb(31, 31, 29)", await sample.Page.EvaluateAsync<string>(mark));
+        await Expect(selection).ToHaveCSSAsync("background-color", "rgba(142, 140, 134, 0.16)");
+
+        await sample.Cell(2, 1).ClickAsync();
+        await sample.Keyboard.PressAsync("Alt+ArrowDown");
+        await Expect(selected).ToHaveCSSAsync("color", "rgb(31, 31, 29)");
     }
 
     [Fact]
@@ -1008,7 +1041,7 @@ public sealed class SheetE2ETests(AppFixture app) : IClassFixture<AppFixture>, I
 
         await sample.Page.GetByRole(AriaRole.Radio, new() { Name = "Dark" }).CheckAsync();
         await Expect(cell).ToHaveCSSAsync("color", "rgb(240, 239, 236)");
-        await Expect(cell).ToHaveCSSAsync("background-color", "rgb(24, 24, 22)");
+        await Expect(cell).ToHaveCSSAsync("background-color", "rgb(31, 31, 29)");
         await Expect(label).ToHaveCSSAsync("background-color", "rgb(44, 44, 42)");
     }
 

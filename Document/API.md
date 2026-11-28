@@ -197,7 +197,7 @@ English and Japanese are built in. `JapaneseLanguage`, `JapaneseTexts` and `Japa
 
 ## 🎨 Theme
 
-Link `_content/MusselSheet/MusselSheet.css` in the page head; the sheet needs it. Colors come from CSS variables, which an app changes from any selector and in any file order.  
+Link `_content/MusselSheet/MusselSheet.css` in the page head; the sheet needs it. Colors come from CSS variables, which an app changes from any selector and in any file order. `mussel-dark` on a container or on the view itself switches to the dark values and to dark scrollbars (`color-scheme: dark`), the same class as the other Mussel libraries. A value an app sets on the element with `mussel-dark`, or on an element inside it, is used in both themes, so include `.mussel-dark` in the selector to change a dark value. A shared color set above that element, such as on `:root`, gives way to the dark values. `FillColor` and `FontColor` of a cell are drawn as given in both themes, so for colors that follow the theme, give the cell a `CssClass` and set its colors in CSS.  
 
 These are shared with the other Mussel libraries. Their light defaults follow the look of each library, so set them on a container to give several libraries the same colors.  
 
@@ -218,15 +218,14 @@ These are for the sheet only. Set them on `.mussel-sheet` or on a `class` given 
 | `--mussel-sheet-cell-bg`, `--mussel-sheet-header-bg`, `--mussel-sheet-readonly-bg` | Backgrounds of cells, headers and read-only cells |
 | `--mussel-sheet-border-color`, `--mussel-sheet-outer-border` | Cell borders without a color, and the `border` of the sheet |
 | `--mussel-sheet-active-color`, `--mussel-sheet-inactive-color` | The active cell and the fill handle, with and without focus. Without focus, the inactive color also draws the border and the caps of the selection |
-| `--mussel-sheet-selection-bg`, `--mussel-sheet-selection-border`, `--mussel-sheet-fill-range-color` | The selected range with focus, and the range being filled. Without focus, the selection is filled with `rgb(110 119 129 / 12%)`, which no variable changes |
+| `--mussel-sheet-active-text-color` | Text and marks on the active color and the check color: the selected day of the calendar and the mark of a checked box |
+| `--mussel-sheet-selection-bg`, `--mussel-sheet-selection-border`, `--mussel-sheet-inactive-selection-bg`, `--mussel-sheet-fill-range-color` | The selected range with focus, the fill of the selection without focus, and the range being filled |
 | `--mussel-sheet-check-size`, `--mussel-sheet-check-color`, `--mussel-sheet-check-border` | Checkboxes |
 | `--mussel-sheet-freeze-color`, `--mussel-sheet-changed-color` | The line of frozen rows and columns, and the mark of `ShowChanges` |
 | `--mussel-sheet-focus-bg`, `--mussel-sheet-popup-shadow` | The highlighted item of a popup, and the shadow of popups |
 | `--mussel-sheet-sunday-color`, `--mussel-sheet-saturday-color` | Weekends of the calendar |
 | `--mussel-sheet-note-bg`, `--mussel-sheet-note-color`, `--mussel-sheet-note-border` | The note of `InputMessage` |
 | `--mussel-sheet-sticky-top` | Where the column headers stop when the page scrolls a sheet without `Height`. Under a fixed page header, set its height here and as `scroll-padding-top` of `html` |
-
-There is no dark theme yet, so the shared variables do not reach a sheet inside a `mussel-dark` container of the other Mussel libraries, and the sheet stays light there. To make a sheet dark, set both groups on the sheet itself.  
 
 ## ⚠️ Limits
 
@@ -242,4 +241,4 @@ There is no dark theme yet, so the shared variables do not reach a sheet inside 
 
 ## 🚧 Not supported yet
 
-Formulas, xlsx import and export, workbooks with several sheets, touch input, screen reader support beyond basic ARIA, and a dark theme.  
+Formulas, xlsx import and export, workbooks with several sheets, touch input, and screen reader support beyond basic ARIA.  

@@ -21,8 +21,10 @@
     --mussel-sheet-readonly-bg: #f3f4f6;
     --mussel-sheet-active-color: #1a73e8;
     --mussel-sheet-inactive-color: #6e7781;
+    --mussel-sheet-active-text-color: #ffffff;
     --mussel-sheet-selection-bg: rgb(26 115 232 / 10%);
     --mussel-sheet-selection-border: var(--mussel-sheet-active-color);
+    --mussel-sheet-inactive-selection-bg: rgb(110 119 129 / 12%);
     --mussel-sheet-fill-range-color: #5f6368;
     --mussel-sheet-check-size: 18px;
     --mussel-sheet-check-color: var(--mussel-sheet-active-color);
@@ -40,16 +42,41 @@
     --mussel-sheet-changed-color: #1a73e8;
 }
 
-/* No dark theme yet: inside the .mussel-dark of the other Mussel libraries the sheet keeps its light colors */
-:where(.mussel-dark) :where(.mussel-sheet) {
-    --mussel-primary-text: initial;
-    --mussel-secondary-text: initial;
-    --mussel-muted-text: initial;
-    --mussel-grid-line: initial;
-    --mussel-tooltip-background: initial;
-    --mussel-tooltip-border: initial;
-    --mussel-tooltip-text: initial;
-    --mussel-critical: initial;
+/* The same shared dark values as the other Mussel libraries */
+:where(.mussel-dark) {
+    --mussel-primary-text: #f0efec;
+    --mussel-secondary-text: #c3c2b7;
+    --mussel-muted-text: #8e8c86;
+    --mussel-grid-line: #2c2c2a;
+    --mussel-tooltip-background: #1f1f1d;
+    --mussel-tooltip-border: rgb(240 239 236 / 10%);
+    --mussel-tooltip-text: #f0efec;
+    --mussel-critical: #f2495c;
+}
+
+:where(.mussel-dark) :where(.mussel-sheet),
+:where(.mussel-sheet.mussel-dark) {
+    --mussel-sheet-cell-bg: #1f1f1d;
+    --mussel-sheet-header-bg: #262624;
+    --mussel-sheet-border-color: #f0efec;
+    --mussel-sheet-readonly-bg: #262624;
+    --mussel-sheet-active-color: #6ea8fe;
+    --mussel-sheet-inactive-color: #8e8c86;
+    --mussel-sheet-active-text-color: #1f1f1d;
+    --mussel-sheet-selection-bg: rgb(110 168 254 / 16%);
+    --mussel-sheet-inactive-selection-bg: rgb(142 140 134 / 16%);
+    --mussel-sheet-fill-range-color: #a8a69f;
+    --mussel-sheet-check-border: #8e8c86;
+    --mussel-sheet-popup-shadow: 0 4px 14px rgb(0 0 0 / 50%);
+    --mussel-sheet-focus-bg: rgb(110 168 254 / 16%);
+    --mussel-sheet-sunday-color: #f2495c;
+    --mussel-sheet-saturday-color: #6ea8fe;
+    --mussel-sheet-freeze-color: #8e8c86;
+    --mussel-sheet-note-bg: #3b3820;
+    --mussel-sheet-note-color: #f0efec;
+    --mussel-sheet-note-border: #5c5833;
+    --mussel-sheet-changed-color: #6ea8fe;
+    color-scheme: dark;
 }
 
 /* ---- Sheet and scroll area ---- */
@@ -331,7 +358,7 @@
     width: 30%;
     height: 58%;
     box-sizing: border-box;
-    border: solid #ffffff;
+    border: solid var(--mussel-sheet-active-text-color);
     border-width: 0 2px 2px 0;
     content: "";
     transform: translate(-50%, -50%) rotate(45deg);
@@ -417,7 +444,7 @@
     position: absolute;
     box-sizing: border-box;
     border: 1px solid var(--mussel-sheet-inactive-color);
-    background: rgb(110 119 129 / 12%);
+    background: var(--mussel-sheet-inactive-selection-bg);
     pointer-events: none;
 }
 
@@ -723,7 +750,7 @@
 
 .mussel-sheet-cal-day.mussel-sheet-selected {
     background: var(--mussel-sheet-active-color);
-    color: #ffffff;
+    color: var(--mussel-sheet-active-text-color);
 }
 
 .mussel-sheet-cal-day.mussel-sheet-focus {
